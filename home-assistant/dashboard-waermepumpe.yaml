@@ -1,11 +1,11 @@
 # Lovelace-View für die Wärmepumpe — Vorlage
 #
 # Erzeugt aus der laufenden View (Storage-Dashboard, path "waermepumpe") am
-# 2026-07-30. Vorher wich die Vorlage deutlich vom laufenden Stand ab: 75 gegen
-# 97 Karten, entities-Karten statt Tiles, und keine der Heading-Badges. Wer die
-# View aus einer solchen Vorlage zurückschreibt, verliert die Differenz — die
-# Vorlage wird deshalb aus dem laufenden Stand erzeugt und nicht von Hand
-# gepflegt.
+# 2026-07-30 abends, nach dem Flash der Firmware mit den Beschriftungen
+# "Verdichter startbereit" (DI07) und "Verdichter Volllast" (DI08). Die Vorlage
+# wird IMMER aus dem laufenden Stand erzeugt und nie von Hand gepflegt: Sie lag
+# vorher bei 13 Sections gegen 16 im laufenden Dashboard, und wer eine solche
+# Vorlage zurückschreibt, verliert die Differenz.
 #
 # Alle Entitäten tragen das Präfix des eigenen Geräts
 # (heizungskeller_warmepumpe_modbus_). Beim Übernehmen in eine andere Instanz
@@ -22,7 +22,7 @@ sections:
   cards:
   - type: heading
     heading: Steuerung
-    icon: mdi:tune-vertical
+    icon: mdi:tune
     badges:
     - type: entity
       entity: select.heizungskeller_warmepumpe_modbus_betriebsmodus_stellbar
@@ -34,6 +34,7 @@ sections:
       name: Anforderung
       show_state: true
       show_icon: true
+    heading_style: title
   - type: thermostat
     entity: climate.heizungskeller_warmepumpe_modbus_warmepumpe
     features:
@@ -112,7 +113,7 @@ sections:
   cards:
   - type: heading
     heading: Jetzt
-    icon: mdi:heat-pump-outline
+    icon: mdi:flash
     badges:
     - type: entity
       entity: sensor.heizungskeller_warmepumpe_modbus_wirkleistung_gemessen
@@ -132,6 +133,7 @@ sections:
       color: red
       show_state: true
       show_icon: true
+    heading_style: subtitle
   - type: tile
     entity: binary_sensor.heizungskeller_warmepumpe_modbus_verdichter_lauft
     name: Verdichter
@@ -205,46 +207,229 @@ sections:
 - type: grid
   cards:
   - type: heading
-    heading: Warnungen
+    heading: Warnungen und Hinweise
+    heading_style: title
     icon: mdi:alert-circle-outline
-    badges:
-    - type: entity
-      entity: binary_sensor.heizungskeller_warmepumpe_modbus_bus_lucke_zu_lang
-      name: Bus
-      color: red
-      show_state: true
-      show_icon: true
   - type: tile
     entity: binary_sensor.heizungskeller_warmepumpe_modbus_kaltekreis_status
     name: Kältekreis
-    color: red
-    grid_options:
-      columns: 12
-    state_content:
-    - state
-    - last_changed
   - type: tile
     entity: binary_sensor.heizungskeller_warmepumpe_modbus_warmeubergang_status
     name: Wärmeübergang
-    color: red
-    grid_options:
-      columns: 12
-    state_content:
-    - state
-    - last_changed
   - type: tile
     entity: binary_sensor.heizungskeller_warmepumpe_modbus_bus_lucke_zu_lang
     name: Bus-Lücke
-    color: red
-    grid_options:
-      columns: 12
-    state_content:
-    - state
-    - last_changed
+  - type: tile
+    entity: binary_sensor.generisch_luft_wasser_mittlere_effizienz_hinweis_effizienz_unter_erwartung
+    name: Effizienz unter Erwartung
+  - type: tile
+    entity: binary_sensor.generisch_luft_wasser_mittlere_effizienz_hinweis_umwalzpumpe_drosseln
+    name: Umwälzpumpe drosseln
+  - type: tile
+    entity: binary_sensor.generisch_luft_wasser_mittlere_effizienz_hinweis_verdichter_taktet_haufig
+    name: Verdichter taktet häufig
+  - type: tile
+    entity: binary_sensor.generisch_luft_wasser_mittlere_effizienz_hinweis_volumenstrom_zu_gering
+    name: Volumenstrom zu gering
+  - type: tile
+    entity: binary_sensor.generisch_luft_wasser_mittlere_effizienz_hinweis_vorlauf_hoher_als_notig
+    name: Vorlauf höher als nötig
+  - type: tile
+    entity: binary_sensor.generisch_luft_wasser_mittlere_effizienz_vorlauf_und_rucklauf_melden_denselben_wert
+    name: Vor- und Rücklauf identisch
   - type: markdown
-    content: 'Jeder Melder hat **zwei** Schwellen, nie eine — sonst flattert er. Die Kältekreis-Melder
-      urteilen erst nach **fünf Minuten** stabilem Verdichterlauf: beim Anlaufen ist die Überhitzung normal
-      niedrig, das ist kein Fehler.'
+    content: 'Jeder Melder hat **zwei** Schwellen, nie eine, sonst flattert er. Die Kältekreis-Melder
+      urteilen erst nach **fünf Minuten** stabilem Verdichterlauf: beim Anlaufen ist die Überhitzung noch
+      nicht eingeschwungen.
+
+
+      Die unteren sechs kommen aus der Effizienz-Integration und beurteilen die Anlagenauslegung, nicht
+      ihren Zustand. Sie stehen bis zum nächsten Flash auf einer verzerrten Verdichtererkennung, **"Verdichter
+      taktet häufig" ist deshalb vorerst nicht belastbar.**'
+- type: grid
+  cards:
+  - type: heading
+    heading: Effizienz und Verbrauch
+    heading_style: title
+    icon: mdi:chart-line
+  - type: tile
+    entity: sensor.generisch_luft_wasser_mittlere_effizienz_cop_momentan
+    name: COP jetzt
+  - type: tile
+    entity: sensor.generisch_luft_wasser_mittlere_effizienz_cop_erwartet
+    name: COP erwartet
+  - type: tile
+    entity: sensor.generisch_luft_wasser_mittlere_effizienz_abweichung_vom_datenblatt
+    name: Abweichung vom Datenblatt
+  - type: tile
+    entity: sensor.generisch_luft_wasser_mittlere_effizienz_unsicherheit_der_erwartung
+    name: Unsicherheit der Erwartung
+  - type: tile
+    entity: sensor.generisch_luft_wasser_mittlere_effizienz_warmeleistung
+    name: Wärmeleistung
+  - type: tile
+    entity: sensor.generisch_luft_wasser_mittlere_effizienz_warmemenge
+    name: Wärmemenge
+  - type: tile
+    entity: sensor.generisch_luft_wasser_mittlere_effizienz_spreizung
+    name: Spreizung
+  - type: tile
+    entity: sensor.generisch_luft_wasser_mittlere_effizienz_warmeverlustkoeffizient
+    name: Wärmeverlust des Hauses
+  - type: tile
+    entity: sensor.generisch_luft_wasser_mittlere_effizienz_datenbasis_messung
+    name: Datenbasis
+  - type: tile
+    entity: sensor.generisch_luft_wasser_mittlere_effizienz_messwert_verworfen_wegen
+    name: Messwert verworfen wegen
+  - type: markdown
+    content: 'Der momentane COP entsteht aus Wärmeleistung geteilt durch elektrische Leistung. Beides
+      muss gleichzeitig belastbar sein, deshalb verwirft die Rechnung Messpunkte offen und nennt den Grund:
+      zu kleine Spreizung, keine Leistung, kein Durchfluss, Abtauen, Warmwasserbetrieb oder unplausibel.
+      **Ein leerer COP ist deshalb kein Fehler**, sondern die ehrlichere Antwort.
+
+
+      Die Spreizung stützt sich auf Vor- und Rücklauf. Einen Durchflusssensor gibt es nicht, der Volumenstrom
+      ist aus der fixen Pumpenstufe von 60 % geschätzt, rund 900 l/h. **Die Datenbasis-Ampel sagt, wie
+      weit man den Zahlen trauen darf** — bei "unzureichend" ist noch zu wenig gemessen.'
+- type: grid
+  cards:
+  - type: heading
+    heading: Wohin der Strom geht
+    heading_style: subtitle
+    icon: mdi:transmission-tower
+  - type: tile
+    entity: sensor.wp_energie_taeglich
+    name: Heute gesamt
+  - type: tile
+    entity: select.wp_energie_geteilt
+    name: Zählt gerade auf
+  - type: tile
+    entity: sensor.wp_energie_geteilt_heizen
+    name: Heute Heizen
+  - type: tile
+    entity: sensor.wp_energie_geteilt_kuehlen
+    name: Heute Kühlen
+  - type: tile
+    entity: sensor.wp_energie_geteilt_ww
+    name: Heute Warmwasser
+  - type: tile
+    entity: sensor.wp_strom_gestern
+    name: Gestern gesamt
+  - type: tile
+    entity: sensor.wp_heizen_gestern
+    name: Gestern Heizen
+  - type: tile
+    entity: sensor.wp_kuehlen_gestern
+    name: Gestern Kühlen
+  - type: tile
+    entity: sensor.wp_warmwasser_gestern
+    name: Gestern Warmwasser
+  - type: tile
+    entity: sensor.wp_heizgradtage_gestern
+    name: Heizgradtage gestern
+  - type: tile
+    entity: sensor.wp_kennzahl_gestern
+    name: Kennzahl gestern
+  - type: tile
+    entity: input_select.wp_saison_richtung
+    name: Saison-Richtung
+  - type: markdown
+    content: 'Die Aufteilung folgt dem Betriebsregister der Anlage: meldet der Digitaleingang DI09 Warmwasserbereitung,
+      zählt alles auf Warmwasser, sonst entscheidet der Betriebsmodus. Steht der auf Auto oder auf "Aus
+      / nur Warmwasser", greift die Saison-Richtung als Rückfall.
+
+
+      **Die Kennzahl ist Verbrauch je Heizgradtag** und macht kalte mit milden Tagen vergleichbar. Unter
+      drei Heizgradtagen bleibt sie leer, weil der Quotient dann nur noch Rauschen wäre — im Sommer ist
+      das der Normalfall. Das Tagesmittel wird um 00:00:30 festgehalten, sonst würde der gleitende 24-Stunden-Mittelwert
+      den Nenner über den Tag verschieben.'
+- type: grid
+  cards:
+  - type: heading
+    heading: Was die Regelung vorschlägt
+    heading_style: subtitle
+    icon: mdi:tune-variant
+  - type: tile
+    entity: sensor.generisch_luft_wasser_mittlere_effizienz_empfehlung_steilheit
+    name: Steilheit
+  - type: tile
+    entity: sensor.generisch_luft_wasser_mittlere_effizienz_empfehlung_fusspunkt
+    name: Fußpunkt
+  - type: tile
+    entity: sensor.generisch_luft_wasser_mittlere_effizienz_empfehlung_mindestvorlauf
+    name: Mindestvorlauf
+  - type: tile
+    entity: sensor.generisch_luft_wasser_mittlere_effizienz_datenbasis_empfehlung
+    name: Datenbasis der Empfehlung
+  - type: tile
+    entity: sensor.heizungskeller_generisch_luft_wasser_mittlere_effizienz_volumenstrom_abweichung_vom_ziel
+    name: Volumenstrom gegen Ziel
+  - type: tile
+    entity: sensor.heizungskeller_generisch_luft_wasser_mittlere_effizienz_zielvolumenstrom_anteil_vom_heutigen
+    name: Zielanteil vom heutigen
+  - type: tile
+    entity: binary_sensor.generisch_luft_wasser_mittlere_effizienz_volumenstrom_geschatzt
+    name: Volumenstrom geschätzt
+  - type: markdown
+    content: 'Diese Werte sind **Vorschläge, keine Automatik** — nichts davon wird geschrieben. Sie entstehen
+      aus dem gelernten Wärmeverlust des Hauses und werden erst belastbar, wenn die Datenbasis es sagt.
+
+
+      Jedes Kelvin weniger Vorlauf bringt grob 2 bis 3 % COP. Der Mindestvorlauf ist die Untergrenze,
+      unter der die Heizflächen die Wärme nicht mehr loswerden.'
+- type: grid
+  cards:
+  - type: heading
+    heading: Verschleiß
+    heading_style: subtitle
+    icon: mdi:engine-outline
+  - type: tile
+    entity: binary_sensor.heizungskeller_warmepumpe_modbus_verdichter_startbereit
+    name: Startbereit
+  - type: tile
+    entity: binary_sensor.heizungskeller_warmepumpe_modbus_verdichter_volllast
+    name: Volllast
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_verdichterstarts_heute
+    name: Starts heute
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_verdichterstarts_gestern
+    name: Starts gestern
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_kurzester_takt_heute
+    name: Kürzester Takt
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_mittlere_laufzeit_pro_takt
+    name: Mittlere Laufzeit
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_warmwasserladungen_heute
+    name: Ladungen heute
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_betriebsstunden_verdichter
+    name: Betriebsstunden
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_verbrauch_je_kelvin_speicherhub
+    name: Verbrauch je Kelvin Hub
+  - type: markdown
+    content: 'Die Schwelle des Verdichtermelders lag bis zum 30.07.2026 bei 300 W ein und 150 W aus. Das
+      stammte aus der Zeit der modulierenden Umwälzpumpe mit 28 bis 76 W. Seit die Pumpe fix auf 60 %
+      steht, zieht sie 181 W und lag damit **über** der Halteschwelle: nach jedem Verdichterstopp blieb
+      der Melder am Pumpennachlauf hängen. Über 14 h gemessen ergab das 472 min "Verdichter läuft" bei
+      einem Median von 184 W. **Alle Zahlen dieses Abschnitts waren dadurch zu hoch** und werden erst
+      mit dem nächsten Flash richtig — die Schwellen stehen jetzt auf 500 W ein und 350 W aus, mittig
+      in der Lücke zwischen Pumpe (181 W) und Verdichter (ab 877 W). Geflasht am 30.07.2026 um 21:50.
+
+
+      **Die Zähler dieses Tages sind trotzdem noch zu hoch:** sie überleben einen Neustart und tragen
+      die Phantom-Laufzeit von vorher weiter. Starts, kürzester Takt und mittlere Laufzeit stimmen ab
+      dem nächsten Tageswechsel. Die Betriebsstunden zählen kumulativ und bleiben dauerhaft um die Pumpennachläufe
+      zu hoch.
+
+
+      **Startbereit** ist die Drei-Minuten-Wiedereinschaltsperre: nach jedem Betriebsende fällt sie für
+      exakt 3:00 min ab. Steht sie auf aus, verpufft ein Startbefehl. **Volllast** meldet die hohe Stufe,
+      gemessen 2035 bis 2519 W; der Verdichter arbeitet auch darunter.'
 - type: grid
   cards:
   - type: heading
@@ -256,6 +441,7 @@ sections:
       name: Überhitzung
       show_state: true
       show_icon: true
+    heading_style: title
   - type: gauge
     entity: sensor.heizungskeller_warmepumpe_modbus_sauggasuberhitzung
     name: Überhitzung
@@ -318,23 +504,13 @@ sections:
 - type: grid
   cards:
   - type: heading
-    heading: Hub und Effizienz
-    icon: mdi:arrow-expand-vertical
-    badges:
-    - type: entity
-      entity: sensor.heizungskeller_warmepumpe_modbus_temperaturhub
-      name: Hub
-      show_state: true
-      show_icon: true
-    - type: entity
-      entity: sensor.heizungskeller_warmepumpe_modbus_carnot_obergrenze
-      name: Carnot
-      show_state: true
-      show_icon: true
+    heading: Hub und Carnot
+    heading_style: subtitle
+    icon: mdi:swap-vertical
   - type: gauge
     entity: sensor.heizungskeller_warmepumpe_modbus_temperaturhub
     name: Temperaturhub
-    min: 0
+    min: -20
     max: 70
     needle: true
     segments:
@@ -393,6 +569,7 @@ sections:
       color: blue
       show_state: true
       show_icon: true
+    heading_style: subtitle
   - type: tile
     entity: sensor.heizungskeller_warmepumpe_modbus_hochdruck
     name: Hochdruck
@@ -430,13 +607,14 @@ sections:
   cards:
   - type: heading
     heading: Wärmeübergang
-    icon: mdi:swap-horizontal-variant
+    icon: mdi:swap-horizontal-bold
     badges:
     - type: entity
       entity: sensor.heizungskeller_warmepumpe_modbus_spreizung_vorlauf_rucklauf
       name: Spreizung
       show_state: true
       show_icon: true
+    heading_style: subtitle
   - type: tile
     entity: sensor.heizungskeller_warmepumpe_modbus_annaherung_kondensation_vorlauf
     name: Kondensation über Vorlauf
@@ -480,38 +658,10 @@ sections:
       {% elif sp|abs <= 8 %}🟢 Üblicher Bereich. {% else %}🟡 Groß — zu wenig Volumenstrom, Filter und Pumpenstufe
       prüfen.{% endif %}{% endif %}'
 - type: grid
-  column_span: 2
-  cards:
-  - type: heading
-    heading: Verlauf
-    icon: mdi:chart-line
-  - type: history-graph
-    hours_to_show: 24
-    entities:
-    - entity: sensor.heizungskeller_warmepumpe_modbus_wasser_vorlauftemperatur
-      name: Vorlauf
-    - entity: sensor.heizungskeller_warmepumpe_modbus_wasser_rucklauftemperatur
-      name: Rücklauf
-    - entity: sensor.heizungskeller_warmepumpe_modbus_warmwassertemperatur
-      name: Warmwasser
-    - entity: sensor.heizungskeller_warmepumpe_modbus_aussentemperatur_geratefuhler
-      name: Außen (Gerät)
-    - entity: sensor.heizungskeller_warmepumpe_modbus_raumtemperatur
-      name: Raum
-  - type: history-graph
-    hours_to_show: 24
-    entities:
-    - entity: sensor.heizungskeller_warmepumpe_modbus_wirkleistung_gemessen
-      name: Wirkleistung
-    - entity: sensor.heizungskeller_warmepumpe_modbus_sauggasuberhitzung
-      name: Überhitzung
-    - entity: sensor.heizungskeller_warmepumpe_modbus_temperaturhub
-      name: Temperaturhub
-- type: grid
   cards:
   - type: heading
     heading: Strom
-    icon: mdi:flash
+    icon: mdi:current-ac
     badges:
     - type: entity
       entity: sensor.heizungskeller_warmepumpe_modbus_leistungsfaktor
@@ -523,6 +673,7 @@ sections:
       name: Standby
       show_state: true
       show_icon: true
+    heading_style: subtitle
   - type: tile
     entity: sensor.heizungskeller_warmepumpe_modbus_scheinleistung_gemessen
     name: Scheinleistung (Zähler)
@@ -570,76 +721,34 @@ sections:
       das Verhältnis zur Scheinleistung ist konstant (~0,95). Die interne Energiemessung der Therma V
       ist als ungenau bekannt — es gilt der externe Zähler.*'
 - type: grid
+  column_span: 2
   cards:
   - type: heading
-    heading: Verschleiß und Effizienz
-    icon: mdi:counter
-    badges:
-    - type: entity
-      entity: sensor.heizungskeller_warmepumpe_modbus_verdichterstarts_heute
-      name: Starts
-      color: purple
-      show_state: true
-      show_icon: true
-    - type: entity
-      entity: sensor.heizungskeller_warmepumpe_modbus_betriebsstunden_verdichter
-      name: Stunden
-      show_state: true
-      show_icon: true
-  - type: tile
-    entity: sensor.heizungskeller_warmepumpe_modbus_verdichterstarts_heute
-    name: Starts heute
-    color: purple
-  - type: tile
-    entity: sensor.heizungskeller_warmepumpe_modbus_verdichterstarts_gestern
-    name: Starts gestern
-    color: purple
-  - type: tile
-    entity: sensor.heizungskeller_warmepumpe_modbus_kurzester_takt_heute
-    name: Kürzester Takt
-    color: deep-purple
-  - type: tile
-    entity: sensor.heizungskeller_warmepumpe_modbus_mittlere_laufzeit_pro_takt
-    name: Mittlere Laufzeit
-    color: deep-purple
-  - type: tile
-    entity: sensor.heizungskeller_warmepumpe_modbus_warmwasserladungen_heute
-    name: Ladungen heute
-    icon: mdi:water-boiler
-  - type: tile
-    entity: sensor.heizungskeller_warmepumpe_modbus_betriebsstunden_verdichter
-    name: Betriebsstunden
-    icon: mdi:clock-outline
-  - type: tile
-    entity: sensor.heizungskeller_warmepumpe_modbus_verbrauch_je_kelvin_speicherhub
-    name: Verbrauch je Kelvin Hub
-    icon: mdi:water-boiler
-    grid_options:
-      columns: 12
-  - type: markdown
-    content: '{% set s = states(''sensor.heizungskeller_warmepumpe_modbus_verdichterstarts_heute'')|float(-1)
-      %}{% set kt = states(''sensor.heizungskeller_warmepumpe_modbus_kurzester_takt_heute'')|float(-1)
-      %}{% set ml = states(''sensor.heizungskeller_warmepumpe_modbus_mittlere_laufzeit_pro_takt'')|float(-1)
-      %}{% set kw = states(''sensor.heizungskeller_warmepumpe_modbus_verbrauch_je_kelvin_speicherhub'')|float(-1)
-      %}
-
-      {% if s >= 0 %}**{{ s|round(0) }} Verdichterstarts heute.** {% if s == 0 %}Noch keiner. {% elif
-      s <= 6 %}🟢 Wenige, lange Takte — schont den Verdichter. {% elif s <= 12 %}🟢 Unauffällig. {% elif
-      s <= 24 %}🟡 Viele. Im Sommer mit Warmwasser erklärbar, im Heizbetrieb ein Hinweis auf zu enge Hysterese.
-      {% else %}🔴 Zu häufig. Jeder Start verschleißt mehr als eine Stunde Laufzeit — meist Überdimensionierung.{%
-      endif %}{% endif %}
-
-
-      {% if ml > 0 %}**Mittlere Laufzeit {{ ml|round(1) }} min.** {% if ml < 10 %}🔴 Zu kurz — kein stabiler
-      Betriebspunkt. {% elif ml < 20 %}🟡 Kurz. {% else %}🟢 Gute Länge.{% endif %}{% endif %} {% if kt
-      > 0 %} **Kürzester {{ kt|round(1) }} min.** {% if kt < 5 %}🔴 Das ist Takten, nicht Heizen. {% elif
-      kt < 10 %}🟡 Grenzwertig. {% else %}🟢{% endif %}{% endif %}
-
-
-      {% if kw > 0 %}**{{ kw|round(3) }} kWh/K Speicherhub** aus der letzten Ladung — ersetzt den COP.
-      Bei konstantem Volumen über die Zeit vergleichbar; **steigt er bei ähnlicher Außentemperatur, arbeitet
-      die Anlage schlechter.** Nur mit sich selbst vergleichbar. {% else %}*Verbrauch je Kelvin: noch
-      keine vollständige Ladung seit dem Start.*{% endif %}'
+    heading: Verlauf
+    icon: mdi:chart-timeline-variant
+    heading_style: subtitle
+  - type: history-graph
+    hours_to_show: 24
+    entities:
+    - entity: sensor.heizungskeller_warmepumpe_modbus_wasser_vorlauftemperatur
+      name: Vorlauf
+    - entity: sensor.heizungskeller_warmepumpe_modbus_wasser_rucklauftemperatur
+      name: Rücklauf
+    - entity: sensor.heizungskeller_warmepumpe_modbus_warmwassertemperatur
+      name: Warmwasser
+    - entity: sensor.heizungskeller_warmepumpe_modbus_aussentemperatur_geratefuhler
+      name: Außen (Gerät)
+    - entity: sensor.heizungskeller_warmepumpe_modbus_raumtemperatur
+      name: Raum
+  - type: history-graph
+    hours_to_show: 24
+    entities:
+    - entity: sensor.heizungskeller_warmepumpe_modbus_wirkleistung_gemessen
+      name: Wirkleistung
+    - entity: sensor.heizungskeller_warmepumpe_modbus_sauggasuberhitzung
+      name: Überhitzung
+    - entity: sensor.heizungskeller_warmepumpe_modbus_temperaturhub
+      name: Temperaturhub
 - type: grid
   cards:
   - type: heading
@@ -656,6 +765,7 @@ sections:
       name: Zyklus
       show_state: true
       show_icon: true
+    heading_style: title
   - type: tile
     entity: sensor.heizungskeller_warmepumpe_modbus_zeit_seit_letzter_antwort
     name: Seit letzter Antwort
@@ -711,6 +821,7 @@ sections:
       name: Beobachtung
       show_state: true
       show_icon: true
+    heading_style: subtitle
   - type: markdown
     content: 'Von 34 antwortenden Registern ist etwa die Hälfte geklärt. Diese Werkzeuge grenzen den Rest
       ein — **ohne Schreibzugriff.**
@@ -827,7 +938,8 @@ sections:
   cards:
   - type: heading
     heading: Rohe Registerwerte
-    icon: mdi:table-search
+    icon: mdi:table-eye
+    heading_style: subtitle
   - type: entities
     title: Ohne bekannte Bedeutung
     entities:
@@ -872,17 +984,11 @@ sections:
       name: Heizkreis 1 (CO4)
     - entity: binary_sensor.heizungskeller_warmepumpe_modbus_heizkreis_1_invers
       name: Heizkreis 1 invers (DI31)
-    - type: divider
     - entity: binary_sensor.heizungskeller_warmepumpe_modbus_di06_unbestimmt
-    - entity: binary_sensor.heizungskeller_warmepumpe_modbus_verdichter_startbereit
-      name: DI07 — Verdichter startbereit
-    - entity: binary_sensor.heizungskeller_warmepumpe_modbus_verdichter_volllast
-      name: DI08 — Verdichter Volllast
     - entity: binary_sensor.heizungskeller_warmepumpe_modbus_di09_warmwasserbereitung
       name: DI09 — Warmwasser? unbestätigt
     - entity: binary_sensor.heizungskeller_warmepumpe_modbus_di32_unbestimmt
       name: DI32 — Einzelscan-Fund
-    - type: divider
     - entity: binary_sensor.heizungskeller_warmepumpe_modbus_co3_unbestimmt
       name: CO3 — unbestimmt (nur Anzeige)
     - entity: binary_sensor.heizungskeller_warmepumpe_modbus_co5_unbestimmt_nur_anzeige
