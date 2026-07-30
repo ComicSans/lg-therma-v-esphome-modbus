@@ -1142,9 +1142,12 @@ binary_sensor:
     # Nicht Hauptpumpe: stand auf AUS, waehrend das Display
     # "Umwaelzpumpe in Betrieb" meldete.
     #
-    # Umbenennung bewusst aufgeschoben: sie aendert die entity_id und leert die
-    # Dashboard-Karte. Beim naechsten Flash mit Umbenennungsbudget nachziehen.
-    name: "DI07 unbestimmt"
+    # Am 2026-07-30 ueber 14 h bestaetigt: sechs Abfaelle, jeder exakt 3:00 min
+    # lang, jeder 2..6 s nach einem Betriebsende, keine einzige Abweichung.
+    # Damit umbenannt — die Bedeutung ist gesichert genug fuer eine Beschriftung.
+    # "on" heisst startbereit, "off" heisst gesperrt; so herum gelesen ist die
+    # Anzeige positiv und ein Startbefehl waehrend "off" verpufft nachweislich.
+    name: "Verdichter startbereit"
     address: 7
     register_type: discrete_input
     force_new_range: true
@@ -1152,11 +1155,14 @@ binary_sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # Hypothese bei n=2, ungesichert: "on" bei jeweils der hoechsten Last eines
-    # Takts (06:37 und 09:27, letzteres synchron zum Sprung der
-    # Verdichterleistungs-Anforderung 24→42) — Volllast- oder zweite
-    # Ventilatorstufe. Zu wenig fuer eine Beschriftung.
-    name: "DI08 unbestimmt"
+    # VOLLLAST. Die alte Hypothese bei n=2 ist am 2026-07-30 ueber 14 h
+    # erhaertet: vier Phasen, zusammen 56 min, und in JEDER Minute davon lag
+    # die gemessene Wirkleistung ueber 1 kW, Median 2204 W, Spanne 2035..2519 W
+    # ohne einen einzigen Ausreisser nach unten. Jede DI08-Phase liegt zudem
+    # vollstaendig innerhalb einer CO3-Phase.
+    # Nicht dasselbe wie "Verdichter laeuft": der Verdichter arbeitet auch
+    # darunter, DI08 markiert allein die hohe Stufe.
+    name: "Verdichter Volllast"
     address: 8
     register_type: discrete_input
     force_new_range: true
@@ -1267,6 +1273,16 @@ binary_sensor:
     # Gegenbeleg (keine Bewegung im Takt 06:01–07:03) loest sich auf: die
     # Historie dieses Punktes beginnt erst 07:07:53, die Entitaet existierte
     # vorher nicht. Bleibt n=1 saubere Flanke — zu wenig zum Umbenennen.
+    #
+    # Nachtrag 2026-07-30, 14 h Auswertung: fuenf weitere Flanken liegen binnen
+    # 2 s an einem Verdichterwechsel, aber vier NICHT (09:44 aus und 11:59 an
+    # bei durchlaufendem Verdichter). Median der Wirkleistung waehrend "on"
+    # 1406 W gegen 180 W waehrend "off", und jede Volllastphase liegt
+    # vollstaendig darin. Passt zu einer uebergeordneten Kaeltekreis-Anforderung,
+    # die den Verdichter umschliesst, statt ihn abzubilden.
+    # AUSGESCHLOSSEN ist der Ventilator: die Abweichung des Geraetefuehlers zum
+    # unabhaengigen Aussensensor ist waehrend "on" (Median −3,6 K) und "off"
+    # (−4,0 K) praktisch gleich. Liefe der Ventilator, muesste sie einbrechen.
     name: "CO3 unbestimmt"
     address: 3
     register_type: coil
@@ -1296,10 +1312,20 @@ binary_sensor:
   - platform: template
     # Quelle ist bewusst die GEMESSENE Wirkleistung, nicht das Register:
     # die interne Energiemessung der Therma V ist bekannt ungenau, und IR23
-    # parkt im Stillstand auf einem Ruhewert von 417. Aus den Messdaten:
-    # Stillstand 0..67 W, Betrieb ab 877 W — die Schwellen liegen dazwischen.
-    # Faellt die Messung aus, wird auf das Register zurueckgegriffen, dann mit
-    # eigenen Schwellen um dessen Ruhewert herum.
+    # parkt im Stillstand auf einem Ruhewert von 417.
+    #
+    # Schwellen am 2026-07-30 angehoben (vorher 300 ein / 150 aus). Die alten
+    # Werte stammten aus der Zeit der modulierenden Umwaelzpumpe mit 28..76 W.
+    # Seit die Pumpe fix auf 60 % steht, zieht sie 181 W und lag damit UEBER
+    # der Halteschwelle: nach jedem Verdichterstopp blieb der Melder am reinen
+    # Pumpennachlauf haengen. Ueber 14 h gemessen ergab das 472 min "Verdichter
+    # laeuft" bei einem Median von 184 W — Pumpenleistung, kein Verdichter.
+    # Alles Abgeleitete war entsprechend verzerrt: Starts, kuerzester Takt,
+    # mittlere Laufzeit, und die Fuenf-Minuten-Regel der Kaeltekreis-Melder.
+    #
+    # Belegte Leistungsniveaus: Elektronik allein rund 4 W, Pumpe voll 181 W,
+    # Verdichter ab 877 W und im Volllastbetrieb 2035..2519 W. Zwischen 184 und
+    # 877 W liegt eine breite Luecke, die Schwellen liegen mittig darin.
     name: "Verdichter läuft"
     id: verdichter_melder
     device_class: running
@@ -1307,8 +1333,8 @@ binary_sensor:
     lambda: |-
       float w = id(wirkleistung).state;
       if (!std::isnan(w)) {
-        if (id(verdichter_laeuft)) return w > 150.0f;
-        return w > 300.0f;
+        if (id(verdichter_laeuft)) return w > 350.0f;
+        return w > 500.0f;
       }
       float va = id(ir23_scheinleistung).state;
       if (std::isnan(va)) return id(verdichter_laeuft);
@@ -1318,11 +1344,14 @@ binary_sensor:
   - platform: template
     # Drei Leistungsstufen sind unterscheidbar, am 2026-07-30 gemessen:
     #   rund 4 W    -> Elektronik allein, alles aus
-    #   28..76 W    -> Umwaelzpumpe laeuft, drehzahlgeregelt und modulierend
-    #   ab 800 W    -> Verdichter laeuft
+    #   90..181 W   -> Umwaelzpumpe laeuft; 90 W gedrosselt, 181 W bei den
+    #                  fixen 60 %, auf die sie seit dem 30.07.2026 steht.
+    #                  Vorher modulierend mit 28..76 W.
+    #   ab 877 W    -> Verdichter laeuft
     # Damit ist die Pumpe erkennbar, obwohl sie ueber Modbus nicht abgebildet
     # ist — DI07 ist es nachweislich NICHT: der stand auf AUS, waehrend das
-    # Display "Umwaelzpumpe in Betrieb" meldete.
+    # Display "Umwaelzpumpe in Betrieb" meldete. Was DI07 wirklich meldet,
+    # steht bei seinem eigenen Eintrag.
     name: "Umwälzpumpe läuft"
     id: pumpe_melder
     device_class: running

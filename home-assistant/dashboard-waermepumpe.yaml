@@ -874,9 +874,10 @@ sections:
       name: Heizkreis 1 invers (DI31)
     - type: divider
     - entity: binary_sensor.heizungskeller_warmepumpe_modbus_di06_unbestimmt
-    - entity: binary_sensor.heizungskeller_warmepumpe_modbus_di07_unbestimmt
-      name: DI07 — nicht die Hauptpumpe
-    - entity: binary_sensor.heizungskeller_warmepumpe_modbus_di08_unbestimmt
+    - entity: binary_sensor.heizungskeller_warmepumpe_modbus_verdichter_startbereit
+      name: DI07 — Verdichter startbereit
+    - entity: binary_sensor.heizungskeller_warmepumpe_modbus_verdichter_volllast
+      name: DI08 — Verdichter Volllast
     - entity: binary_sensor.heizungskeller_warmepumpe_modbus_di09_warmwasserbereitung
       name: DI09 — Warmwasser? unbestätigt
     - entity: binary_sensor.heizungskeller_warmepumpe_modbus_di32_unbestimmt
