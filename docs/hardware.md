@@ -66,7 +66,7 @@ für eine handfeste Fehldeutung, dokumentiert in
 
 ## Gemessene Buslast
 
-32 Einzelanfragen je Zyklus brauchen rund **20 Sekunden** — etwa 625 ms pro
+34 Einzelanfragen je Zyklus brauchen rund **20 Sekunden** — etwa 590 ms pro
 Anfrage. Die Anlage antwortet also deutlich träger als die reine Leitungszeit
 von ~15 ms vermuten lässt.
 
