@@ -93,6 +93,11 @@
 #    ueber den Druckhub (> 2 bar). Vorher genuegte 0,5 K Temperaturhub, und die
 #    Carnot-Zahl erreichte im besonnten Stillstand 427.
 #
+# 9a. Die Ladungserkennung fuehrt das Minimum der Speichertemperatur mit,
+#    solange keine Ladung laeuft. Vorher stand der Startwert fest, sobald der
+#    Verdichter lief — eine Zapfung waehrend eines Takts hob die Schwelle
+#    unerreichbar hoch und kostete die Erkennung.
+#
 # 9. Die Tageszaehler ueberleben einen Neustart. Vorher zaehlte ein Neustart im
 #    laufenden Betrieb einen Verdichterstart, den es nicht gab (mindestens zwei
 #    der 8 Starts am 30.07.), der kuerzeste Takt konnte ueber der mittleren
@@ -2275,6 +2280,20 @@ interval:
                 id(stat_dirty) = true;
                 ESP_LOGI("ladung", "Ladung erkannt ab %.1f °C", id(ladung_start_temp));
               } else if (!laeuft) {
+                id(ladung_start_temp) = wt;
+              } else if (id(ladung_start_temp) <= 0.0f || wt < id(ladung_start_temp)) {
+                // MINIMUM MITFUEHREN, solange keine Ladung erkannt ist. Sonst
+                // kostet jede Zapfung waehrend eines laufenden Takts die
+                // Erkennung: Der Startwert wird nur bei stehendem Verdichter
+                // gesetzt, und wer bei 47,7 °C stehenbleibt, waehrend die
+                // Zapfung den Speicher auf 41,0 zieht, wartet auf 48,2 — die
+                // Ladung endet vorher. Genau so verlor der 30.07. eine belegte
+                // Ladung von 06:01 bis 06:27 UTC.
+                // Die Gegenrichtung ist ungefaehrlich: Bei laufendem Verdichter
+                // OHNE Ladung kann der Speicher nur abkuehlen; ein Anstieg um
+                // mehr als 0,5 K ueber sein eigenes Minimum IST die Ladung.
+                // Der Hub wird damit ab dem tiefsten Punkt gerechnet, also ab
+                // dort, wo die Anlage wirklich anfangen musste.
                 id(ladung_start_temp) = wt;
               }
             } else {
