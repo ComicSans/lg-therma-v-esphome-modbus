@@ -74,11 +74,38 @@
 #
 # 5. Neu: ein Beobachtungsmodus, siehe Abschnitt "Registerbeobachtung" unten.
 #
+# -------------------------------------------------------------------------
+# Stand 2026-07-30 nachmittags — Auswertung eines halben Betriebstags
+# -------------------------------------------------------------------------
+# 6. IR20 hiess "Expansionsventil-Öffnung" und heisst jetzt
+#    "Verdichterleistung Anforderung". Der EEV-Verdacht ist widerlegt: der Wert
+#    stand 26 Minuten konstant, waehrend die Ueberhitzung von 0,6 auf 6,3 K
+#    wanderte. Konstant ist stattdessen 45..54 W Wirkleistung je Einheit.
+#
+# 7. IR12 hiess "Außentemperatur" und heisst jetzt
+#    "Außentemperatur Gerätefühler". Der Fuehler sitzt im besonnten Gehaeuse:
+#    im Stillstand bis +12,9 K gegen drei unabhaengige Sensoren, im Betrieb
+#    noch +3,9 K. Beim Ventilatorstart fiel er um 8 K, waehrend alle drei
+#    unabhaengigen Sensoren stiegen. Abgeleitete Groessen rechnen deshalb mit
+#    sensor.aussentemperatur (aussentemp_ref), Rueckfall auf IR12.
+#
+# 8. Carnot-Obergrenze und die beiden Annaeherungen haben ein Betriebs-Gate
+#    ueber den Druckhub (> 2 bar). Vorher genuegte 0,5 K Temperaturhub, und die
+#    Carnot-Zahl erreichte im besonnten Stillstand 427.
+#
+# 9. Die Tageszaehler ueberleben einen Neustart. Vorher zaehlte ein Neustart im
+#    laufenden Betrieb einen Verdichterstart, den es nicht gab (mindestens zwei
+#    der 8 Starts am 30.07.), der kuerzeste Takt konnte ueber der mittleren
+#    Laufzeit liegen, und eine belegte 30-Minuten-Warmwasserladung wurde nicht
+#    gezaehlt. Der Zustand wird jetzt beim Start aus den Leistungswerten
+#    uebernommen; ein angeschnittener Takt zaehlt nicht als kuerzester, und eine
+#    Ladung mit Neustart darin zaehlt, liefert aber keine Kennzahl.
+#
 # OFFEN und bewusst unveraendert gelassen:
-#   - Der select "Regelungsart" (HR26) ist schreibbar. HR26 folgt aber selbst
-#     dem Betriebsmodus, und in einem Fremdprojekt hat genau dieses Umstellen
-#     die Regelung von Wasser- auf Raumfuehler verstellt. Wer das nicht braucht,
-#     sollte den select in einen lesenden Sensor umbauen.
+#   - DI07 ist die 3-Minuten-Wiederanlaufsperre (dreimal exakt 3:00 gemessen),
+#     CO3 mit hoher Wahrscheinlichkeit "Verdichter in Betrieb" (n=1). Beide
+#     behalten ihren Registernamen: eine Umbenennung leert Dashboard-Karten,
+#     und dafuer reicht die Beleglage bei CO3 nicht. Siehe die Kommentare dort.
 #   - HR29 laesst 30..80 °C zu. 30 °C liegt unter jeder Legionellenschwelle,
 #     80 °C ueber dem, was ein R290-Monoblock liefert.
 #   - api: ohne encryption, ota: ohne password, und der Fallback-AP nutzt das
@@ -86,8 +113,9 @@
 
 # ---------------------------------------------------------------------
 # Zugangsdaten stehen in secrets.yaml daneben — Vorlage: secrets.yaml.example
-# Die Sensor-Entitaeten des Stromzaehlers unten (sensor.l1_power und weitere)
-# muessen an die eigene Home-Assistant-Instanz angepasst werden.
+# Die Sensor-Entitaeten der eigenen Home-Assistant-Instanz muessen angepasst
+# werden: der Stromzaehler unten (sensor.l1_power und weitere) und die
+# unabhaengige Aussentemperatur (sensor.aussentemperatur).
 # ---------------------------------------------------------------------
 
 esphome:
@@ -143,6 +171,11 @@ time:
               // der Wert ins Absurde — und restore_value trug ihn sogar ueber
               // Neustarts weiter.
               id(laufsekunden_heute) = 0;
+              // Laeuft der Verdichter ueber Mitternacht, gehoert sein Start zu
+              // gestern. Der Takt wird deshalb als angeschnitten markiert und
+              // faellt aus dem kuerzesten Takt des neuen Tages heraus — sonst
+              // brachte er die Laufzeit von gestern mit.
+              if (id(verdichter_laeuft)) id(takt_angeschnitten) = true;
               id(stat_dirty) = true;
 
 uart:
@@ -176,7 +209,22 @@ modbus_controller:
 sensor:
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    name: "Außentemperatur"                  # IR12: 305 bei 30 °C am Bedienteil
+    # GERAETEFUEHLER, kein Wetterwert. Am 2026-07-30 belegt: gegen drei
+    # unabhaengige Aussensensoren nachts bei stehendem Verdichter −0,6..0,0 K,
+    # tagsueber bei stehendem Verdichter +7,9 K im Mittel und bis +12,9 K, bei
+    # laufendem Ventilator +3,9 K. Mechanistisch, nicht korreliert: beim
+    # Ventilatorstart 08:48 fiel der Wert von 42,5 auf 34,3 °C, waehrend alle
+    # drei unabhaengigen Sensoren weiter stiegen; beim Stopp 09:44 zurueck von
+    # 35 auf 40,6. Die Sonne heizt das Gehaeuse, der Ventilator kuehlt den
+    # Fuehler mit echter Aussenluft frei. Restwaerme erklaert es nicht — die
+    # klaenge ueber 1¾ h Stillstand ab statt mit dem Sonnenstand zu wachsen.
+    #
+    # Deshalb umbenannt (IR12: 305 bei 30 °C am Bedienteil). Als Aussen-
+    # temperatur ist der Wert im Stillstand bei Sonne unbrauchbar; abgeleitete
+    # Groessen rechnen mit sensor.aussentemperatur (siehe aussentemp_ref).
+    # Nebeneffekt: der alte Name kollidierte beim Wegschneiden von Praefixen
+    # mit dem unabhaengigen sensor.aussentemperatur.
+    name: "Außentemperatur Gerätefühler"
     id: aussentemp
     address: 12
     register_type: read
@@ -461,7 +509,24 @@ sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    name: "IR20 unbestimmt"
+    # FOLGT DER VERDICHTERLEISTUNG. Der frueher hier notierte
+    # Expansionsventil-Verdacht ist am 2026-07-30 mittags widerlegt und nicht
+    # wieder aufzumachen: die Zahlen dafuer (r=+0,74 zur Ueberhitzung) stammten
+    # aus einem Zeitraum, in dem dieses Register gar nicht abgefragt wurde,
+    # also aus fehlender oder generationsgemischter Historie.
+    #
+    # Diskriminator ist die Ueberhitzung: der Wert stand 09:00–09:26 ganze
+    # 26 Minuten konstant auf 15, waehrend die Sauggasueberhitzung von 0,6 auf
+    # 6,3 K wanderte. Ein ueberhitzungsgeregeltes Ventil kann das nicht. Ueber
+    # den ganzen Takt ist die Ueberhitzung unkorreliert (12,9 K bei 1; 2,5 bei
+    # 30; 6,9 bei 34; 0,9 bei 42).
+    #
+    # Konstant ist stattdessen das Verhaeltnis zur Wirkleistung: 45..54 W je
+    # Einheit ueber einen wechselnden Druckhub (HD 11,6→15,8 bar, ND 4,9→7,1) —
+    # 15↔675 W, 20↔965, 30↔1354, 34↔1734, 42↔2074. Ob Frequenz oder
+    # Kapazitaetsanforderung, trennt ein Tag nicht: 42 bei 2,2 kW extrapoliert
+    # plausibel auf ~80 Hz wie auch auf ~100 %. Daher ohne Einheit.
+    name: "Verdichterleistung Anforderung"
     address: 20
     register_type: read
     value_type: S_WORD
@@ -503,9 +568,14 @@ sensor:
   # abgeschalteter Anlage. In 24 h nur vier Wechsel — das Verhalten einer
   # Betriebsart, nicht eines Zyklus.
   #
-  # OFFEN: welchen Wert ergibt fest eingestelltes Kuehlen? Solange das nicht
-  # gemessen ist, faellt jeder andere Wert in den Rohwert-Zweig, damit eine
-  # unbekannte Stufe sichtbar wird statt still falsch beschriftet zu sein.
+  # GEMESSEN 2026-07-30 im Kuehlbetrieb: der Wert steht auf 1 ("bereit"),
+  # obwohl der Verdichter mit 2,2 kW laeuft. Damit ist belegt, dass die Stufe
+  # 2 heizungsspezifisch ist und das Register keinen Aktivitaetszustand
+  # beschreibt. Die Klartextstufen bleiben unveraendert — sie sind fuer Kuehlen
+  # unvollstaendig, aber nicht falsch, und eine Umdeutung von "bereit" braucht
+  # zuerst eine Messung mit Kuehlen bei stehendem Verdichter.
+  # Jeder unbekannte Wert faellt weiter in den Rohwert-Zweig, damit eine neue
+  # Stufe sichtbar wird statt still falsch beschriftet zu sein.
   - platform: modbus_controller
     modbus_controller_id: therma_v
     id: betriebszyklus_raw
@@ -553,7 +623,7 @@ sensor:
     id: hr26_modus
     address: 26
     register_type: holding
-    value_type: S_WORD
+    value_type: U_WORD   # vereinheitlicht mit dem select unten (war S_WORD)
     force_new_range: true
     accuracy_decimals: 0
     entity_category: diagnostic
@@ -729,6 +799,16 @@ sensor:
   # plausibel fuer Sommerbetrieb mit nur Warmwasser), als Ablesewert nicht.
   # Deshalb werden hier die drei Kanaele direkt gelesen.
   # =============================================================
+  # Unabhaengige Aussentemperatur. Gebraucht, weil IR12 ein Geraetefuehler ist
+  # (siehe dort): im Stillstand bei Sonne bis +12,9 K, im Betrieb noch +3,9 K.
+  # Die verdampferseitige Annaeherung im Heizbetrieb rechnet deshalb gegen
+  # diesen Wert. Faellt er aus, wird auf IR12 zurueckgegriffen — dann mit dem
+  # bekannten Fehler, aber nicht "unavailable".
+  - platform: homeassistant
+    id: aussentemp_ref
+    entity_id: sensor.aussentemperatur
+    internal: true
+
   - platform: homeassistant
     id: l1_wirk
     entity_id: sensor.l1_power
@@ -1049,8 +1129,16 @@ binary_sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # NICHT Hauptpumpe: stand auf AUS, waehrend das Display
+    # DREI-MINUTEN-WIEDERANLAUFSPERRE — am 2026-07-30 gedeutet, nicht nur
+    # negativ abgegrenzt. Der Punkt ruht auf "on" und faellt nach jedem
+    # Betriebsende fuer exakt 3:00 min ab, dreimal an einem Tag gemessen:
+    # 06:29:11→06:32:11 (Ende Warmwasser), 07:03:41→07:06:41 und
+    # 09:44:59→09:47:59 (jeweils Verdichterstopp).
+    # Nicht Hauptpumpe: stand auf AUS, waehrend das Display
     # "Umwaelzpumpe in Betrieb" meldete.
+    #
+    # Umbenennung bewusst aufgeschoben: sie aendert die entity_id und leert die
+    # Dashboard-Karte. Beim naechsten Flash mit Umbenennungsbudget nachziehen.
     name: "DI07 unbestimmt"
     address: 7
     register_type: discrete_input
@@ -1059,6 +1147,10 @@ binary_sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
+    # Hypothese bei n=2, ungesichert: "on" bei jeweils der hoechsten Last eines
+    # Takts (06:37 und 09:27, letzteres synchron zum Sprung der
+    # Verdichterleistungs-Anforderung 24→42) — Volllast- oder zweite
+    # Ventilatorstufe. Zu wenig fuer eine Beschriftung.
     name: "DI08 unbestimmt"
     address: 8
     register_type: discrete_input
@@ -1158,7 +1250,19 @@ binary_sensor:
   # =============================================================
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    name: "CO3 unbestimmt (Desinfektion?)"
+    # Der Desinfektionsverdacht ist am 2026-07-30 widerlegt: CO3 stand auf ON
+    # bei Warmwasser 51,8 °C im Kuehlmodus — eine Desinfektion fuehre den
+    # Speicher auf ~70 °C. Zusammen mit CO4=ON und DI31=OFF eher eine
+    # Freigabe-/Kreis-Enable-Ebene. Bedeutung weiter offen, nur lesend.
+    #
+    # Starke Hypothese seit 2026-07-30: "Verdichter / Ausseneinheit in Betrieb".
+    # Flanke 4 s nach dem Verdichterstart (08:48:20 → 08:48:24) und mit dem
+    # Stopp (09:44:54). Nicht zirkulaer, denn der Verdichtermelder haengt an der
+    # gemessenen Wirkleistung des Shelly, nicht an diesem Punkt. Der scheinbare
+    # Gegenbeleg (keine Bewegung im Takt 06:01–07:03) loest sich auf: die
+    # Historie dieses Punktes beginnt erst 07:07:53, die Entitaet existierte
+    # vorher nicht. Bleibt n=1 saubere Flanke — zu wenig zum Umbenennen.
+    name: "CO3 unbestimmt"
     address: 3
     register_type: coil
     force_new_range: true
@@ -1226,11 +1330,14 @@ binary_sensor:
       return w > 25.0f;
 
   - platform: template
-    name: "Kältekreis auffällig"
+    # device_class: problem stellt den Zustand in Home Assistant von selbst als
+    # "OK" / "Problem" dar — der Name bleibt deshalb neutral statt dauerhaft
+    # vorwurfsvoll ("auffaellig"). on = Problem, off = OK.
+    name: "Kältekreis Status"
     id: kreis_warnung
     device_class: problem
     entity_category: diagnostic
-    icon: "mdi:alert-circle-outline"
+    icon: "mdi:heat-pump-outline"
     lambda: |-
       // Nur bei laufendem Verdichter aussagekraeftig: im Stillstand steht der
       // Kreis im Druckausgleich und die Ueberhitzung ist bedeutungslos.
@@ -1250,18 +1357,26 @@ binary_sensor:
     # Waechst der Abstand zwischen Kondensation und Vorlauf, verschlechtert
     # sich der Waermeuebergang im Plattenwaermetauscher — Verschmutzung oder
     # Luft im Kreis. Ueblich sind 2..5 K.
-    name: "Wärmeübergang auffällig"
+    # Neutraler Name: device_class: problem zeigt in Home Assistant "OK" /
+    # "Problem" von selbst. on = Problem, off = OK.
+    name: "Wärmeübergang Status"
     id: uebergang_warnung
     device_class: problem
     entity_category: diagnostic
-    icon: "mdi:water-alert-outline"
+    icon: "mdi:heat-wave"
     lambda: |-
       if (!id(verdichter_melder).state) return false;
       // Dieselbe Anlaufkarenz wie beim Kaeltekreis: der Waermeuebergang
       // pendelt sich erst nach einigen Minuten ein.
       if (id(aktueller_takt_start) == 0) return false;
       if ((millis() - id(aktueller_takt_start)) < 300000UL) return false;
-      float a = id(annaeherung_kond).state;
+      // Der Alarm ueberwacht den Wasser-Plattenwaermetauscher. Im Heizen ist
+      // das der Kondensator (Annaeherung an den Vorlauf), im Kuehlen der
+      // Verdampfer (Vorlauf gegen Verdampfung). Passenden Wert je Modus waehlen,
+      // sonst schlaegt der luftseitige Kondensator im Kuehlen mit seiner
+      // naturgemaess grossen Annaeherung faelschlich an.
+      bool kuehlen = (id(hr26_modus).state == 1.0f);
+      float a = kuehlen ? id(annaeherung_verd).state : id(annaeherung_kond).state;
       if (std::isnan(a)) return false;
       if (id(uebergang_warnung).state) return a > 7.0f;
       return a > 9.0f;
@@ -1809,6 +1924,10 @@ globals:
     type: float
     restore_value: true
     initial_value: "0"
+  # aktueller_takt_start haelt millis() und darf deshalb NICHT restore_value
+  # bekommen — nach einem Neustart zaehlt millis() wieder bei null, ein
+  # geretteter Wert waere schlimmer als keiner. Statt den Zeitpunkt zu retten,
+  # wird beim ersten Lauf der Zustand aus dem Ist uebernommen (start_sync).
   - id: aktueller_takt_start
     type: uint32_t
     restore_value: false
@@ -1817,15 +1936,40 @@ globals:
     type: bool
     restore_value: false
     initial_value: "false"
+  # Der Takt hat einen unbekannten Anfang — nach einem Neustart im laufenden
+  # Betrieb oder ueber Mitternacht hinweg. Er zaehlt dann nicht als kuerzester
+  # Takt, denn seine gemessene Dauer ist nur ein Teilstueck. Bewusst getrennt
+  # von aktueller_takt_start: an dessen Nullwert haengt die Anlaufkarenz der
+  # beiden Kaeltekreis-Alarme, die nach einem Neustart weiterlaufen soll.
+  - id: takt_angeschnitten
+    type: bool
+    restore_value: false
+    initial_value: "false"
+  # Einmalige Zustandsuebernahme nach dem Start. Ohne sie zaehlte ein Neustart
+  # im laufenden Betrieb einen Verdichterstart, den es nicht gab — von den
+  # 8 Starts am 2026-07-30 waren mindestens zwei solche Phantome.
+  - id: start_sync
+    type: bool
+    restore_value: false
+    initial_value: "true"
   - id: stat_dirty
     type: bool
     restore_value: false
     initial_value: "true"
 
   # --- Warmwasserladung: Energie und Speicherhub ueber eine ganze Ladung
+  #
+  # ladung_aktiv und ladung_start_temp ueberleben den Neustart, damit eine
+  # Ladung, in die ein Neustart fiel, fortgesetzt und nicht doppelt gezaehlt
+  # wird. Am 2026-07-30 blieb der Tageszaehler auf 0 trotz einer belegten
+  # 30-Minuten-Ladung: ladung_start_temp startete bei 0, und der Startwert wird
+  # nur bei stehendem Verdichter gesetzt — die Bedingung "> 0" wurde nie wieder
+  # wahr. ladung_wh bleibt fluechtig: die Wh der Neustartpause fehlen ohnehin,
+  # deshalb unterdrueckt ladung_teil die Kennzahl fuer diese eine Ladung, und
+  # ein sekuendlich wachsender Float muss nicht in den Flash geschrieben werden.
   - id: ladung_aktiv
     type: bool
-    restore_value: false
+    restore_value: true
     initial_value: "false"
   - id: ladung_wh
     type: float
@@ -1833,8 +1977,12 @@ globals:
     initial_value: "0"
   - id: ladung_start_temp
     type: float
-    restore_value: false
+    restore_value: true
     initial_value: "0"
+  - id: ladung_teil
+    type: bool
+    restore_value: true
+    initial_value: "false"
 
   # --- Bus-Gesundheit
   - id: letzte_antwort_ms
@@ -1925,9 +2073,26 @@ interval:
               (std::isnan(hd) || std::isnan(nd) || nd + 1.0f <= 0.0f)
                   ? NAN : ((hd + 1.0f) / (nd + 1.0f)));
 
+          // BETRIEBS-GATE fuer Carnot und die beiden Annaeherungen. Diese drei
+          // sind ausserhalb aktiven Betriebs bedeutungslos: im Stillstand steht
+          // der Kreis im Druckausgleich (IR22 ≈ IR21), der Hub geht gegen null
+          // und die Carnot-Formel dividiert dadurch — am 2026-07-30 erreichte
+          // sie 427, weil der alte Waechter schon 0,5 K Hub genuegen liess.
+          //
+          // Diskriminator ist der Druckhub, NICHT der Verdichtermelder: der
+          // haengt an den ueber Home Assistant importierten Shelly-Kanaelen,
+          // und diese Diagnose soll auch ohne HA rechnen. Der Hub trennt
+          // eindeutig — Stillstand 8,69 gegen 8,66 bar (0,03), Betrieb 18,14
+          // gegen 5,29 (12,85). Die 2 bar liegen mit weitem Abstand dazwischen.
+          bool druck_ok = !std::isnan(hd) && !std::isnan(nd);
+          bool im_betrieb = druck_ok && (hd - nd) > 2.0f;
+
           // Carnot: die theoretische Obergrenze des COP fuer diesen
           // Betriebspunkt. Kein erreichbarer Wert, sondern die Messlatte.
-          if (!std::isnan(t_kond) && !std::isnan(t_verd) && (t_kond - t_verd) > 0.5f) {
+          // Der Hub-Waechter bleibt zusaetzlich, jetzt bei 3 K — er schuetzt
+          // die Division, das Betriebs-Gate die Aussage.
+          if (im_betrieb && !std::isnan(t_kond) && !std::isnan(t_verd) &&
+              (t_kond - t_verd) > 3.0f) {
             id(carnot).publish_state((t_kond + 273.15f) / (t_kond - t_verd));
           } else {
             id(carnot).publish_state(NAN);
@@ -1935,11 +2100,26 @@ interval:
 
           float vor = id(vorlauf).state;
           float ruck = id(ruecklauf).state;
-          float aussen = id(aussentemp).state;
+          // Aussenluft fuer die Annaeherung: der unabhaengige HA-Sensor, weil
+          // IR12 ein Geraetefuehler ist (im Betrieb noch +3,9 K, siehe dort).
+          // Faellt er aus, IR12 als Rueckfall — mit Fehler, aber mit Wert.
+          float aussen = id(aussentemp_ref).state;
+          if (std::isnan(aussen)) aussen = id(aussentemp).state;
+          // Im Kuehlbetrieb (HR26=1) tauschen Kondensator und Verdampfer die
+          // Seiten: der Aussen-Waermetauscher wird zum Kondensator, die
+          // Wasserseite zum Verdampfer. Ohne Modusabhaengigkeit stuenden beide
+          // Annaeherungen im Kuehlen physikalisch verkehrt — Kondensation gegen
+          // den kalten Vorlauf — und der Waermeuebergang-Alarm schluege
+          // faelschlich an. NaN-Modus faellt auf den Heiz-Default zurueck.
+          bool kuehlen = (id(hr26_modus).state == 1.0f);
+          float medium_kond = kuehlen ? aussen : vor;   // warme Seite
+          float medium_verd = kuehlen ? vor : aussen;   // kalte Seite
           id(annaeherung_kond).publish_state(
-              (std::isnan(t_kond) || std::isnan(vor)) ? NAN : (t_kond - vor));
+              (!im_betrieb || std::isnan(t_kond) || std::isnan(medium_kond))
+                  ? NAN : (t_kond - medium_kond));
           id(annaeherung_verd).publish_state(
-              (std::isnan(aussen) || std::isnan(t_verd)) ? NAN : (aussen - t_verd));
+              (!im_betrieb || std::isnan(medium_verd) || std::isnan(t_verd))
+                  ? NAN : (medium_verd - t_verd));
           id(spreizung).publish_state(
               (std::isnan(vor) || std::isnan(ruck)) ? NAN : (vor - ruck));
 
@@ -1988,10 +2168,69 @@ interval:
             id(stat_dirty) = true;
           }
 
+          // --- Zustandsuebernahme nach dem Start -------------------------
+          // Ein Neustart mitten im Betrieb liess die Zaehler und den Zustand
+          // auseinanderlaufen: verdichter_laeuft startete auf false, waehrend
+          // der Verdichter lief, und der naechste Zyklus zaehlte einen Start,
+          // den es nicht gab. Genau das ist am 2026-07-30 zweimal passiert
+          // (Neustarts 06:22 und 06:27 im Takt 06:01:46–07:03:35).
+          //
+          // Der Zustand wird deshalb aus den Leistungswerten uebernommen statt
+          // aus dem Melder: der ist ein Template-Sensor mit eigenem Polling und
+          // beim ersten Tick nach dem Boot noch nicht nachgezogen. Gewartet
+          // wird, bis eine Quelle antwortet — bis dahin meldet der Melder
+          // ohnehin nur den (falschen) Ausgangszustand zurueck und erzeugt
+          // keine Flanke. Nach 60 s wird ohne Quelle uebernommen, damit ein
+          // dauerhaft stiller Bus die Uebernahme nicht endlos offen haelt.
+          if (id(start_sync)) {
+            float w0 = id(wirkleistung).state;
+            float va0 = id(ir23_scheinleistung).state;
+            bool quelle_ok = !std::isnan(w0) || !std::isnan(va0);
+            if (quelle_ok || jetzt > 60000UL) {
+              id(start_sync) = false;
+              bool laeuft_ist = !std::isnan(w0) ? (w0 > 300.0f)
+                              : (!std::isnan(va0) ? (va0 > 700.0f) : false);
+              id(verdichter_laeuft) = laeuft_ist;
+              // Lokale Variable gleichziehen: sonst sieht die Taktlogik im
+              // selben Tick eine Flanke gegen den noch alten Melderwert.
+              laeuft = laeuft_ist;
+              if (laeuft_ist) {
+                // Karenzfenster ab jetzt, damit die Kaeltekreis-Alarme nach
+                // dem Neustart wieder anlaufen — die Taktdauer ist trotzdem
+                // nur ein Teilstueck und darf nicht als kuerzester Takt gelten.
+                id(aktueller_takt_start) = jetzt;
+                id(takt_angeschnitten) = true;
+              }
+              float wt0 = id(ww_temp).state;
+              if (id(ladung_aktiv)) {
+                if (laeuft_ist) {
+                  // Ladung laeuft weiter: nicht neu zaehlen, aber die Kennzahl
+                  // fuer diese eine Ladung unterdruecken — die Wh der
+                  // Neustartpause fehlen.
+                  id(ladung_teil) = true;
+                  id(ladung_wh) = 0.0f;
+                } else {
+                  // Verdichter steht: die Ladung war beendet.
+                  id(ladung_aktiv) = false;
+                  id(ladung_teil) = false;
+                  if (!std::isnan(wt0)) id(ladung_start_temp) = wt0;
+                }
+              } else if (id(ladung_start_temp) <= 0.0f && !std::isnan(wt0)) {
+                // Ohne Startwert wird nie eine Ladung erkannt, denn gesetzt
+                // wird er sonst nur bei stehendem Verdichter.
+                id(ladung_start_temp) = wt0;
+              }
+              id(stat_dirty) = true;
+              ESP_LOGI("statistik", "Zustand uebernommen: Verdichter %s",
+                       laeuft_ist ? "laeuft" : "steht");
+            }
+          }
+
           // --- Verdichter: Starts, Takte, Laufzeit ---
           if (laeuft && !id(verdichter_laeuft)) {
             id(verdichter_laeuft) = true;
             id(aktueller_takt_start) = jetzt;
+            id(takt_angeschnitten) = false;   // Anfang bekannt
             id(starts_heute)++;
             id(stat_dirty) = true;
             ESP_LOGI("statistik", "Verdichter an, %d. Start heute", id(starts_heute));
@@ -1999,10 +2238,19 @@ interval:
             id(verdichter_laeuft) = false;
             if (id(aktueller_takt_start) > 0) {
               float takt = (jetzt - id(aktueller_takt_start)) / 60000.0f;
-              if (id(kuerzester_takt_24h) <= 0.0f || takt < id(kuerzester_takt_24h))
+              // Ein angeschnittener Takt — Neustart oder Tageswechsel mitten im
+              // Lauf — bringt nur ein Teilstueck mit und wuerde den kuerzesten
+              // Takt zu niedrig ausweisen.
+              if (id(takt_angeschnitten)) {
+                ESP_LOGI("statistik", "Verdichter aus, Takt angeschnitten (%.1f min gemessen)", takt);
+              } else if (id(kuerzester_takt_24h) <= 0.0f || takt < id(kuerzester_takt_24h)) {
                 id(kuerzester_takt_24h) = takt;
-              ESP_LOGI("statistik", "Verdichter aus nach %.1f min", takt);
+                ESP_LOGI("statistik", "Verdichter aus nach %.1f min", takt);
+              } else {
+                ESP_LOGI("statistik", "Verdichter aus nach %.1f min", takt);
+              }
             }
+            id(takt_angeschnitten) = false;
             id(stat_dirty) = true;
           }
           if (id(verdichter_laeuft)) {
@@ -2021,6 +2269,7 @@ interval:
             if (!id(ladung_aktiv)) {
               if (laeuft && id(ladung_start_temp) > 0.0f && wt > id(ladung_start_temp) + 0.5f) {
                 id(ladung_aktiv) = true;
+                id(ladung_teil) = false;
                 id(ladung_wh) = 0.0f;
                 id(ladungen_heute)++;
                 id(stat_dirty) = true;
@@ -2032,10 +2281,18 @@ interval:
               if (!std::isnan(wirk)) id(ladung_wh) += wirk / 3600.0f;
               if (!laeuft) {
                 float hub = wt - id(ladung_start_temp);
-                if (hub > 1.0f && id(ladung_wh) > 1.0f)
-                  id(kwh_pro_kelvin).publish_state((id(ladung_wh) / 1000.0f) / hub);
-                ESP_LOGI("ladung", "Ladung beendet: %.0f Wh fuer %.1f K", id(ladung_wh), hub);
+                // Bei einer Ladung, in die ein Neustart fiel, fehlen Wh und ein
+                // Stueck Hub. Sie zaehlt als Ladung, liefert aber keine Kennzahl
+                // — eine zu niedrige Zahl waere schlimmer als keine.
+                if (id(ladung_teil)) {
+                  ESP_LOGI("ladung", "Ladung beendet, unvollstaendig (Neustart) — keine Kennzahl");
+                } else {
+                  if (hub > 1.0f && id(ladung_wh) > 1.0f)
+                    id(kwh_pro_kelvin).publish_state((id(ladung_wh) / 1000.0f) / hub);
+                  ESP_LOGI("ladung", "Ladung beendet: %.0f Wh fuer %.1f K", id(ladung_wh), hub);
+                }
                 id(ladung_aktiv) = false;
+                id(ladung_teil) = false;
                 id(ladung_start_temp) = wt;
               }
             }
@@ -2065,7 +2322,8 @@ interval:
           auto ist_register = [](const std::string &n) {
             if (n.rfind("IR", 0) == 0 || n.rfind("HR", 0) == 0 ||
                 n.rfind("DI", 0) == 0 || n.rfind("CO", 0) == 0) return true;
-            return n == "Außentemperatur" ||
+            return n == "Außentemperatur Gerätefühler" ||
+                   n == "Verdichterleistung Anforderung" ||
                    n == "Raumtemperatur" ||
                    n == "Wasser Vorlauftemperatur" ||
                    n == "Wasser Rücklauftemperatur" ||
