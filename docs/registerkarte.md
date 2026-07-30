@@ -47,11 +47,40 @@ Die offizielle Karte mit Coil 0 (Ein/Aus), Coil 2 (Flüstermodus), Holding 0
 | IR23 | **Scheinleistung** | VA | siehe unten |
 | IR24 | Raumtemperatur | ×0,1 | 205 bei „innen 20,5" |
 | IR25 | Warmwassertemperatur | ×0,1 | 506 bei 50,6 °C am Bedienteil |
-| IR26 | Betriebsmodus: 0 = Standby, 1 = Auto, 2 = Heizen/Warmwasser | — | nur vier Wechsel in 24 h; Wert für fest eingestelltes Kühlen noch ungemessen |
-| HR24 | Soll Heizkreis 1, **schreibbar** | ×0,1 | 21 °C Kühlen → 55 °C Heizen |
-| HR26 | Regelungsart: 0 = Vorlauf, 1 = Rücklauf, 2 = Raum | — | folgt selbst dem Betriebsmodus |
+| IR26 | **Wärmeanforderung:** 0 = keine, 1 = bereit, 2 = angefordert | — | fiel beim Abschalten der Warmwasser-Freigabe von 2 auf 0, während HR26 stehenblieb — siehe unten |
+| HR24 | Soll Heizkreis 1, **schreibbar** | ×0,1 | 21 °C Kühlen → 55 °C Heizen; folgt der Anlage bei jedem Moduswechsel |
+| **HR26** | **Betriebsmodus, schreibbar:** 0 = Aus / nur Warmwasser, 1 = Kühlen, 2 = Heizen, 3 = Auto | — | am Bedienteil geschaltet, alle vier Werte sekundengenau belegt — siehe unten |
 | HR29 | Soll Warmwasser, **schreibbar** | ×0,1 | 480 bei „Warmwasser 48° eco", Änderung live gefolgt |
+| **CO2** | **Flüstermodus, schaltbar** | — | vier Wechsel sekundengenau zur Bedienung am Bedienteil, kein anderer Punkt ging mit |
+| CO4 | Heizkreis 1 aktiv | — | ging an/aus zeitgleich mit Heizkreis 1, zwei Wechsel; nur lesend eingebunden |
 | CO6 | Warmwasser-Freigabe, **schaltbar** | — | schaltet die Warmwasserbereitung nachweislich |
+| DI31 | Heizkreis 1, invertiert zu CO4 | — | on wenn HK1 aus, off wenn HK1 läuft |
+
+### HR26 ist der Betriebsmodus, nicht die Regelungsart
+
+Ursprünglich als „Regelungsart" (Vorlauf/Rücklauf/Raum) gedeutet. Am Bedienteil
+zeigte sich: es ist der **Betriebsmodus**, und er ist schreibbar. Mit
+Zeitstempeln gegengeprüft:
+
+| Wert | Modus | Beleg |
+|---|---|---|
+| 0 | Aus / nur Warmwasser | beim Abschalten von Heizkreis 1 |
+| 1 | Kühlen | Heizkreis-Soll blieb 21 °C |
+| 2 | Heizen | Heizkreis-Soll sprang gleichzeitig auf 55 °C |
+| 3 | Auto | im Automatikbetrieb |
+
+Die Abschaltung von Heizkreis 1 lief gestaffelt und reproduzierbar: **CO4
+zuerst, drei Sekunden später HR26 auf 0, zehn Sekunden später DI31.** Bei 20 s
+Abfragetakt ist diese Reihenfolge echt und kein Abtastartefakt.
+
+### HR24 ist in jedem Modus lesbar — auch Auto
+
+Der Zielwert HR24 ist ein eigenes Register, unabhängig vom Modus. In der
+ThinQ-App war das ein Problem: dort ging entweder Auto **oder** die Sicht auf
+den Zielwert, im Auto-Modus wurde er blind. Über Modbus ist HR24 in jedem Modus
+sichtbar und folgt der Anlage aktiv (21 °C im Kühlen, 55 °C im Heizen). Seine
+**Bedeutung** wechselt mit dem Modus: im Heizen ein Vorlauf-Soll, im Kühlen ein
+Raum-Soll.
 
 ### IR23 ist Scheinleistung, nicht Wirkleistung
 

@@ -267,7 +267,7 @@ sensor:
     # Gegenprobe Warmwasserladung 29.07.: Sattdampftemperatur aus dem Rohwert
     # gegen Vorlauf — 1814/54,9 bei 53,7 · 2010/59,5 bei 58,6 · 2141/62,4 bei
     # 61,8 · 2239/64,5 bei 64,4 · 2337/66,6 bei 67,3. Abweichung unter 1,5 K.
-    name: "IR21 Hochdruck"
+    name: "Hochdruck"
     id: ir21_hochdruck
     address: 21
     register_type: read
@@ -284,7 +284,7 @@ sensor:
     modbus_controller_id: therma_v
     # Im Stillstand praktisch gleich IR21 (869 gegen 866, 621 gegen 605 —
     # Druckausgleich), im Betrieb weit darunter (529 gegen 1814).
-    name: "IR22 Niederdruck"
+    name: "Niederdruck"
     id: ir22_niederdruck
     address: 22
     register_type: read
@@ -302,7 +302,7 @@ sensor:
     # Gegen die Sattdampftemperatur aus IR22 gerechnet durchgehend 5..8 K
     # Ueberhitzung. Wird negativ (bis -0,6 °C) — normal fuer Sauggas und der
     # Grund, warum "Expansionsventil-Schrittzahl" ausgeschlossen ist.
-    name: "IR17 Sauggastemperatur"
+    name: "Sauggastemperatur"
     id: ir17_sauggas
     address: 17
     register_type: read
@@ -337,7 +337,7 @@ sensor:
     # auf 417, waehrend der Zaehler rund 180 VA sieht. Ein Ruhewert. Wer den
     # Verdichterzustand braucht, nimmt die Wirkleistung, nicht dieses
     # Register — genau so ist es im Melder "Verdichter läuft" gemacht.
-    name: "IR23 Scheinleistung"
+    name: "Scheinleistung Anlage"
     id: ir23_scheinleistung
     address: 23
     register_type: read
@@ -355,7 +355,7 @@ sensor:
     # Stunden Stillstand konstant 10..15 K ueber der Aussenluft und sinkt mit
     # ihr — eine Frequenz waere 0. Passt zu Verdichtergehaeuse
     # (Kurbelwannenheizung) oder Leistungsmodul-Kuehlkoerper. UNBESTAETIGT.
-    name: "IR18 Verdichtertemperatur"
+    name: "Verdichtertemperatur"
     address: 18
     register_type: read
     value_type: S_WORD
@@ -373,7 +373,7 @@ sensor:
     # Hiess bis 2026-07-30 "Heissgastemperatur" — falsch, siehe Kopf Punkt 3.
     # Folgt in der stabilen Generation der Aussenluft mit Nachlauf
     # (15,4 bei 15,2 aussen). UNBESTAETIGT.
-    name: "IR11 Wärmetauscher außen"
+    name: "Wärmetauscher außen"
     address: 11
     register_type: read
     value_type: S_WORD
@@ -390,7 +390,7 @@ sensor:
     modbus_controller_id: therma_v
     # Zu 99,7 % byte-identisch mit IR11, inklusive aller Artefakte. Bleibt
     # drin, damit die Beobachtung zeigt, ob die Spiegelung bestehen bleibt.
-    name: "IR19 Spiegel von IR11"
+    name: "Wärmetauscher außen (Spiegelregister)"
     address: 19
     register_type: read
     value_type: S_WORD
@@ -407,7 +407,7 @@ sensor:
     # NICHT Heizstab: 151 bei Bedienteil 174..181. Eine Wassertemperatur —
     # r = +0,87 zum Vorlauf, +0,82 zum Ruecklauf, Bereich 9,4..26,0 °C.
     # Welche Stelle im Kreis, ist offen.
-    name: "IR14 Wassertemperatur unbestimmt"
+    name: "Wassertemperatur unbestimmt"
     address: 14
     register_type: read
     value_type: S_WORD
@@ -437,7 +437,7 @@ sensor:
     # Hiess "Kaeltemittel fluessig" und trug state_class: measurement —
     # beides entfernt: konstant 12000 ueber 24 h, also kein Messwert. Das
     # Bedienteil zeigt denselben Rohwert.
-    name: "IR13 Kennwert Kältemittel"
+    name: "Kennwert Kältemittel"
     address: 13
     register_type: read
     value_type: S_WORD
@@ -482,7 +482,22 @@ sensor:
   # IR26 als Rohwert nur intern: die Zahl geht nicht nach Home Assistant,
   # dort erscheint sie als Klartext ueber den text_sensor weiter unten.
   #
-  # 0 = Standby, 1 = Auto, 2 = Heizen/Warmwasser, am Bedienteil abgeglichen.
+  # WAERMEANFORDERUNG, nicht Betriebsart. Am 2026-07-30 belegt: beim Abschalten
+  # der Warmwasser-Freigabe fiel der Wert von 2 auf 0, waehrend der eingestellte
+  # Betriebsmodus (HR26) unveraendert blieb. Das Register sagt also, OB Waerme
+  # verlangt wird — nicht, welche Betriebsart eingestellt ist. Die steht in HR26.
+  #
+  # 0 = keine Anforderung, 1 = bereit/wartend, 2 = Waerme angefordert.
+  #
+  # Auch hier gilt: es ist kein Aktivitaetszustand.
+  # Am 2026-07-30 gegen die Leistungsmessung geprueft: in allen drei Zustaenden
+  # lag die Aufnahme unter 100 W, die Anlage hat also in keinem davon gearbeitet.
+  #   "Auto" bei 4 W       -> Automatik eingestellt, kein Bedarf, Pumpe aus
+  #   "Heizen/Warmwasser"
+  #   bei 28..76 W, 6 min  -> Modus angefordert, Umwaelzpumpe moduliert,
+  #                           Verdichter nie angelaufen
+  # Der Verdichterzustand kommt deshalb aus der Wirkleistung (ab 800 W), nie
+  # aus diesem Register.
   # Deckt sich mit der Historie: um 15:28 stand 2 bei Vorlauf 54 °C und
   # 2,5 kW Aufnahme waehrend der Warmwasserladung, ab 17:02 stand 0 bei
   # abgeschalteter Anlage. In 24 h nur vier Wechsel — das Verhalten einer
@@ -506,14 +521,43 @@ sensor:
             id: betriebszyklus_text
             state: !lambda |-
               int v = (int) lround(x);
-              if (v == 0) return std::string("Standby");
-              if (v == 1) return std::string("Auto");
-              if (v == 2) return std::string("Heizen/Warmwasser");
+              if (v == 0) return std::string("keine Anforderung");
+              if (v == 1) return std::string("bereit");
+              if (v == 2) return std::string("Wärme angefordert");
               return str_sprintf("Unbekannt (%d)", v);
 
   # Halteregister, die beim Scan auf null standen und es ueber 24 h blieben.
   # Kandidaten fuer alles, was mit dem zweiten Heizkreis zu tun hat —
   # deshalb nur lesend, bis die Bedeutung feststeht.
+
+  # HR26 als ROHWERT. Am 2026-07-30 hat sich gezeigt, dass dieses Register den
+  # BETRIEBSMODUS traegt, nicht die Regelungsart — und dass es Werte annimmt,
+  # die das Auswahlfeld unten nicht abbildet. Ein select behaelt bei einem
+  # unbekannten Wert stumm den letzten gueltigen: der Modus "Auto" wurde am
+  # Bedienteil geschaltet, ohne dass sich in Home Assistant etwas ruehrte.
+  # Deshalb hier zusaetzlich der nackte Zahlenwert.
+  #
+  # Belegt durch Bedienung am Bedienteil, mit Zeitstempeln gegengeprueft:
+  #   1 = Kuehlen  (07:17:19, Heizkreis-Soll blieb 21 °C)
+  #   2 = Heizen   (07:19:16, Heizkreis-Soll sprang gleichzeitig auf 55 °C)
+  #   0 = Ausgangszustand, alle Heizkreise aus, nur Warmwasser
+  #   3 = Auto     (07:25 gemessen — und genau dieser Wert fehlte im
+  #                 Auswahlfeld, weshalb es stumm auf "unknown" fiel)
+  #
+  # Damit ist der BETRIEBSMODUS ueber Modbus stellbar. Er galt bis heute als
+  # "gar nicht abgebildet" — die Fehlannahme entstand, weil das Register als
+  # Regelungsart gedeutet wurde.
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    name: "Betriebsmodus Rohwert"
+    id: hr26_modus
+    address: 26
+    register_type: holding
+    value_type: S_WORD
+    force_new_range: true
+    accuracy_decimals: 0
+    entity_category: diagnostic
+
   - platform: modbus_controller
     modbus_controller_id: therma_v
     name: "HR25 unbestimmt"
@@ -769,8 +813,9 @@ sensor:
   - platform: template
     # Abstand zwischen staerkster und schwaechster Phase, in Prozent der
     # staerksten. Ein Inverterverdichter zieht symmetrisch — gemessen lagen
-    # die drei Phasen bei 879 / 838 / 890 W. Ein einphasig angebundener
-    # Heizstab hebt genau eine Phase.
+    # die drei Phasen bei 879 / 838 / 890 W. Diese Anlage hat KEINEN Heizstab
+    # verbaut (bestaetigt 2026-07-30); eine deutliche Schieflast waere also ein
+    # Messproblem oder ein Fremdverbraucher auf der Zuleitung.
     name: "Phasenschieflast"
     id: schieflast
     unit_of_measurement: "%"
@@ -778,21 +823,6 @@ sensor:
     accuracy_decimals: 1
     entity_category: diagnostic
     icon: "mdi:scale-unbalanced"
-    update_interval: never
-
-  - platform: template
-    # Ueberschuss der staerksten Phase gegenueber dem Mittel der beiden
-    # anderen. Bei laufendem Verdichter nahe null; eine Stufe von einigen
-    # hundert Watt bis Kilowatt ist der Kandidat fuer den Heizstab, der ueber
-    # Modbus gar nicht abgebildet ist.
-    name: "Verdacht Heizstab"
-    id: heizstab_verdacht
-    unit_of_measurement: "W"
-    device_class: power
-    state_class: measurement
-    accuracy_decimals: 0
-    entity_category: diagnostic
-    icon: "mdi:heating-coil"
     update_interval: never
 
   - platform: template
@@ -969,7 +999,7 @@ sensor:
 text_sensor:
   - platform: template
     id: betriebszyklus_text
-    name: "Betriebsmodus"                    # IR26, Klartext statt 0 / 1 / 2
+    name: "Wärmeanforderung"                 # IR26, Klartext statt 0 / 1 / 2
     entity_category: diagnostic
     icon: "mdi:sync"
     update_interval: never
@@ -1002,12 +1032,6 @@ text_sensor:
     icon: "mdi:radar"
     update_interval: never
 
-  - platform: template
-    id: probe_text
-    name: "Protokoll Schreibprobe"
-    entity_category: diagnostic
-    icon: "mdi:clipboard-text-clock"
-    update_interval: never
 
 # =============================================================
 # Statusmelder — Discrete Inputs 6,7,8,9,31 und Coil 5
@@ -1070,9 +1094,13 @@ binary_sensor:
     force_new_range: true
     entity_category: diagnostic
 
+  # HEIZKREIS 1, INVERTIERT. Zwei Wechsel am 2026-07-30, jeweils gegenlaeufig
+  # zu CO4: on solange Heizkreis 1 aus ist, off wenn er laeuft. Was genau das
+  # Bit meint — Sperre, fehlende Anforderung, Freigabe des Thermostats — ist
+  # offen; der Zusammenhang mit Heizkreis 1 ist es nicht.
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    name: "DI31 unbestimmt"
+    name: "Heizkreis 1 invers"
     address: 31
     register_type: discrete_input
     force_new_range: true
@@ -1092,14 +1120,62 @@ binary_sensor:
     force_new_range: true
     entity_category: diagnostic
 
-  # NUR LESEND, und das mit Bedacht: in LGs offizieller Karte liegt auf Coil 4
-  # Notaus/Notbetrieb. Diese Anlage spricht jene Karte nicht, das ist also kein
-  # Beleg — aber es ist der schlechteste denkbare Kandidat fuer einen
-  # Blindversuch. Erst passiv identifizieren.
+  # HEIZKREIS 1 AKTIV. Am 2026-07-30 am Bedienteil belegt, zwei Wechsel:
+  #   07:17:05 off -> on  beim Aktivieren von Heizkreis 1
+  #   07:33:54 on  -> off beim Abschalten
+  # Die Abschaltung lief gestaffelt: CO4 zuerst, drei Sekunden spaeter HR26 auf
+  # 0, zehn Sekunden spaeter DI31. Bei 20 s Abfragetakt ist diese Reihenfolge
+  # echt und kein Abtastartefakt.
+  #
+  # Bleibt LESEND. In LGs offizieller Karte liegt auf Coil 4 Notaus/Notbetrieb —
+  # das gilt fuer dieses Geraet nicht, aber ein Schreibversuch auf einen
+  # Heizkreis gehoert erst recht nicht ins Blaue.
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    name: "CO4 unbestimmt (nur Anzeige)"
+    name: "Heizkreis 1"
     address: 4
+    register_type: coil
+    force_new_range: true
+    entity_category: diagnostic
+
+  # =============================================================
+  # Am 2026-07-30 durch den breiten Einzelscan gefunden: CO2, CO3, CO29, CO30.
+  # Damit antworten SIEBEN Coils (2,3,4,5,6,29,30), nicht drei.
+  #
+  # Wichtig zur Deutung: In LGs offizieller Karte liegen auf Coil 2 der
+  # FLUESTERMODUS und auf Coil 3 die Desinfektion. Diese Anlage spricht jene
+  # Karte nachweislich nicht (Halteregister 0 und Input 0 antworten nicht), und
+  # der einzige verifizierte Coil ist CO6 = Warmwasser-Freigabe — in der
+  # offiziellen Karte liegt Warmwasser auf Coil 1. Es gibt also keinen
+  # Versatz, mit dem sich die Karte hier abbilden liesse. Die Namensgleichheit
+  # ist ein Hinweis, kein Beleg.
+  #
+  # ALLE NUR LESEND. Der Weg zur Identifikation ist die Registerbeobachtung:
+  # am Bedienteil den Fluestermodus schalten und zusehen, welcher Punkt folgt.
+  # Blind schreiben waere hier besonders schlecht — auf den Nachbarpositionen
+  # liegen in derselben Karte Desinfektion (heizt den Speicher stundenlang auf
+  # rund 70 °C) und Notaus.
+  # =============================================================
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    name: "CO3 unbestimmt (Desinfektion?)"
+    address: 3
+    register_type: coil
+    force_new_range: true
+    entity_category: diagnostic
+
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    name: "CO29 unbestimmt"
+    address: 29
+    register_type: coil
+    force_new_range: true
+    entity_category: diagnostic
+
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    name: "CO30 unbestimmt"
+    address: 30
     register_type: coil
     force_new_range: true
     entity_category: diagnostic
@@ -1131,6 +1207,25 @@ binary_sensor:
       return va > 700.0f;
 
   - platform: template
+    # Drei Leistungsstufen sind unterscheidbar, am 2026-07-30 gemessen:
+    #   rund 4 W    -> Elektronik allein, alles aus
+    #   28..76 W    -> Umwaelzpumpe laeuft, drehzahlgeregelt und modulierend
+    #   ab 800 W    -> Verdichter laeuft
+    # Damit ist die Pumpe erkennbar, obwohl sie ueber Modbus nicht abgebildet
+    # ist — DI07 ist es nachweislich NICHT: der stand auf AUS, waehrend das
+    # Display "Umwaelzpumpe in Betrieb" meldete.
+    name: "Umwälzpumpe läuft"
+    id: pumpe_melder
+    device_class: running
+    entity_category: diagnostic
+    icon: "mdi:pump"
+    lambda: |-
+      float w = id(wirkleistung).state;
+      if (std::isnan(w)) return id(pumpe_melder).state;
+      if (id(pumpe_melder).state) return w > 15.0f;
+      return w > 25.0f;
+
+  - platform: template
     name: "Kältekreis auffällig"
     id: kreis_warnung
     device_class: problem
@@ -1140,6 +1235,12 @@ binary_sensor:
       // Nur bei laufendem Verdichter aussagekraeftig: im Stillstand steht der
       // Kreis im Druckausgleich und die Ueberhitzung ist bedeutungslos.
       if (!id(verdichter_melder).state) return false;
+      // ANLAUFKARENZ: in den ersten fuenf Minuten nach dem Start ist die
+      // Ueberhitzung normal niedrig und instabil, waehrend sich der Kreis
+      // einregelt. Ohne diese Karenz meldete der Melder bei JEDEM Start kurz
+      // ein Problem, wo keines ist. Erst nach 5 min stabilem Lauf wird geurteilt.
+      if (id(aktueller_takt_start) == 0) return false;
+      if ((millis() - id(aktueller_takt_start)) < 300000UL) return false;
       float u = id(ueberhitzung).state;
       if (std::isnan(u)) return false;
       if (id(kreis_warnung).state) return (u < 4.0f || u > 11.0f);
@@ -1156,6 +1257,10 @@ binary_sensor:
     icon: "mdi:water-alert-outline"
     lambda: |-
       if (!id(verdichter_melder).state) return false;
+      // Dieselbe Anlaufkarenz wie beim Kaeltekreis: der Waermeuebergang
+      // pendelt sich erst nach einigen Minuten ein.
+      if (id(aktueller_takt_start) == 0) return false;
+      if ((millis() - id(aktueller_takt_start)) < 300000UL) return false;
       float a = id(annaeherung_kond).state;
       if (std::isnan(a)) return false;
       if (id(uebergang_warnung).state) return a > 7.0f;
@@ -1178,22 +1283,6 @@ binary_sensor:
       if (id(bus_warnung).state) return s > grenze * 0.6f;
       return s > grenze;
 
-  - platform: template
-    # Bei laufendem Verdichter zieht der Inverter symmetrisch. Hebt sich eine
-    # Phase deutlich ab, laeuft etwas einphasiges mit — der Heizstab ist der
-    # Kandidat, denn ueber Modbus ist er gar nicht abgebildet.
-    name: "Verdacht auf Heizstabbetrieb"
-    id: heizstab_melder
-    device_class: heat
-    entity_category: diagnostic
-    icon: "mdi:heating-coil"
-    lambda: |-
-      if (!id(verdichter_melder).state) return false;
-      float v = id(heizstab_verdacht).state;
-      if (std::isnan(v)) return false;
-      if (id(heizstab_melder).state) return v > 400.0f;
-      return v > 700.0f;
-
 # =============================================================
 # Sollwerte — Halteregister 24..29, SCHREIBBAR
 #
@@ -1207,6 +1296,7 @@ number:
     # OFFEN: 5..65 °C gilt unabhaengig von HR26, obwohl der Wert bei
     # Raumregelung etwas anderes bedeutet als bei Vorlaufregelung.
     name: "Soll-Temperatur Heizkreis 1"      # HR24: 21 °C kuehlen -> 55 °C heizen
+    id: hk1_soll
     address: 24
     value_type: S_WORD
     force_new_range: true
@@ -1264,6 +1354,22 @@ number:
   # Deshalb ein Stellwert und keine feste Zahl: 60 s ist reichlich vorsichtig
   # bei einer gemessenen Zyklusdauer von 20 s.
   - platform: template
+    # Startadresse des breiten Scans; er prueft von hier aus 64 Adressen je
+    # Registertyp. Der Durchlauf ab 0 fand CO29 und CO30 — es lohnt also, auch
+    # 64, 128 und 192 durchzugehen.
+    name: "Scan-Startadresse"
+    id: scan_start
+    optimistic: true
+    restore_value: true
+    initial_value: 0
+    min_value: 0
+    max_value: 960
+    step: 64
+    mode: box
+    entity_category: config
+    icon: "mdi:ray-start-arrow"
+
+  - platform: template
     name: "Maximale Bus-Lücke"
     id: max_luecke
     optimistic: true
@@ -1286,44 +1392,43 @@ select:
     # selbst dem Betriebsmodus, und in jourdant/esphome-lgap Issue 24 hat
     # genau dieses Umstellen die Regelung von Wasser- auf Raumfuehler
     # verstellt. Solange das nicht entschieden ist: nicht anfassen.
-    name: "Regelungsart"                     # HR26: 1 bei "rücklaufgesteuert"
+    name: "Betriebsmodus (stellbar)"         # HR26 — siehe Rohwert-Sensor oben
     address: 26
     value_type: U_WORD
     force_new_range: true
     optionsmap:
-      "Vorlauftemperatur": 0
-      "Rücklauftemperatur": 1
-      "Raumtemperatur": 2
+      "Aus / nur Warmwasser": 0
+      "Kühlen": 1
+      "Heizen": 2
+      "Auto": 3
 
-  # --- Ziel und Wert der Schreibprobe. Vorbelegung "kein Ziel": ein
-  #     versehentlicher Druck auf den Knopf bleibt dann wirkungslos.
-  - platform: template
-    name: "Schreibprobe Ziel"
-    id: probe_ziel
-    optimistic: true
-    restore_value: false
-    entity_category: config
-    icon: "mdi:target"
-    options:
-      - "kein Ziel"
-      - "Coil 5"
-      - "Coil 6"
-
-  - platform: template
-    name: "Schreibprobe Wert"
-    id: probe_wert
-    optimistic: true
-    restore_value: false
-    entity_category: config
-    icon: "mdi:toggle-switch-outline"
-    options:
-      - "aus"
-      - "ein"
 
 # =============================================================
 # Schalter
 # =============================================================
 switch:
+  # FLUESTERMODUS. Am 2026-07-30 durch Bedienung am Bedienteil belegt — vier
+  # Wechsel, jeder sekundengenau zur Bedienung, und kein anderer Punkt bewegte
+  # sich mit:
+  #   07:17:24 off -> on    07:18:44 on -> off
+  #   07:28:52 off -> on    07:29:33 on -> off
+  #
+  # Warum dieser Coil schreibend eingebunden ist und CO3/CO4/CO5 nicht: der
+  # Fluestermodus begrenzt Luefter- und Verdichterdrehzahl. Er richtet keinen
+  # Schaden an und ist jederzeit ruecknehmbar. Bei CO3 und CO5 stehen
+  # Desinfektion (Speicher stundenlang auf rund 70 °C) und Notbetrieb unter den
+  # Kandidaten, bei CO4 ein Heizkreis.
+  #
+  # Das Register war bis zum 2026-07-30 unbekannt: der gruppenweise Tiefenscan
+  # hatte es uebersehen, erst die Einzelabfrage fand es.
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    name: "Flüstermodus"
+    address: 2
+    register_type: coil
+    force_new_range: true
+    icon: "mdi:volume-low"
+
   - platform: modbus_controller
     modbus_controller_id: therma_v
     name: "Warmwasser Freigabe"          # verifiziert 2026-07-29: schaltet die
@@ -1552,84 +1657,6 @@ button:
             }
             return s;
 
-  - platform: template
-    # Schreibt EINMAL auf das gewaehlte Coil und protokolliert, was beim
-    # Ruecklesen nach 1, 10 und 60 s dort steht.
-    #
-    # Warum das gebraucht wird: bei Coil 5 ist festgehalten, ein Schreibversuch
-    # sei "ohne Wirkung" geblieben — aber nicht, WAS dabei zurueckkam.
-    # Ruecklesen 0 beweist nichts, denn genau so verhaelt sich ein
-    # flankengetriggertes Bit, das seine Aktion ausfuehrt und sich selbst
-    # zuruecksetzt. Steht nach 1 s noch 1 und nach 10 s schon 0, ist es eines.
-    #
-    # ACHTUNG: der einzige Knopf hier, der SCHREIBT. Bei Coil 5 ist unter den
-    # Kandidaten auch der Desinfektionszyklus — der heizt den Speicher
-    # stundenlang auf rund 70 °C. Vorbelegt ist "kein Ziel"; ein Druck ohne
-    # bewusste Auswahl bleibt wirkungslos.
-    name: "Schreibprobe ausführen"
-    id: probe_ausfuehren
-    entity_category: config
-    icon: "mdi:pencil-box-outline"
-    on_press:
-      - lambda: |-
-          auto ziel_idx = id(probe_ziel).active_index();
-          if (!ziel_idx.has_value() || *ziel_idx == 0) {
-            id(probe_text).publish_state("kein Ziel gewählt — nichts geschrieben");
-            ESP_LOGI("schreibprobe", "abgebrochen, kein Ziel gewaehlt");
-            return;
-          }
-          uint16_t adr = (*ziel_idx == 1) ? 5 : 6;
-          auto wert_idx = id(probe_wert).active_index();
-          bool wert = wert_idx.has_value() && *wert_idx == 1;
-          id(probe_protokoll) = str_sprintf("Coil %u := %s | ", adr, wert ? "ein" : "aus");
-          ESP_LOGW("schreibprobe", "schreibe Coil %u = %d", adr, (int) wert);
-          id(therma_v)->queue_command(
-            modbus_controller::ModbusCommandItem::create_write_single_coil(
-              id(therma_v), adr, wert));
-          id(probe_text).publish_state(id(probe_protokoll) + "geschrieben, warte auf Rücklesen");
-      - delay: 1s
-      - lambda: |-
-          auto ziel_idx = id(probe_ziel).active_index();
-          if (!ziel_idx.has_value() || *ziel_idx == 0) return;
-          uint16_t adr = (*ziel_idx == 1) ? 5 : 6;
-          id(therma_v)->queue_command(
-            modbus_controller::ModbusCommandItem::create_read_command(
-              id(therma_v), modbus_controller::ModbusRegisterType::COIL, adr, 1,
-              [](modbus_controller::ModbusRegisterType, uint16_t,
-                 const std::vector<uint8_t> &d) {
-                id(probe_protokoll) += str_sprintf("nach 1 s: %d | ",
-                    d.empty() ? -1 : (int) (d[0] & 1));
-                id(probe_text).publish_state(id(probe_protokoll));
-              }));
-      - delay: 9s
-      - lambda: |-
-          auto ziel_idx = id(probe_ziel).active_index();
-          if (!ziel_idx.has_value() || *ziel_idx == 0) return;
-          uint16_t adr = (*ziel_idx == 1) ? 5 : 6;
-          id(therma_v)->queue_command(
-            modbus_controller::ModbusCommandItem::create_read_command(
-              id(therma_v), modbus_controller::ModbusRegisterType::COIL, adr, 1,
-              [](modbus_controller::ModbusRegisterType, uint16_t,
-                 const std::vector<uint8_t> &d) {
-                id(probe_protokoll) += str_sprintf("nach 10 s: %d | ",
-                    d.empty() ? -1 : (int) (d[0] & 1));
-                id(probe_text).publish_state(id(probe_protokoll));
-              }));
-      - delay: 50s
-      - lambda: |-
-          auto ziel_idx = id(probe_ziel).active_index();
-          if (!ziel_idx.has_value() || *ziel_idx == 0) return;
-          uint16_t adr = (*ziel_idx == 1) ? 5 : 6;
-          id(therma_v)->queue_command(
-            modbus_controller::ModbusCommandItem::create_read_command(
-              id(therma_v), modbus_controller::ModbusRegisterType::COIL, adr, 1,
-              [](modbus_controller::ModbusRegisterType, uint16_t,
-                 const std::vector<uint8_t> &d) {
-                id(probe_protokoll) += str_sprintf("nach 60 s: %d",
-                    d.empty() ? -1 : (int) (d[0] & 1));
-                id(probe_text).publish_state(id(probe_protokoll));
-                ESP_LOGW("schreibprobe", "%s", id(probe_protokoll).c_str());
-              }));
 
   - platform: template
     # BREITER SCAN. Prueft die Adressen 0..63 in allen vier Registertypen
@@ -1660,6 +1687,78 @@ button:
           id(breit_treffer).clear();
           id(rand_text).publish_state("breiter Scan läuft — 0 von 256");
           ESP_LOGW("breitscan", "gestartet");
+
+# =============================================================
+# Climate-Entitaet — EIN Sollwert, der der Anlage folgt
+#
+# Warum in der Firmware: HA hat keine Template-Climate; climate_template ist
+# eine HACS-Integration, und die Firmware ist ohnehin der bessere Ort.
+#
+# Warum EINPUNKT und nicht zwei Sollwerte: Sobald heat_action UND cool_action
+# gesetzt sind, macht ESPHome einen Zweipunktregler daraus — und der verlangt,
+# dass der obere Sollwert (kuehlen) UEBER dem unteren (heizen) liegt. Bei dieser
+# Anlage ist es umgekehrt: der Heizwert ist ein Vorlauf-Soll um 55 °C, der
+# Kuehlwert ein Raum-Soll um 21 °C. Der obere Punkt wird damit auf sinnlose
+# 65 °C gezwungen — "kuehlen auf 65 °C" ist Quatsch. Das Zweipunktmodell passt
+# also strukturell nicht.
+#
+# Deshalb: EIN Sollwert (target_temperature), synchronisiert mit HR24. Er zeigt
+# in jedem Modus, was die Anlage anpeilt — 55 °C beim Heizen, 21 °C beim Kuehlen.
+# Genau das war in ThinQ das Problem: dort wurde der Zielwert im Auto-Modus
+# blind. Hier ist er immer sichtbar.
+#
+# Die BETRIEBSART (aus/kuehlen/heizen/auto) waehlt das Auswahlfeld
+# "Betriebsmodus" darunter — es schreibt alle vier Werte von HR26. Die
+# Climate-Entitaet traegt den Sollwert und den Ein/Aus-Zustand; sie zeigt
+# "heizen", solange die Anlage aktiv ist, egal in welchem der drei aktiven Modi.
+#
+# Der thermostat regelt NICHT selbst — die Anlage hat ihre eigene Regelung. Die
+# heat_action schreibt nur HR26, idle_action laesst den Modus stehen.
+climate:
+  - platform: thermostat
+    name: "Wärmepumpe"
+    id: wp_climate
+    sensor: vorlauf
+    visual:
+      min_temperature: 5
+      max_temperature: 65
+      temperature_step: 0.5
+    default_preset: Anlage
+    preset:
+      - name: Anlage
+        default_target_temperature_low: 21
+    heat_deadband: 0.5
+    heat_overrun: 0.5
+    min_heating_off_time: 30s
+    min_heating_run_time: 30s
+    min_idle_time: 30s
+    # Die heat_action steht fuer "die Anlage soll laufen". Welcher der drei
+    # aktiven Modi (kuehlen/heizen/auto) es wird, entscheidet das Auswahlfeld;
+    # heizen ist die Vorgabe, wenn die Entitaet selbst eingeschaltet wird.
+    heat_action:
+      - lambda: |-
+          if (id(hr26_modus).state == 0) {
+            id(therma_v)->queue_command(
+              modbus_controller::ModbusCommandItem::create_write_single_command(
+                id(therma_v), 26, 2));
+            ESP_LOGI("climate", "eingeschaltet -> Heizen (Modus genauer im Auswahlfeld)");
+          }
+    idle_action:
+      - logger.log:
+          level: DEBUG
+          format: "Sollwert erreicht, Betriebsmodus bleibt stehen"
+    on_state:
+      - lambda: |-
+          static climate::ClimateMode letzter = climate::CLIMATE_MODE_HEAT;
+          climate::ClimateMode m = id(wp_climate).mode;
+          if (m == letzter) return;
+          letzter = m;
+          if (m == climate::CLIMATE_MODE_OFF && id(hr26_modus).state != 0) {
+            id(therma_v)->queue_command(
+              modbus_controller::ModbusCommandItem::create_write_single_command(
+                id(therma_v), 26, 0));
+            ESP_LOGI("climate", "Betriebsmodus -> Aus");
+          }
 
 globals:
   - id: scan_namen
@@ -1780,9 +1879,6 @@ globals:
     type: int
     restore_value: false
     initial_value: "0"
-  - id: probe_protokoll
-    type: std::string
-    restore_value: false
 
 interval:
   # Abgeleitete Kaeltekreis-Werte. Die Sattdampftabelle von Propan (R290),
@@ -1869,13 +1965,8 @@ interval:
             float mx = std::max(p1, std::max(p2, p3));
             float mn = std::min(p1, std::min(p2, p3));
             id(schieflast).publish_state(mx > 20.0f ? (100.0f * (mx - mn) / mx) : NAN);
-            // Ueberschuss der staerksten Phase gegenueber dem Mittel der
-            // beiden anderen. Bei symmetrischem Drehstrom nahe null.
-            float rest = (p1 + p2 + p3 - mx) / 2.0f;
-            id(heizstab_verdacht).publish_state(mx > 20.0f ? (mx - rest) : NAN);
           } else {
             id(schieflast).publish_state(NAN);
-            id(heizstab_verdacht).publish_state(NAN);
           }
 
   # =============================================================
@@ -1966,17 +2057,33 @@ interval:
             }
           }
 
-          // Nur echte Registerpunkte zaehlen. Die Unterscheidung laeuft ueber
-          // den Namen: jeder Registersensor traegt sein Kuerzel vorn, die fuenf
-          // Klarnamen sind einzeln aufgefuehrt. Ohne diese Trennung zaehlte der
-          // Wert auch die abgeleiteten Groessen mit, die im Stillstand
-          // bestimmungsgemaess leer sind — beim ersten Lauf ergab das 10 statt 0.
+          // Nur echte Registerpunkte zaehlen. Unbestimmte Punkte tragen ihr
+          // Registerkuerzel im Namen, belegte einen sprechenden — deshalb
+          // beides pruefen. Ohne diese Trennung zaehlte der Wert auch die
+          // abgeleiteten Groessen mit, die im Stillstand bestimmungsgemaess
+          // leer sind; beim ersten Lauf ergab das 10 statt 0.
           auto ist_register = [](const std::string &n) {
             if (n.rfind("IR", 0) == 0 || n.rfind("HR", 0) == 0 ||
                 n.rfind("DI", 0) == 0 || n.rfind("CO", 0) == 0) return true;
-            return n == "Außentemperatur" || n == "Raumtemperatur" ||
-                   n == "Wasser Vorlauftemperatur" || n == "Wasser Rücklauftemperatur" ||
-                   n == "Warmwassertemperatur";
+            return n == "Außentemperatur" ||
+                   n == "Raumtemperatur" ||
+                   n == "Wasser Vorlauftemperatur" ||
+                   n == "Wasser Rücklauftemperatur" ||
+                   n == "Warmwassertemperatur" ||
+                   n == "Heizkreis 1" ||
+                   n == "Heizkreis 1 invers" ||
+                   n == "Betriebsmodus Rohwert" ||
+                   n == "Hochdruck" ||
+                   n == "Niederdruck" ||
+                   n == "Sauggastemperatur" ||
+                   n == "Scheinleistung Anlage" ||
+                   n == "Verdichtertemperatur" ||
+                   n == "Wärmetauscher außen" ||
+                   n == "Wärmetauscher außen (Spiegelregister)" ||
+                   n == "Wassertemperatur unbestimmt" ||
+                   n == "Kennwert Kältemittel" ||
+                   n == "Flüstermodus" ||
+                   n == "Warmwasser Freigabe";
           };
           int fehlen = 0;
           for (auto *s : App.get_sensors()) {
@@ -2046,7 +2153,8 @@ interval:
           for (int n = 0; n < 8 && id(breit_zeiger) < 256; n++, id(breit_zeiger)++) {
             int i = id(breit_zeiger);
             int t = i / 64;
-            uint16_t adr = (uint16_t)(i % 64);
+            uint16_t basis = (uint16_t) id(scan_start).state;
+            uint16_t adr = (uint16_t)(basis + (i % 64));
             std::string bez = str_sprintf("%s%u", kuerzel[t], adr);
             id(therma_v)->queue_command(
               modbus_controller::ModbusCommandItem::create_read_command(
@@ -2074,6 +2182,57 @@ interval:
           } else {
             id(rand_text).publish_state(str_sprintf("breiter Scan läuft — %d von 256, %d Treffer",
                 id(breit_zeiger), (int) id(breit_treffer).size()));
+          }
+
+  # Zieltemperatur und Betriebsart zwischen Climate-Entitaet und Anlage
+  # abgleichen. MODUSABHAENGIG, weil HR24 im Heizen einen anderen Sollwert
+  # bedeutet als im Kuehlen — im Zweipunktmodell also mal die untere, mal die
+  # obere Grenze ist.
+  #
+  # Vorrang hat die Anlage: sie aendert HR24 bei jedem Moduswechsel selbst
+  # (gemessen 21 °C im Kuehl-, 55 °C im Heizbetrieb). Nur eine Aenderung, die
+  # von der Climate-Seite kommt, wird nach HR24 geschrieben. Der Merker
+  # verhindert das Ping-Pong, an dem eine bidirektionale Sync sonst scheitert.
+  - interval: 10s
+    then:
+      - lambda: |-
+          static float hr24_gesehen = NAN;
+          static float ziel_gesehen = NAN;
+          float hr24 = id(hk1_soll).state;
+          float ziel = id(wp_climate).target_temperature;
+          if (std::isnan(hr24)) return;
+
+          bool anlage_hat_geaendert = !std::isnan(hr24_gesehen) &&
+                                      fabsf(hr24 - hr24_gesehen) > 0.05f;
+          bool nutzer_hat_geaendert = !std::isnan(ziel_gesehen) &&
+                                      fabsf(ziel - ziel_gesehen) > 0.05f;
+
+          if (anlage_hat_geaendert) {
+            auto call = id(wp_climate).make_call();
+            call.set_target_temperature(hr24);
+            call.perform();
+            ESP_LOGI("climate", "Sollwert folgt der Anlage: %.1f", hr24);
+          } else if (nutzer_hat_geaendert && fabsf(ziel - hr24) > 0.05f) {
+            auto c = id(hk1_soll).make_call();
+            c.set_value(ziel);
+            c.perform();
+            ESP_LOGI("climate", "Sollwert an die Anlage: %.1f", ziel);
+          }
+          hr24_gesehen = id(hk1_soll).state;
+          ziel_gesehen = id(wp_climate).target_temperature;
+
+          // Ein/Aus der Anlage in die Climate-Entitaet spiegeln. Der genaue
+          // Modus (kuehlen/heizen/auto) steht im Auswahlfeld; die Entitaet
+          // zeigt nur, OB die Anlage laeuft.
+          static int modus_gesehen = -1;
+          int m = (int) lroundf(id(hr26_modus).state);
+          if (m != modus_gesehen && m >= 0 && m <= 3) {
+            modus_gesehen = m;
+            auto call = id(wp_climate).make_call();
+            if (m == 0) call.set_mode(climate::CLIMATE_MODE_OFF);
+            else call.set_mode(climate::CLIMATE_MODE_HEAT);
+            call.perform();
+            ESP_LOGI("climate", "Ein/Aus von der Anlage uebernommen: %d", m);
           }
 
   # Schnelleres Abfragen, solange die Beobachtung laeuft. Selbstabschaltung

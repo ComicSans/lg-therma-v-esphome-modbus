@@ -18,8 +18,9 @@ weiter eingegrenzt werden können.
 **Auslesen** — 34 antwortende Datenpunkte: Vorlauf, Rücklauf, Warmwasser, Raum,
 Außentemperatur, Sauggas, Hoch- und Niederdruck, Scheinleistung, Betriebsmodus.
 
-**Stellen** — Warmwasser-Freigabe (ein/aus), Warmwasser-Solltemperatur,
-Heizkreis-Solltemperatur, Regelungsart.
+**Stellen** — **Betriebsmodus** (aus / kühlen / heizen / auto), **Flüstermodus**,
+Warmwasser-Freigabe, Warmwasser- und Heizkreis-Solltemperatur. Als
+**Climate-Entität** in der Firmware, direkt für einen Energiemanager verdrahtbar.
 
 **Berechnet** — Verdampfungs- und Kondensationstemperatur aus der
 Propan-Dampfdruckkurve, Sauggasüberhitzung, Temperaturhub,
@@ -35,22 +36,34 @@ Abfragelücken.
 
 **Kartierungswerkzeuge** — Registerbeobachtung, Referenzzustand-Vergleich und
 zwei Adress-Scanner, um offene Register zu identifizieren, **ohne zu schreiben**.
-Der breite Scan prüft 256 Adressen einzeln und hat auf diesem Weg zwei Register
-gefunden, die ein gruppenweiser Tiefenscan übersehen hatte.
+Die Einzelabfrage fand fünf Register, die ein gruppenweiser Tiefenscan übersehen
+hatte (CO2, CO4, DI32, CO29, CO30) — darunter den Flüstermodus.
 
 ## Was nicht funktioniert
 
 Über diesen Anschluss sind **nicht** erreichbar, je einzeln geprüft:
-Betriebsmodus als Stellgröße, Heizkreis 2 in jeder Form, Flüstermodus,
-Kreis-2-Pumpe, Mischkreis, Wasserdruck, **Wasserdurchfluss**, Heizstabbetrieb.
+Heizkreis 2 in jeder Form, Kreis-2-Pumpe, Mischkreis, Wasserdruck,
+**Wasserdurchfluss**. Ein Heizstab ist an dieser Anlage nicht verbaut.
+
+> **Am Bedienteil belegt (Juli 2026):** Betriebsmodus und Flüstermodus **sind**
+> über Modbus schaltbar — anders als lange angenommen. Der Betriebsmodus liegt
+> auf HR26 (0 = aus / 1 = kühlen / 2 = heizen / 3 = auto), der Flüstermodus auf
+> Coil 2. Beide galten vorher als „nicht abgebildet".
 
 Dass der Durchfluss fehlt, hat eine Folge: **ein COP lässt sich nicht
 berechnen.** Ohne Volumenstrom keine thermische Leistung. Als Ersatz dient hier
 der Verbrauch je Kelvin Speicherhub — bei konstantem Speichervolumen über die
 Zeit vergleichbar.
 
-Der belegte Weg zu Betriebsmodus und Heizkreis 2 führt über das
-**LG-Gateway PMBUSB00A** oder über **SG-Ready** mit zwei Kontakten.
+Der Weg zu **Heizkreis 2** führt über das **LG-Gateway PMBUSB00A** oder über
+**SG-Ready** mit zwei Kontakten. Der Betriebsmodus dagegen ist direkt über HR26
+erreichbar (siehe oben).
+
+### Zieltemperatur im Auto-Modus — anders als ThinQ
+
+HR24 (die Zieltemperatur) ist in **jedem** Modus lesbar, auch Auto, und folgt
+der Anlage aktiv. In der ThinQ-App ging entweder Auto **oder** die Sicht auf den
+Zielwert — im Auto-Modus wurde er blind. Über Modbus bleibt er sichtbar.
 
 ## Schnellstart
 
