@@ -50,7 +50,7 @@ Die offizielle Karte passt auch hier nur teilweise: Coil 0 (Ein/Aus), Holding 0
 | IR24 | Raumtemperatur | ×0,1 | 205 bei „innen 20,5" |
 | IR25 | Warmwassertemperatur | ×0,1 | 506 bei 50,6 °C am Bedienteil |
 | IR26 | **Wärmeanforderung:** 0 = keine, 1 = bereit, 2 = angefordert | — | fiel beim Abschalten der Warmwasser-Freigabe von 2 auf 0, während HR26 stehenblieb — siehe unten |
-| HR24 | Soll Heizkreis 1, **schreibbar** | ×0,1 | 21 °C Kühlen → 55 °C Heizen; folgt der Anlage bei jedem Moduswechsel |
+| HR24 | Soll Heizkreis 1 in der am Bedienteil gewählten Regelgröße, **schreibbar** | ×0,1 | 21 °C Kühlen → 55 °C Heizen; folgt der Anlage bei jedem Moduswechsel — siehe unten |
 | **HR26** | **Betriebsmodus, schreibbar:** 0 = Aus / nur Warmwasser, 1 = Kühlen, 2 = Heizen, 3 = Auto | — | am Bedienteil geschaltet, alle vier Werte sekundengenau belegt — siehe unten |
 | HR29 | Soll Warmwasser, **schreibbar** | ×0,1 | 480 bei „Warmwasser 48° eco", Änderung live gefolgt |
 | **CO2** | **Flüstermodus, schaltbar** | — | vier Wechsel sekundengenau zur Bedienung am Bedienteil, kein anderer Punkt ging mit |
@@ -80,9 +80,18 @@ Abfragetakt ist diese Reihenfolge echt und kein Abtastartefakt.
 Der Zielwert HR24 ist ein eigenes Register, unabhängig vom Modus. In der
 ThinQ-App war das ein Problem: dort ging entweder Auto **oder** die Sicht auf
 den Zielwert, im Auto-Modus wurde er blind. Über Modbus ist HR24 in jedem Modus
-sichtbar und folgt der Anlage aktiv (21 °C im Kühlen, 55 °C im Heizen). Seine
-**Bedeutung** wechselt mit dem Modus: im Heizen ein Vorlauf-Soll, im Kühlen ein
-Raum-Soll.
+sichtbar und folgt der Anlage aktiv (21 °C im Kühlen, 55 °C im Heizen).
+
+**Welche Größe HR24 meint, bestimmt die Regelungsart am Bedienteil** — Vorlauf,
+Rücklauf oder Raum, je Betriebsmodus getrennt einstellbar. An dieser Anlage
+steht sie auf **Vorlauf im Heizen und Rücklauf im Kühlen**; die 55 °C oben sind
+also ein Vorlauf-Soll, die 21 °C ein Rücklauf-Soll.
+
+Das ist eine Einstellung, keine Eigenschaft des Registers: Wer die Regelungsart
+umstellt, ändert die Bedeutung von HR24, ohne dass sich am Register etwas
+ablesen lässt. **Die Regelungsart selbst ist über Modbus nicht abgebildet** —
+ein Energiemanager, der auf HR24 schreibt, kann sie nicht prüfen und muss von
+der Einstellung am Gerät ausgehen.
 
 ### IR23 ist Scheinleistung, nicht Wirkleistung
 
