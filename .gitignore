@@ -1,0 +1,10 @@
+# Zugangsdaten
+secrets.yaml
+
+# ESPHome-Bauverzeichnis
+.esphome/
+*.bin
+*.elf
+
+# macOS
+.DS_Store

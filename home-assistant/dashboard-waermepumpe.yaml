@@ -1,0 +1,390 @@
+# Lovelace-Ansicht für die Wärmepumpe
+#
+# Einbauen: Dashboard öffnen → Stift oben rechts → Dreipunktmenü →
+# „Rohkonfigurationseditor" → diesen Block unter `views:` einfügen.
+#
+# Die Entity-IDs setzen sich aus dem Gerätenamen in Home Assistant und dem
+# Sensornamen aus der Firmware zusammen. Hier heißt das Gerät „Heizungskeller
+# Wärmepumpe Modbus" — wer es anders benannt hat, muss das Präfix
+# `heizungskeller_warmepumpe_modbus_` durchgängig ersetzen.
+#
+# Die drei Phasen des Stromzählers (sensor.l1_power und weitere) stammen aus
+# einem Shelly 3EM und heißen in jeder Installation anders.
+
+title: Wärmepumpe
+path: waermepumpe
+icon: mdi:heat-pump
+badges: []
+cards:
+  # ---------------------------------------------------------------
+  - type: heading
+    heading: Betrieb
+    heading_style: title
+    icon: mdi:heat-pump-outline
+
+  - type: glance
+    show_name: true
+    show_state: true
+    columns: 3
+    entities:
+      - entity: sensor.heizungskeller_warmepumpe_modbus_betriebsmodus
+        name: Modus
+      - entity: binary_sensor.heizungskeller_warmepumpe_modbus_verdichter_lauft
+        name: Verdichter
+      - entity: sensor.heizungskeller_warmepumpe_modbus_wirkleistung_gemessen
+        name: Leistung
+
+  - type: entities
+    title: Temperaturen
+    state_color: true
+    entities:
+      - entity: sensor.heizungskeller_warmepumpe_modbus_wasser_vorlauftemperatur
+        name: Vorlauf
+      - entity: sensor.heizungskeller_warmepumpe_modbus_wasser_rucklauftemperatur
+        name: Rücklauf
+      - entity: sensor.heizungskeller_warmepumpe_modbus_spreizung_vorlauf_rucklauf
+        name: Spreizung
+      - type: divider
+      - entity: sensor.heizungskeller_warmepumpe_modbus_warmwassertemperatur
+        name: Warmwasser
+      - entity: number.heizungskeller_warmepumpe_modbus_soll_temperatur_warmwasser
+        name: Warmwasser-Soll
+      - type: divider
+      - entity: sensor.heizungskeller_warmepumpe_modbus_aussentemperatur
+        name: Außen
+      - entity: sensor.heizungskeller_warmepumpe_modbus_raumtemperatur
+        name: Raum
+
+  - type: history-graph
+    title: Vorlauf, Rücklauf und Warmwasser
+    hours_to_show: 24
+    entities:
+      - sensor.heizungskeller_warmepumpe_modbus_wasser_vorlauftemperatur
+      - sensor.heizungskeller_warmepumpe_modbus_wasser_rucklauftemperatur
+      - sensor.heizungskeller_warmepumpe_modbus_warmwassertemperatur
+      - sensor.heizungskeller_warmepumpe_modbus_aussentemperatur
+
+  # ---------------------------------------------------------------
+  - type: heading
+    heading: Kältekreis
+    heading_style: title
+    icon: mdi:snowflake-thermometer
+
+  - type: markdown
+    content: >-
+      Druck und Siedetemperatur eines Kältemittels hängen fest zusammen. Aus dem
+      gemessenen Druck wird die Temperatur berechnet, bei der das Propan gerade
+      siedet — der Abstand des Sauggases dazu ist die **Überhitzung**.
+
+
+      Unter 3 K erreicht Flüssigkeit den Verdichter, über 12 K wird der
+      Verdampfer nicht ausgenutzt. **Nur bei laufendem Verdichter
+      aussagekräftig:** im Stillstand steht der Kreis im Druckausgleich.
+
+  - type: entities
+    title: Drücke und Sättigung
+    entities:
+      - entity: sensor.heizungskeller_warmepumpe_modbus_ir21_hochdruck
+        name: Hochdruck
+      - entity: sensor.heizungskeller_warmepumpe_modbus_ir22_niederdruck
+        name: Niederdruck
+      - entity: sensor.heizungskeller_warmepumpe_modbus_druckdifferenz
+        name: Druckdifferenz
+      - entity: sensor.heizungskeller_warmepumpe_modbus_verdichtungsverhaltnis
+        name: Verdichtungsverhältnis
+      - type: divider
+      - entity: sensor.heizungskeller_warmepumpe_modbus_kondensationstemperatur
+        name: Kondensation
+      - entity: sensor.heizungskeller_warmepumpe_modbus_verdampfungstemperatur
+        name: Verdampfung
+      - entity: sensor.heizungskeller_warmepumpe_modbus_temperaturhub
+        name: Temperaturhub
+      - type: divider
+      - entity: sensor.heizungskeller_warmepumpe_modbus_ir17_sauggastemperatur
+        name: Sauggas
+      - entity: sensor.heizungskeller_warmepumpe_modbus_sauggasuberhitzung
+        name: Überhitzung
+      - entity: sensor.heizungskeller_warmepumpe_modbus_carnot_obergrenze
+        name: Carnot-Obergrenze
+
+  - type: entities
+    title: Wärmeübergang
+    entities:
+      - entity: sensor.heizungskeller_warmepumpe_modbus_annaherung_kondensation_vorlauf
+        name: Kondensation über Vorlauf
+        secondary_info: last-changed
+      - entity: sensor.heizungskeller_warmepumpe_modbus_annaherung_aussenluft_verdampfung
+        name: Außenluft über Verdampfung
+      - type: divider
+      - entity: binary_sensor.heizungskeller_warmepumpe_modbus_kaltekreis_auffallig
+        name: Kältekreis auffällig
+      - entity: binary_sensor.heizungskeller_warmepumpe_modbus_warmeubergang_auffallig
+        name: Wärmeübergang auffällig
+
+  - type: history-graph
+    title: Überhitzung und Temperaturhub
+    hours_to_show: 24
+    entities:
+      - sensor.heizungskeller_warmepumpe_modbus_sauggasuberhitzung
+      - sensor.heizungskeller_warmepumpe_modbus_temperaturhub
+
+  # ---------------------------------------------------------------
+  - type: heading
+    heading: Strom
+    heading_style: title
+    icon: mdi:flash
+
+  - type: entities
+    title: Leistung
+    entities:
+      - entity: sensor.heizungskeller_warmepumpe_modbus_wirkleistung_gemessen
+        name: Wirkleistung
+      - entity: sensor.heizungskeller_warmepumpe_modbus_scheinleistung_gemessen
+        name: Scheinleistung
+      - entity: sensor.heizungskeller_warmepumpe_modbus_leistungsfaktor
+        name: Leistungsfaktor
+      - entity: sensor.heizungskeller_warmepumpe_modbus_standby_verbrauch
+        name: Standby
+      - type: divider
+      - entity: sensor.heizungskeller_warmepumpe_modbus_ir23_scheinleistung
+        name: Scheinleistung laut Modbus
+      - entity: sensor.heizungskeller_warmepumpe_modbus_abgleich_ir23_zu_messung
+        name: Abgleich zur Messung
+      - type: divider
+      - entity: sensor.heizungskeller_warmepumpe_modbus_phasenschieflast
+        name: Phasenschieflast
+      - entity: sensor.heizungskeller_warmepumpe_modbus_verdacht_heizstab
+        name: Überschuss stärkste Phase
+      - entity: binary_sensor.heizungskeller_warmepumpe_modbus_verdacht_auf_heizstabbetrieb
+        name: Verdacht Heizstab
+
+  - type: markdown
+    content: >-
+      **Warum zwei Leistungswerte?** Das Modbus-Register liefert Scheinleistung
+      in VA, der Zähler Wirkleistung in W. Der Abgleich liegt erwartet bei rund
+      0,95 — läuft er weg, hat sich entweder am Zähler etwas geändert oder die
+      Registerdeutung war falsch.
+
+
+      **Heizstabbetrieb ist über Modbus nicht abgebildet.** Ein Inverterverdichter
+      zieht symmetrisch über drei Phasen; hebt sich eine Phase deutlich ab, läuft
+      etwas einphasiges mit.
+
+  - type: history-graph
+    title: Leistung über 24 Stunden
+    hours_to_show: 24
+    entities:
+      - sensor.heizungskeller_warmepumpe_modbus_wirkleistung_gemessen
+      - sensor.heizungskeller_warmepumpe_modbus_ir23_scheinleistung
+
+  # ---------------------------------------------------------------
+  - type: heading
+    heading: Verschleiß und Effizienz
+    heading_style: title
+    icon: mdi:counter
+
+  - type: glance
+    columns: 3
+    entities:
+      - entity: sensor.heizungskeller_warmepumpe_modbus_verdichterstarts_heute
+        name: Starts heute
+      - entity: sensor.heizungskeller_warmepumpe_modbus_verdichterstarts_gestern
+        name: Gestern
+      - entity: sensor.heizungskeller_warmepumpe_modbus_warmwasserladungen_heute
+        name: Ladungen
+
+  - type: entities
+    title: Taktung
+    entities:
+      - entity: sensor.heizungskeller_warmepumpe_modbus_mittlere_laufzeit_pro_takt
+        name: Mittlere Laufzeit je Takt
+      - entity: sensor.heizungskeller_warmepumpe_modbus_kurzester_takt_heute
+        name: Kürzester Takt heute
+      - entity: sensor.heizungskeller_warmepumpe_modbus_betriebsstunden_verdichter
+        name: Betriebsstunden
+      - type: divider
+      - entity: sensor.heizungskeller_warmepumpe_modbus_verbrauch_je_kelvin_speicherhub
+        name: Verbrauch je Kelvin Speicherhub
+
+  - type: markdown
+    content: >-
+      Häufiges Takten ist der wichtigste Verschleißindikator und der klassische
+      Befund bei überdimensionierten Anlagen — der **kürzeste Takt** sagt dazu
+      mehr als der Mittelwert.
+
+
+      **Verbrauch je Kelvin Speicherhub** ersetzt den COP, der ohne
+      Durchflussmessung nicht zu berechnen ist. Das Speichervolumen ist konstant,
+      also ist der Wert über die Zeit vergleichbar: steigt er bei gleicher
+      Außentemperatur, arbeitet die Anlage schlechter.
+
+  # ---------------------------------------------------------------
+  - type: heading
+    heading: Bus-Gesundheit
+    heading_style: title
+    icon: mdi:lan-connect
+
+  - type: entities
+    title: Verbindung
+    entities:
+      - entity: sensor.heizungskeller_warmepumpe_modbus_zeit_seit_letzter_antwort
+        name: Zeit seit letzter Antwort
+      - entity: sensor.heizungskeller_warmepumpe_modbus_zyklusdauer
+        name: Zyklusdauer
+      - entity: sensor.heizungskeller_warmepumpe_modbus_punkte_ohne_antwort
+        name: Punkte ohne Antwort
+      - entity: sensor.heizungskeller_warmepumpe_modbus_verpasste_abfragezyklen
+        name: Verpasste Zyklen
+      - type: divider
+      - entity: binary_sensor.heizungskeller_warmepumpe_modbus_bus_lucke_zu_lang
+        name: Lücke zu lang
+      - entity: number.heizungskeller_warmepumpe_modbus_maximale_bus_lucke
+        name: Grenze für die Lücke
+
+  - type: markdown
+    content: >-
+      „Punkte ohne Antwort" und „Verpasste Zyklen" sind **Ersatzgrößen** aus dem
+      Ausbleiben von Werten — ESPHome legt keinen Timeout- und keinen
+      Exception-Zähler offen.
+
+
+      Die Grenze für die Lücke ist die Schutzschaltung: reißt der Bus sie,
+      werden laufende Werkzeuge beendet. Grund ist die Sorge, die Anlage könne
+      bei zu langer Funkstille in einen Fehlerzustand gehen — **belegt ist das
+      nicht**, mehrminütige Scans blieben folgenlos. Der Wert oben macht die
+      Lücken messbar statt sie zu vermuten.
+
+  # ---------------------------------------------------------------
+  - type: heading
+    heading: Kartierung
+    heading_style: title
+    icon: mdi:map-search
+
+  - type: markdown
+    content: >-
+      Werkzeuge, um offene Register zu identifizieren — **ohne einen einzigen
+      Schreibzugriff**.
+
+
+      *Registerbeobachtung:* einschalten, ans Bedienteil gehen, dort etwas
+      umstellen, zurückkommen. Läuft schneller als im Normalbetrieb und schaltet
+      nach 30 Minuten selbst ab.
+
+
+      *Referenzzustand:* Momentaufnahme aller Punkte festhalten, am Bedienteil
+      schalten, Vergleich drücken. Kein Zeitdruck.
+
+
+      Die Meldeschwelle zählt **Registerschritte**, nicht Anzeigeeinheiten:
+      bei 1 meldet ein Rohregister ab 1, eine Temperatur ab 0,1 °C, ein Druck ab
+      0,01 bar. Hochdrehen, wenn Temperaturdrift die Liste füllt.
+
+  - type: entities
+    title: Registerbeobachtung
+    entities:
+      - entity: switch.heizungskeller_warmepumpe_modbus_registerbeobachtung
+        name: Beobachtung läuft
+      - entity: sensor.heizungskeller_warmepumpe_modbus_beobachtung_restlaufzeit
+        name: Restlaufzeit
+      - entity: number.heizungskeller_warmepumpe_modbus_beobachtung_meldeschwelle
+        name: Meldeschwelle
+      - type: divider
+      - entity: sensor.heizungskeller_warmepumpe_modbus_beobachtung_anderungen
+        name: Änderungen
+      - entity: sensor.heizungskeller_warmepumpe_modbus_beobachtung_letzte_anderung
+        name: Letzte Änderung
+      - entity: sensor.heizungskeller_warmepumpe_modbus_beobachtung_geanderte_punkte
+        name: Geänderte Punkte
+
+  - type: entities
+    title: Referenzzustand und Randbereiche
+    entities:
+      - entity: button.heizungskeller_warmepumpe_modbus_referenzzustand_festhalten
+        name: Referenzzustand festhalten
+      - entity: button.heizungskeller_warmepumpe_modbus_abweichung_zum_referenzzustand
+        name: Abweichung anzeigen
+      - entity: sensor.heizungskeller_warmepumpe_modbus_abweichung_zum_referenzzustand
+        name: Ergebnis
+      - type: divider
+      - entity: button.heizungskeller_warmepumpe_modbus_randbereiche_prufen
+        name: Randbereiche prüfen
+      - entity: sensor.heizungskeller_warmepumpe_modbus_ergebnis_randbereichsprufung
+        name: Ergebnis
+
+  - type: entities
+    title: Rohe Registerwerte
+    entities:
+      - entity: sensor.heizungskeller_warmepumpe_modbus_ir10_unbestimmt
+      - entity: sensor.heizungskeller_warmepumpe_modbus_ir20_unbestimmt
+      - entity: sensor.heizungskeller_warmepumpe_modbus_ir27_unbestimmt
+      - entity: sensor.heizungskeller_warmepumpe_modbus_hr25_unbestimmt
+      - entity: sensor.heizungskeller_warmepumpe_modbus_hr27_unbestimmt
+      - entity: sensor.heizungskeller_warmepumpe_modbus_hr28_unbestimmt
+      - type: divider
+      - entity: sensor.heizungskeller_warmepumpe_modbus_ir09_kennwert
+      - entity: sensor.heizungskeller_warmepumpe_modbus_ir13_kennwert_kaltemittel
+      - entity: sensor.heizungskeller_warmepumpe_modbus_ir14_wassertemperatur_unbestimmt
+      - entity: sensor.heizungskeller_warmepumpe_modbus_ir18_verdichtertemperatur
+      - entity: sensor.heizungskeller_warmepumpe_modbus_ir11_warmetauscher_aussen
+      - entity: sensor.heizungskeller_warmepumpe_modbus_ir19_spiegel_von_ir11
+      - type: divider
+      - entity: binary_sensor.heizungskeller_warmepumpe_modbus_di06_unbestimmt
+      - entity: binary_sensor.heizungskeller_warmepumpe_modbus_di07_unbestimmt
+      - entity: binary_sensor.heizungskeller_warmepumpe_modbus_di08_unbestimmt
+      - entity: binary_sensor.heizungskeller_warmepumpe_modbus_di09_warmwasserbereitung
+      - entity: binary_sensor.heizungskeller_warmepumpe_modbus_di31_unbestimmt
+      - entity: binary_sensor.heizungskeller_warmepumpe_modbus_co5_unbestimmt_nur_anzeige
+
+  # ---------------------------------------------------------------
+  - type: heading
+    heading: Steuerung
+    heading_style: title
+    icon: mdi:tune-vertical
+
+  - type: entities
+    title: Was diese Anlage über Modbus stellen kann
+    entities:
+      - entity: switch.heizungskeller_warmepumpe_modbus_warmwasser_freigabe
+        name: Warmwasser-Freigabe
+      - entity: number.heizungskeller_warmepumpe_modbus_soll_temperatur_warmwasser
+        name: Warmwasser-Soll
+      - entity: number.heizungskeller_warmepumpe_modbus_soll_temperatur_heizkreis_1
+        name: Heizkreis-Soll
+      - entity: select.heizungskeller_warmepumpe_modbus_regelungsart
+        name: Regelungsart
+
+  - type: markdown
+    content: >-
+      **Die Regelungsart nicht versehentlich umstellen.** Das Register folgt
+      selbst dem Betriebsmodus, und in einem Fremdprojekt hat genau dieses
+      Umstellen die Regelung von Wasser- auf Raumfühler verstellt. Ein Klick
+      genügt.
+
+
+      Betriebsmodus, Heizkreis 2 und der Flüstermodus sind über diesen Anschluss
+      **nicht** erreichbar.
+
+  - type: entities
+    title: Schreibprobe — schreibt auf den Bus
+    entities:
+      - entity: select.heizungskeller_warmepumpe_modbus_schreibprobe_ziel
+        name: Ziel
+      - entity: select.heizungskeller_warmepumpe_modbus_schreibprobe_wert
+        name: Wert
+      - entity: button.heizungskeller_warmepumpe_modbus_schreibprobe_ausfuhren
+        name: Ausführen
+      - entity: sensor.heizungskeller_warmepumpe_modbus_protokoll_schreibprobe
+        name: Protokoll
+
+  - type: markdown
+    content: >-
+      ⚠️ **Das einzige Werkzeug hier, das schreibt.** Es protokolliert, was beim
+      Rücklesen nach 1, 10 und 60 Sekunden im Coil steht — genau die Information,
+      die bei Coil 5 fehlt. Rücklesen 0 beweist nämlich nichts: so verhält sich
+      auch ein Bit, das seine Aktion ausführt und sich selbst zurücksetzt.
+
+
+      Bei **Coil 5** ist unter den Kandidaten auch der Desinfektionszyklus, der
+      den Speicher stundenlang auf rund 70 °C heizt. Vorbelegt ist „kein Ziel";
+      ein Druck ohne bewusste Auswahl bleibt wirkungslos. Erst den passiven Weg
+      über die Registerbeobachtung ausschöpfen.

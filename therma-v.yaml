@@ -1,0 +1,2050 @@
+# LG Therma V R290 Monobloc, Hydro Unit HN1639HC.NK0
+# Modbus RTU ueber Waveshare ESP32-S3-RS485-CAN
+#
+# ACHTUNG: Dieses Geraet hat eine EIGENE Registerbelegung. Keine der
+# veroeffentlichten Karten (LG-Handbuch, LG-Folie "Open MODBUS",
+# basti242-Wiki) passt — auch nicht mit Versatz. Ein vollstaendiger Scan am
+# 2026-07-29 ergab genau 32 antwortende Punkte:
+#   Input-Register 9..27, Halteregister 24..29,
+#   Discrete Inputs 6,7,8,9,31, Coils 5 und 6.
+# Alles andere antwortet mit Exception 2 (illegal data address).
+#
+# Verkabelung: A -> Klemme 21, B -> Klemme 22 (3rd Party Controller, 5 V DC).
+# DIP: SW1-1 ON, SW1-2 **OFF**. In dieser Stellung laeuft der Bus, und zwar
+# durchgehend seit dem ersten Tag — mit der Registerkarte unten.
+#
+# Mit SW1-2 auf ON kam bisher keine Antwort (58 Timeouts, viermal gemessen).
+# Das ist laut Handbuch das "einheitliche offene Protokoll" und damit die
+# Stellung, in der LGs offizielle Therma-V-Karte gelten sollte: Coil 0 Ein/Aus,
+# Coil 2 Fluestermodus, Halteregister 0 Betriebsmodus, Halteregister 9
+# Energiezustand, Input 0..12 Messwerte. Genau die fehlen hier.
+#
+# -------------------------------------------------------------------------
+# Stand 2026-07-30 — was sich gegenueber der Fassung vom 29.07. geaendert hat
+# -------------------------------------------------------------------------
+# 1. force_new_range: true steht jetzt an JEDEM Register.
+#    Grund: Die 24-h-Historie in Home Assistant besteht aus acht
+#    Firmware-Generationen (erstes Auftreten von Entitaeten um 03:27, 11:53,
+#    13:12, 13:28, 14:37, 14:53, 14:56 und 18:35 UTC). IR11 lieferte in drei
+#    dieser Generationen zu 100 % Werte von 197..451 "°C" — die Spruenge
+#    liegen exakt auf den Generationsgrenzen, nicht auf Betriebszustaenden.
+#    Ursache ist die Blockbildung: ESPHome fasst benachbarte Register zu einer
+#    Anfrage zusammen, und die Gruppierung aendert sich mit jeder Aenderung der
+#    Registerliste. Mit force_new_range wird jedes Register einzeln angefragt —
+#    32 Anfragen je Zyklus, bei 9600 Baud rund 1,5 s, unkritisch bei 30 s.
+#
+# 2. Vier Register sind ueber die R290-Dampfdruckkurve aufgeloest.
+#    Rechnung: Rohwert / 100 + 1 bar = Absolutdruck, daraus die
+#    Sattdampftemperatur von Propan.
+#      IR21 -> Hochdruck. Waehrend der Warmwasserladung am 29.07. deckt sich
+#              die Sattdampftemperatur mit dem Vorlauf auf unter 1,5 K, ueber
+#              sieben Punkte monoton mitlaufend (1814 -> 54,9 °C bei Vorlauf
+#              53,7; 2337 -> 66,6 bei 67,3). Im Stillstand folgt sie der
+#              Aussenluft mit 1..3,5 K Versatz — Druckausgleich.
+#      IR22 -> Niederdruck. Im Stillstand praktisch gleich IR21, im Betrieb
+#              weit darunter (529 gegen 1814).
+#      IR17 -> Sauggastemperatur. Gegen die Sattdampftemperatur aus IR22
+#              gerechnet ergibt sich durchgehend 5..8 K Ueberhitzung.
+#              Negativwerte sind fuer Sauggas normal — das schliesst den
+#              bisherigen Verdacht "Expansionsventil-Schrittzahl" aus.
+#      IR23 -> elektrische Leistungsaufnahme. Warmwasserladung 2276..3502 W,
+#              Stillstand fest 417 W bzw. 0. Ein Druck kann es nicht sein:
+#              417 bleibt neun Stunden fest, waehrend die Aussentemperatur um
+#              14 K faellt.
+#
+# 3. Zwei Beschriftungen waren falsch und sind korrigiert.
+#      IR11/IR19 hiessen "Heissgastemperatur". Die Zuordnung stammt aus einem
+#        Ablesevergleich (214 gegen Bedienteil 211) in einer Generation, in der
+#        IR11 nachweislich verfaelscht war. Beide Register sind zu 99,7 %
+#        byte-identisch (1 abweichender Punkt von 322) — "2. Fuehler" ist
+#        damit unbelegt. In der stabilen Generation folgen beide der Aussenluft
+#        mit thermischem Nachlauf. Dass das Bedienteil damals wirklich 211
+#        zeigte, legt nahe, dass die Heissgastemperatur in einem der bisher
+#        nicht gelesenen Register steckt.
+#      IR18 hiess "Verdichterfrequenz (Verdacht)". Der Punkt liegt ueber neun
+#        Stunden Stillstand konstant 10..15 K ueber der Aussenluft und sinkt
+#        mit ihr (42 °C bei 29 aussen -> 25 °C bei 15 aussen). Eine Frequenz
+#        waere in dieser Zeit 0.
+#
+# 4. IR10, IR20 und IR27 werden erstmals gelesen. Der Scan belegt Input 9..27
+#    lueckenlos (19 Register als Teil der 32 Punkte); gelesen wurden bisher 16.
+#    IR20 stand sogar als "ungeklaert" in den Notizen, ohne je abgefragt zu
+#    werden.
+#
+# 5. Neu: ein Beobachtungsmodus, siehe Abschnitt "Registerbeobachtung" unten.
+#
+# OFFEN und bewusst unveraendert gelassen:
+#   - Der select "Regelungsart" (HR26) ist schreibbar. HR26 folgt aber selbst
+#     dem Betriebsmodus, und in einem Fremdprojekt hat genau dieses Umstellen
+#     die Regelung von Wasser- auf Raumfuehler verstellt. Wer das nicht braucht,
+#     sollte den select in einen lesenden Sensor umbauen.
+#   - HR29 laesst 30..80 °C zu. 30 °C liegt unter jeder Legionellenschwelle,
+#     80 °C ueber dem, was ein R290-Monoblock liefert.
+#   - api: ohne encryption, ota: ohne password, und der Fallback-AP nutzt das
+#     WLAN-Passwort als AP-Passwort.
+
+# ---------------------------------------------------------------------
+# Zugangsdaten stehen in secrets.yaml daneben — Vorlage: secrets.yaml.example
+# Die Sensor-Entitaeten des Stromzaehlers unten (sensor.l1_power und weitere)
+# muessen an die eigene Home-Assistant-Instanz angepasst werden.
+# ---------------------------------------------------------------------
+
+esphome:
+  name: therma-v-gateway
+  friendly_name: "LG Therma V Heatpump"
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  framework:
+    type: esp-idf
+
+wifi:
+  ssid: !secret wlan_ssid
+  password: !secret wlan_passwort
+
+  ap:
+    # Die Fallback-SSID darf nicht das WLAN-Passwort enthalten: der AP funkt
+    # seine SSID im Klartext an alle in Reichweite, sobald das WLAN wegfaellt.
+    # Und das AP-Passwort sollte ein EIGENES sein, nicht das WLAN-Passwort —
+    # sonst oeffnet ein geknackter Fallback-AP gleich das ganze Netz.
+    ssid: "therma-v-fallback"
+    password: !secret ap_passwort
+
+logger:
+  baud_rate: 0
+
+api:
+
+ota:
+  - platform: esphome
+
+# Uhrzeit von Home Assistant. Gebraucht fuer die Tageszaehler unten — ohne
+# eine Zeitquelle kann das Geraet keinen Tageswechsel erkennen.
+time:
+  - platform: homeassistant
+    id: ha_zeit
+    on_time:
+      # Mitternacht: Tageszaehler sichern und zuruecksetzen.
+      - seconds: 0
+        minutes: 0
+        hours: 0
+        then:
+          - lambda: |-
+              id(starts_vortag) = id(starts_heute);
+              id(starts_heute) = 0;
+              id(ladungen_vortag) = id(ladungen_heute);
+              id(ladungen_heute) = 0;
+              id(kuerzester_takt_24h) = 0;
+              id(stat_dirty) = true;
+
+uart:
+  id: modbus_uart
+  tx_pin: GPIO17
+  rx_pin: GPIO18
+  baud_rate: 9600
+  stop_bits: 1
+  # Waveshare ESP32-S3-RS485-CAN: EN-Pin des RS485-Transceivers.
+  # Ohne diese Zeile bleibt der Treiber im Empfangsmodus und sendet nie.
+  flow_control_pin: GPIO21
+
+modbus:
+  id: modbus_bus
+  uart_id: modbus_uart
+
+modbus_controller:
+  - id: therma_v
+    address: 1
+    modbus_id: modbus_bus
+    setup_priority: -10
+    update_interval: 30s
+
+# =============================================================
+# Messwerte — Input-Register 9..27
+#
+# force_new_range: true an jedem Eintrag: jedes Register wird einzeln
+# angefragt. Das kostet Buslast und schuetzt davor, dass die Blockbildung
+# Werte zwischen Nachbarregistern verschiebt (siehe Kopf, Punkt 1).
+# =============================================================
+sensor:
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    name: "Außentemperatur"                  # IR12: 305 bei 30 °C am Bedienteil
+    id: aussentemp
+    address: 12
+    register_type: read
+    value_type: S_WORD
+    force_new_range: true
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    # Referenzregister fuer die Bus-Gesundheit: jedes Publish heisst, der Bus
+    # hat geantwortet. Der Abstand zweier Publishes ist ein voller Durchlauf —
+    # am 2026-07-30 rund 20 s bei 32 Einzelanfragen.
+    on_value:
+      then:
+        - lambda: |-
+            uint32_t jetzt = millis();
+            if (id(letzte_antwort_ms) > 0) {
+              float dauer = (jetzt - id(letzte_antwort_ms)) / 1000.0f;
+              if (dauer > 1.0f && dauer < 600.0f) id(zyklusdauer).publish_state(dauer);
+            }
+            id(vorletzte_antwort_ms) = id(letzte_antwort_ms);
+            id(letzte_antwort_ms) = jetzt;
+
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    name: "Raumtemperatur"                   # IR24: 205 bei "innen 20,5"
+    address: 24
+    register_type: read
+    value_type: S_WORD
+    force_new_range: true
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    name: "Wasser Rücklauftemperatur"        # IR15: 187 bei "18,7 intern"
+    id: ruecklauf
+    address: 15
+    register_type: read
+    value_type: S_WORD
+    force_new_range: true
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    name: "Wasser Vorlauftemperatur"         # IR16: 187, identisch mit IR15
+    id: vorlauf
+    address: 16
+    register_type: read
+    value_type: S_WORD
+    force_new_range: true
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    name: "Warmwassertemperatur"             # IR25: 506, Bedienteil 50,6 °C
+    id: ww_temp
+    address: 25
+    register_type: read
+    value_type: S_WORD
+    force_new_range: true
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # --- Kaeltekreis. Aufgeloest 2026-07-30 ueber die R290-Dampfdruckkurve. ---
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    # Gegenprobe Warmwasserladung 29.07.: Sattdampftemperatur aus dem Rohwert
+    # gegen Vorlauf — 1814/54,9 bei 53,7 · 2010/59,5 bei 58,6 · 2141/62,4 bei
+    # 61,8 · 2239/64,5 bei 64,4 · 2337/66,6 bei 67,3. Abweichung unter 1,5 K.
+    name: "IR21 Hochdruck"
+    id: ir21_hochdruck
+    address: 21
+    register_type: read
+    value_type: S_WORD
+    force_new_range: true
+    unit_of_measurement: "bar"
+    device_class: pressure
+    state_class: measurement
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    # Im Stillstand praktisch gleich IR21 (869 gegen 866, 621 gegen 605 —
+    # Druckausgleich), im Betrieb weit darunter (529 gegen 1814).
+    name: "IR22 Niederdruck"
+    id: ir22_niederdruck
+    address: 22
+    register_type: read
+    value_type: S_WORD
+    force_new_range: true
+    unit_of_measurement: "bar"
+    device_class: pressure
+    state_class: measurement
+    accuracy_decimals: 2
+    filters:
+      - multiply: 0.01
+
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    # Gegen die Sattdampftemperatur aus IR22 gerechnet durchgehend 5..8 K
+    # Ueberhitzung. Wird negativ (bis -0,6 °C) — normal fuer Sauggas und der
+    # Grund, warum "Expansionsventil-Schrittzahl" ausgeschlossen ist.
+    name: "IR17 Sauggastemperatur"
+    id: ir17_sauggas
+    address: 17
+    register_type: read
+    value_type: S_WORD
+    force_new_range: true
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    # SCHEINLEISTUNG, nicht Wirkleistung. Am 2026-07-30 gegen den Shelly 3EM
+    # der Waermepumpe entschieden, der Spannung, Strom und Leistungsfaktor je
+    # Phase einzeln misst. Ueber 27 Messpunkte der Warmwasserladung:
+    #
+    #   IR23 / Scheinleistung  = 0,907 .. 0,984   (Median 0,946)  <- konstant
+    #   IR23 / Wirkleistung    = 1,179 .. 1,360                   <- unruhig
+    #
+    # Der gemessene Leistungsfaktor lief in derselben Zeit von 0,709 auf
+    # 0,790 — er steigt mit der Last, wie bei einem Inverterverdichter zu
+    # erwarten. Genau diese Laststeigerung macht das Wirkleistungs-Verhaeltnis
+    # unruhig und das Scheinleistungs-Verhaeltnis konstant.
+    #
+    # Die rund 5 % Abweichung nach unten gegenueber der externen Messung
+    # bleiben offen — denkbar sind Zuleitungsverluste oder Baugruppen, die die
+    # Anlage intern nicht mitrechnet.
+    #
+    # IM STILLSTAND ist der Wert KEINE Messung: er parkt neun Stunden exakt
+    # auf 417, waehrend der Zaehler rund 180 VA sieht. Ein Ruhewert. Wer den
+    # Verdichterzustand braucht, nimmt die Wirkleistung, nicht dieses
+    # Register — genau so ist es im Melder "Verdichter läuft" gemacht.
+    name: "IR23 Scheinleistung"
+    id: ir23_scheinleistung
+    address: 23
+    register_type: read
+    value_type: S_WORD
+    force_new_range: true
+    unit_of_measurement: "VA"
+    device_class: apparent_power
+    state_class: measurement
+    accuracy_decimals: 0
+
+  # --- Temperaturen mit plausibler, aber unbestaetigter Zuordnung ---
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    # Hiess bis 2026-07-30 "Verdichterfrequenz (Verdacht)". Liegt ueber neun
+    # Stunden Stillstand konstant 10..15 K ueber der Aussenluft und sinkt mit
+    # ihr — eine Frequenz waere 0. Passt zu Verdichtergehaeuse
+    # (Kurbelwannenheizung) oder Leistungsmodul-Kuehlkoerper. UNBESTAETIGT.
+    name: "IR18 Verdichtertemperatur"
+    address: 18
+    register_type: read
+    value_type: S_WORD
+    force_new_range: true
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    entity_category: diagnostic
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    # Hiess bis 2026-07-30 "Heissgastemperatur" — falsch, siehe Kopf Punkt 3.
+    # Folgt in der stabilen Generation der Aussenluft mit Nachlauf
+    # (15,4 bei 15,2 aussen). UNBESTAETIGT.
+    name: "IR11 Wärmetauscher außen"
+    address: 11
+    register_type: read
+    value_type: S_WORD
+    force_new_range: true
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    entity_category: diagnostic
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    # Zu 99,7 % byte-identisch mit IR11, inklusive aller Artefakte. Bleibt
+    # drin, damit die Beobachtung zeigt, ob die Spiegelung bestehen bleibt.
+    name: "IR19 Spiegel von IR11"
+    address: 19
+    register_type: read
+    value_type: S_WORD
+    force_new_range: true
+    unit_of_measurement: "°C"
+    device_class: temperature
+    accuracy_decimals: 1
+    entity_category: diagnostic
+    filters:
+      - multiply: 0.1
+
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    # NICHT Heizstab: 151 bei Bedienteil 174..181. Eine Wassertemperatur —
+    # r = +0,87 zum Vorlauf, +0,82 zum Ruecklauf, Bereich 9,4..26,0 °C.
+    # Welche Stelle im Kreis, ist offen.
+    name: "IR14 Wassertemperatur unbestimmt"
+    address: 14
+    register_type: read
+    value_type: S_WORD
+    force_new_range: true
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    entity_category: diagnostic
+    filters:
+      - multiply: 0.1
+
+  # --- Kennwerte: ueber 24 h kein einziger Wechsel. Bewusst ohne
+  #     state_class, damit HA keine Langzeitstatistik auf einen Festwert legt.
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    name: "IR09 Kennwert"                    # konstant 19 ueber 24 h
+    address: 9
+    register_type: read
+    value_type: S_WORD
+    force_new_range: true
+    accuracy_decimals: 0
+    entity_category: diagnostic
+
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    # Hiess "Kaeltemittel fluessig" und trug state_class: measurement —
+    # beides entfernt: konstant 12000 ueber 24 h, also kein Messwert. Das
+    # Bedienteil zeigt denselben Rohwert.
+    name: "IR13 Kennwert Kältemittel"
+    address: 13
+    register_type: read
+    value_type: S_WORD
+    force_new_range: true
+    accuracy_decimals: 0
+    entity_category: diagnostic
+
+  # --- Erstmals gelesen 2026-07-30. Der Scan belegt Input 9..27 lueckenlos;
+  #     diese drei fehlten. Rohwerte ohne Einheit und ohne state_class, bis
+  #     die Bedeutung feststeht. Antwortet eines doch nicht, bleibt es dank
+  #     force_new_range ohne Wert, ohne die Nachbarn mitzureissen.
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    name: "IR10 unbestimmt"
+    address: 10
+    register_type: read
+    value_type: S_WORD
+    force_new_range: true
+    accuracy_decimals: 0
+    entity_category: diagnostic
+
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    name: "IR20 unbestimmt"
+    address: 20
+    register_type: read
+    value_type: S_WORD
+    force_new_range: true
+    accuracy_decimals: 0
+    entity_category: diagnostic
+
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    name: "IR27 unbestimmt"
+    address: 27
+    register_type: read
+    value_type: S_WORD
+    force_new_range: true
+    accuracy_decimals: 0
+    entity_category: diagnostic
+
+  # IR26 als Rohwert nur intern: die Zahl geht nicht nach Home Assistant,
+  # dort erscheint sie als Klartext ueber den text_sensor weiter unten.
+  #
+  # 0 = Standby, 1 = Auto, 2 = Heizen/Warmwasser, am Bedienteil abgeglichen.
+  # Deckt sich mit der Historie: um 15:28 stand 2 bei Vorlauf 54 °C und
+  # 2,5 kW Aufnahme waehrend der Warmwasserladung, ab 17:02 stand 0 bei
+  # abgeschalteter Anlage. In 24 h nur vier Wechsel — das Verhalten einer
+  # Betriebsart, nicht eines Zyklus.
+  #
+  # OFFEN: welchen Wert ergibt fest eingestelltes Kuehlen? Solange das nicht
+  # gemessen ist, faellt jeder andere Wert in den Rohwert-Zweig, damit eine
+  # unbekannte Stufe sichtbar wird statt still falsch beschriftet zu sein.
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    id: betriebszyklus_raw
+    internal: true
+    address: 26
+    register_type: read
+    value_type: S_WORD
+    force_new_range: true
+    accuracy_decimals: 0
+    on_value:
+      then:
+        - text_sensor.template.publish:
+            id: betriebszyklus_text
+            state: !lambda |-
+              int v = (int) lround(x);
+              if (v == 0) return std::string("Standby");
+              if (v == 1) return std::string("Auto");
+              if (v == 2) return std::string("Heizen/Warmwasser");
+              return str_sprintf("Unbekannt (%d)", v);
+
+  # Halteregister, die beim Scan auf null standen und es ueber 24 h blieben.
+  # Kandidaten fuer alles, was mit dem zweiten Heizkreis zu tun hat —
+  # deshalb nur lesend, bis die Bedeutung feststeht.
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    name: "HR25 unbestimmt"
+    address: 25
+    register_type: holding
+    value_type: S_WORD
+    force_new_range: true
+    accuracy_decimals: 0
+    entity_category: diagnostic
+
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    name: "HR27 unbestimmt"
+    address: 27
+    register_type: holding
+    value_type: S_WORD
+    force_new_range: true
+    accuracy_decimals: 0
+    entity_category: diagnostic
+
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    name: "HR28 unbestimmt"
+    address: 28
+    register_type: holding
+    value_type: S_WORD
+    force_new_range: true
+    accuracy_decimals: 0
+    entity_category: diagnostic
+
+  # =============================================================
+  # Abgeleitete Kältekreis-Werte
+  #
+  # Druck und Siedetemperatur eines Kältemittels hängen fest zusammen. Aus dem
+  # gemessenen Druck lässt sich also die Temperatur ablesen, bei der das
+  # Kältemittel gerade siedet — und der Abstand des gemessenen Sauggases zu
+  # dieser Temperatur ist die Überhitzung.
+  #
+  # Wozu: Die Überhitzung ist eine Diagnosegröße, die man sonst nur mit
+  # Manometer am Serviceanschluss bekommt.
+  #   unter 3 K  -> Flüssigkeit erreicht den Verdichter, das schädigt ihn
+  #   über 12 K  -> der Verdampfer wird nicht ausgenutzt, Leistung fehlt;
+  #                 typisch bei Kältemittelmangel oder klemmendem
+  #                 Expansionsventil
+  #
+  # Aussagekräftig ist das nur im Betrieb. Im Stillstand steht der Kreis im
+  # Druckausgleich, alles nimmt Umgebungstemperatur an, und die Zahl ist
+  # lediglich ein Plausibilitätstest der Registerzuordnung.
+  #
+  # Bewusst NICHT umgesetzt: eine COP-Schätzung. Sie bräuchte den
+  # Wasserdurchfluss, und der ist über diesen Bus nicht abgebildet — je
+  # einzeln getestet. Eine Schätzung über die Nennleistung wäre eine Zahl,
+  # die aussieht wie eine Messung.
+  # =============================================================
+  - platform: template
+    name: "Verdampfungstemperatur"
+    id: verdampfung
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    entity_category: diagnostic
+    icon: "mdi:thermometer-chevron-down"
+    update_interval: never
+
+  - platform: template
+    name: "Kondensationstemperatur"
+    id: kondensation
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    entity_category: diagnostic
+    icon: "mdi:thermometer-chevron-up"
+    update_interval: never
+
+  - platform: template
+    name: "Sauggasüberhitzung"
+    id: ueberhitzung
+    unit_of_measurement: "K"
+    state_class: measurement
+    accuracy_decimals: 1
+    entity_category: diagnostic
+    icon: "mdi:waves-arrow-up"
+    update_interval: never
+
+  - platform: template
+    name: "Temperaturhub"
+    id: temperaturhub
+    unit_of_measurement: "K"
+    state_class: measurement
+    accuracy_decimals: 1
+    entity_category: diagnostic
+    icon: "mdi:arrow-expand-vertical"
+    update_interval: never
+
+  - platform: template
+    name: "Verdichtungsverhältnis"
+    id: verdichtungsverhaeltnis
+    state_class: measurement
+    accuracy_decimals: 2
+    entity_category: diagnostic
+    icon: "mdi:arrow-collapse-vertical"
+    update_interval: never
+
+  - platform: template
+    name: "Carnot-Obergrenze"
+    id: carnot
+    state_class: measurement
+    accuracy_decimals: 2
+    entity_category: diagnostic
+    icon: "mdi:speedometer"
+    update_interval: never
+
+  - platform: template
+    name: "Annäherung Kondensation Vorlauf"
+    id: annaeherung_kond
+    unit_of_measurement: "K"
+    state_class: measurement
+    accuracy_decimals: 1
+    entity_category: diagnostic
+    icon: "mdi:arrow-collapse-right"
+    update_interval: never
+
+  - platform: template
+    name: "Annäherung Außenluft Verdampfung"
+    id: annaeherung_verd
+    unit_of_measurement: "K"
+    state_class: measurement
+    accuracy_decimals: 1
+    entity_category: diagnostic
+    icon: "mdi:snowflake-thermometer"
+    update_interval: never
+
+  - platform: template
+    name: "Spreizung Vorlauf Rücklauf"
+    id: spreizung
+    unit_of_measurement: "K"
+    state_class: measurement
+    accuracy_decimals: 1
+    entity_category: diagnostic
+    icon: "mdi:swap-vertical-variant"
+    update_interval: never
+
+  - platform: template
+    name: "Druckdifferenz"
+    id: druckdifferenz
+    unit_of_measurement: "bar"
+    device_class: pressure
+    state_class: measurement
+    accuracy_decimals: 2
+    entity_category: diagnostic
+    icon: "mdi:gauge"
+    update_interval: never
+
+  # =============================================================
+  # Elektrische Messung: Shelly 3EM der Waermepumpe, drei Kanaele
+  #
+  # Das Geraet heisst in Home Assistant "Wärmepumpe" und legt seine Kanaele
+  # als eigene Geraete L1, L2 und L3 an, jeweils mit Wirkleistung, Spannung,
+  # Strom, Leistungsfaktor und Zaehlerstand.
+  #
+  # NICHT die Quelle: ein zweiter, einphasiger Shelly am selben Ort. Er
+  # meldet 0 V und 0 A und hat in 24 h genau einen Zustand aufgezeichnet —
+  # ein totes oder nicht angeschlossenes Geraet.
+  #
+  # Der Sammel-Zaehlerstand sensor.verbrauch_warmepumpe traegt einen Offset
+  # von rund 16,7 Millionen kWh. Als Differenz brauchbar (+4,73 kWh in 24 h,
+  # plausibel fuer Sommerbetrieb mit nur Warmwasser), als Ablesewert nicht.
+  # Deshalb werden hier die drei Kanaele direkt gelesen.
+  # =============================================================
+  - platform: homeassistant
+    id: l1_wirk
+    entity_id: sensor.l1_power
+    internal: true
+  - platform: homeassistant
+    id: l2_wirk
+    entity_id: sensor.l2_power
+    internal: true
+  - platform: homeassistant
+    id: l3_wirk
+    entity_id: sensor.l3_power
+    internal: true
+  - platform: homeassistant
+    id: l1_volt
+    entity_id: sensor.l1_voltage
+    internal: true
+  - platform: homeassistant
+    id: l2_volt
+    entity_id: sensor.l2_voltage
+    internal: true
+  - platform: homeassistant
+    id: l3_volt
+    entity_id: sensor.l3_voltage
+    internal: true
+  - platform: homeassistant
+    id: l1_amp
+    entity_id: sensor.l1_current
+    internal: true
+  - platform: homeassistant
+    id: l2_amp
+    entity_id: sensor.l2_current
+    internal: true
+  - platform: homeassistant
+    id: l3_amp
+    entity_id: sensor.l3_current
+    internal: true
+
+  - platform: template
+    name: "Wirkleistung gemessen"
+    id: wirkleistung
+    unit_of_measurement: "W"
+    device_class: power
+    state_class: measurement
+    accuracy_decimals: 0
+    icon: "mdi:flash"
+    update_interval: never
+
+  - platform: template
+    name: "Scheinleistung gemessen"
+    id: scheinleistung
+    unit_of_measurement: "VA"
+    device_class: apparent_power
+    state_class: measurement
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    icon: "mdi:flash-outline"
+    update_interval: never
+
+  - platform: template
+    # Wirkleistung geteilt durch Scheinleistung. Steigt beim Inverter mit der
+    # Last: gemessen 0,71 bei 1,5 kW und 0,79 bei 2,7 kW.
+    name: "Leistungsfaktor"
+    id: leistungsfaktor
+    state_class: measurement
+    accuracy_decimals: 3
+    entity_category: diagnostic
+    icon: "mdi:sine-wave"
+    update_interval: never
+
+  - platform: template
+    # Laufender Abgleich der Registerdeutung: IR23 geteilt durch die
+    # gemessene Scheinleistung. Erwartet rund 0,95. Laeuft der Wert weg, ist
+    # entweder die Deutung falsch oder am Zaehler hat sich etwas geaendert.
+    name: "Abgleich IR23 zu Messung"
+    id: ir23_abgleich
+    state_class: measurement
+    accuracy_decimals: 3
+    entity_category: diagnostic
+    icon: "mdi:division"
+    update_interval: never
+
+  - platform: template
+    # Abstand zwischen staerkster und schwaechster Phase, in Prozent der
+    # staerksten. Ein Inverterverdichter zieht symmetrisch — gemessen lagen
+    # die drei Phasen bei 879 / 838 / 890 W. Ein einphasig angebundener
+    # Heizstab hebt genau eine Phase.
+    name: "Phasenschieflast"
+    id: schieflast
+    unit_of_measurement: "%"
+    state_class: measurement
+    accuracy_decimals: 1
+    entity_category: diagnostic
+    icon: "mdi:scale-unbalanced"
+    update_interval: never
+
+  - platform: template
+    # Ueberschuss der staerksten Phase gegenueber dem Mittel der beiden
+    # anderen. Bei laufendem Verdichter nahe null; eine Stufe von einigen
+    # hundert Watt bis Kilowatt ist der Kandidat fuer den Heizstab, der ueber
+    # Modbus gar nicht abgebildet ist.
+    name: "Verdacht Heizstab"
+    id: heizstab_verdacht
+    unit_of_measurement: "W"
+    device_class: power
+    state_class: measurement
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    icon: "mdi:heating-coil"
+    update_interval: never
+
+  - platform: template
+    name: "Standby-Verbrauch"
+    id: standby_verbrauch
+    unit_of_measurement: "W"
+    device_class: power
+    state_class: measurement
+    accuracy_decimals: 1
+    entity_category: diagnostic
+    icon: "mdi:sleep"
+    update_interval: never
+
+  - platform: template
+    # Energie je Grad Speichererwaermung, gemessen ueber eine ganze Ladung.
+    # Das Speichervolumen ist konstant, also ist der Wert ueber die Zeit
+    # vergleichbar — der brauchbare Ersatz fuer den COP, der ohne
+    # Durchflussmessung nicht zu haben ist.
+    #
+    # Die Ladungsgrenzen kommen aus steigender Speichertemperatur bei
+    # laufendem Verdichter, NICHT aus DI09: dessen Bedeutung als
+    # Warmwasser-Flag ist unbestaetigt.
+    name: "Verbrauch je Kelvin Speicherhub"
+    id: kwh_pro_kelvin
+    unit_of_measurement: "kWh/K"
+    state_class: measurement
+    accuracy_decimals: 3
+    entity_category: diagnostic
+    icon: "mdi:water-boiler"
+    update_interval: never
+
+  # =============================================================
+  # Betriebsstatistik. Die Zaehler ueberleben einen Neustart (restore_value),
+  # die Tageswerte werden um Mitternacht ueber die HA-Zeit umgelegt.
+  # =============================================================
+  - platform: template
+    name: "Verdichterstarts heute"
+    id: starts_heute_sensor
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    icon: "mdi:restart"
+    update_interval: never
+
+  - platform: template
+    name: "Verdichterstarts gestern"
+    id: starts_vortag_sensor
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    icon: "mdi:restart-off"
+    update_interval: never
+
+  - platform: template
+    name: "Mittlere Laufzeit pro Takt"
+    id: mittlere_laufzeit
+    unit_of_measurement: "min"
+    state_class: measurement
+    accuracy_decimals: 1
+    entity_category: diagnostic
+    icon: "mdi:timer-sand"
+    update_interval: never
+
+  - platform: template
+    # Der aussagekraeftigste Einzelwert fuer ein Taktungsproblem.
+    name: "Kürzester Takt heute"
+    id: kuerzester_takt_sensor
+    unit_of_measurement: "min"
+    accuracy_decimals: 1
+    entity_category: diagnostic
+    icon: "mdi:timer-alert"
+    update_interval: never
+
+  - platform: template
+    name: "Betriebsstunden Verdichter"
+    id: betriebsstunden
+    unit_of_measurement: "h"
+    state_class: total_increasing
+    accuracy_decimals: 2
+    entity_category: diagnostic
+    icon: "mdi:clock-check"
+    update_interval: never
+
+  - platform: template
+    name: "Warmwasserladungen heute"
+    id: ladungen_heute_sensor
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    icon: "mdi:water-plus"
+    update_interval: never
+
+  # =============================================================
+  # Bus-Gesundheit
+  #
+  # EHRLICHKEIT ZUR MESSGRUNDLAGE: ESPHome legt keinen Timeout- und keinen
+  # Exception-Zaehler offen. Was hier steht, sind Ersatzgroessen aus dem
+  # Ausbleiben von Werten — deshalb heissen sie auch so und nicht
+  # "Exception-Zaehler".
+  # =============================================================
+  - platform: template
+    # Zeit seit dem letzten Wert eines Referenzregisters. Das ist die
+    # Messung zu der Sorge, die Anlage koenne in einen Fehlermodus
+    # gehen, wenn zu lange nicht abgefragt wird: hier steht schwarz auf
+    # weiss, wie lang die Luecken faktisch werden.
+    name: "Zeit seit letzter Antwort"
+    id: zeit_seit_antwort
+    unit_of_measurement: "s"
+    state_class: measurement
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    icon: "mdi:timer-outline"
+    update_interval: never
+
+  - platform: template
+    # Abstand zweier Werte desselben Registers. Im Normalbetrieb gibt das
+    # Abfrageintervall den Takt vor, hier stehen also 30 s — die reine
+    # Abfragedauer liegt darunter. Erst wenn dieser Wert ueber das Intervall
+    # steigt, braucht ein Durchlauf laenger als vorgesehen, und dann wird es
+    # eng: im Beobachtungsmodus mit 10 s Trigger wurden 20 s gemessen, das ist
+    # die tatsaechliche Dauer von 32 Einzelanfragen.
+    name: "Zyklusdauer"
+    id: zyklusdauer
+    unit_of_measurement: "s"
+    state_class: measurement
+    accuracy_decimals: 1
+    entity_category: diagnostic
+    icon: "mdi:rotate-right"
+    update_interval: never
+
+  - platform: template
+    # Wie oft ein erwarteter Durchlauf ausgeblieben ist. Ersatzgroesse fuer
+    # den Timeout-Zaehler, den ESPHome nicht herausgibt.
+    name: "Verpasste Abfragezyklen"
+    id: verpasste_zyklen
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    icon: "mdi:alert-octagon-outline"
+    update_interval: never
+
+  - platform: template
+    # Wie viele der ueberwachten Register gerade keinen Wert haben.
+    # Ersatzgroesse fuer den Exception-Zaehler — und aussagekraeftiger,
+    # weil sie zeigt, WIE VIELE Punkte weg sind.
+    name: "Punkte ohne Antwort"
+    id: punkte_ohne_antwort
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    icon: "mdi:help-network-outline"
+    update_interval: never
+
+  # --- Registerbeobachtung, siehe unten ---
+  - platform: template
+    name: "Beobachtung Änderungen"
+    id: scan_zaehler_sensor
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    icon: "mdi:counter"
+    update_interval: never
+
+  - platform: template
+    # Warum ein Schalter und kein Knopf: die Beobachtung ist ein Zustand, kein
+    # Ereignis. Wer vom Bedienteil zurueckkommt, muss sehen, ob sie noch
+    # laeuft, und sie vorzeitig beenden koennen — ein Knopf kann beides nicht.
+    # Was einem Knopf gegenueber fehlte, war die Restlaufzeit. Hier ist sie.
+    name: "Beobachtung Restlaufzeit"
+    id: scan_restlaufzeit
+    unit_of_measurement: "min"
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    icon: "mdi:timer-sand-complete"
+    update_interval: never
+
+# =============================================================
+# Klartextanzeigen
+# =============================================================
+text_sensor:
+  - platform: template
+    id: betriebszyklus_text
+    name: "Betriebsmodus"                    # IR26, Klartext statt 0 / 1 / 2
+    entity_category: diagnostic
+    icon: "mdi:sync"
+    update_interval: never
+
+  - platform: template
+    id: scan_letzte_text
+    name: "Beobachtung letzte Änderung"
+    entity_category: diagnostic
+    icon: "mdi:swap-vertical"
+    update_interval: never
+
+  - platform: template
+    id: scan_liste_text
+    name: "Beobachtung geänderte Punkte"
+    entity_category: diagnostic
+    icon: "mdi:format-list-bulleted"
+    update_interval: never
+
+  - platform: template
+    id: ref_text
+    name: "Abweichung zum Referenzzustand"
+    entity_category: diagnostic
+    icon: "mdi:compare-horizontal"
+    update_interval: never
+
+  - platform: template
+    id: rand_text
+    name: "Ergebnis Randbereichsprüfung"
+    entity_category: diagnostic
+    icon: "mdi:radar"
+    update_interval: never
+
+  - platform: template
+    id: probe_text
+    name: "Protokoll Schreibprobe"
+    entity_category: diagnostic
+    icon: "mdi:clipboard-text-clock"
+    update_interval: never
+
+# =============================================================
+# Statusmelder — Discrete Inputs 6,7,8,9,31 und Coil 5
+# Bedeutung offen. Die Namen tragen die Registerkennung, damit die
+# Registerbeobachtung unten lesbare Meldungen liefert.
+# =============================================================
+binary_sensor:
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    name: "DI06 unbestimmt"
+    address: 6
+    register_type: discrete_input
+    force_new_range: true
+    entity_category: diagnostic
+
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    # NICHT Hauptpumpe: stand auf AUS, waehrend das Display
+    # "Umwaelzpumpe in Betrieb" meldete.
+    name: "DI07 unbestimmt"
+    address: 7
+    register_type: discrete_input
+    force_new_range: true
+    entity_category: diagnostic
+
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    name: "DI08 unbestimmt"
+    address: 8
+    register_type: discrete_input
+    force_new_range: true
+    entity_category: diagnostic
+
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    # UNBESTAETIGT. Waehrend der Warmwasserladung am 29.07. 13:24..14:03 UTC
+    # lieferte der Punkt keinen Wert, war also nicht "aus" — die Zuordnung ist
+    # weder belegt noch widerlegt. In der Zeit mit Werten gab es keine Ladung.
+    name: "DI09 Warmwasserbereitung"
+    address: 9
+    register_type: discrete_input
+    force_new_range: true
+    entity_category: diagnostic
+
+  # Coil 5 bewusst nur LESEND. Er antwortet; ein Schreibversuch blieb ohne
+  # erkennbare Wirkung, aber es ist nicht festgehalten, WAS der Bus dabei
+  # antwortete — Exception, Quittung mit Ruecklesen 0, oder Quittung mit
+  # bleibender 1. Ruecklesen 0 beweist nichts: genau so verhaelt sich ein
+  # flankengetriggertes Bit, das seine Aktion ausfuehrt und sich selbst
+  # zuruecksetzt. Auf benachbarten Positionen liegen bei LG in der offiziellen
+  # Karte Notaus, Notbetrieb und der Desinfektionszyklus (~70 °C, Stunden) —
+  # das ist eine Analogie aus einer Karte, die dieses Geraet nicht spricht,
+  # kein Beleg. Erst passiv identifizieren: Beobachtung einschalten, am
+  # Bedienteil schalten, hier zusehen.
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    name: "CO5 unbestimmt (nur Anzeige)"
+    address: 5
+    register_type: coil
+    force_new_range: true
+    entity_category: diagnostic
+
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    name: "DI31 unbestimmt"
+    address: 31
+    register_type: discrete_input
+    force_new_range: true
+    entity_category: diagnostic
+
+  # =============================================================
+  # Melder. Jeder mit ZWEI Schwellen, nie mit einer — sonst flattert die
+  # Meldung um den Schwellwert. Dasselbe Muster wie im HEMS-Projekt.
+  # =============================================================
+  - platform: template
+    # Quelle ist bewusst die GEMESSENE Wirkleistung, nicht das Register:
+    # die interne Energiemessung der Therma V ist bekannt ungenau, und IR23
+    # parkt im Stillstand auf einem Ruhewert von 417. Aus den Messdaten:
+    # Stillstand 0..67 W, Betrieb ab 877 W — die Schwellen liegen dazwischen.
+    # Faellt die Messung aus, wird auf das Register zurueckgegriffen, dann mit
+    # eigenen Schwellen um dessen Ruhewert herum.
+    name: "Verdichter läuft"
+    id: verdichter_melder
+    device_class: running
+    icon: "mdi:engine"
+    lambda: |-
+      float w = id(wirkleistung).state;
+      if (!std::isnan(w)) {
+        if (id(verdichter_laeuft)) return w > 150.0f;
+        return w > 300.0f;
+      }
+      float va = id(ir23_scheinleistung).state;
+      if (std::isnan(va)) return id(verdichter_laeuft);
+      if (id(verdichter_laeuft)) return va > 500.0f;
+      return va > 700.0f;
+
+  - platform: template
+    name: "Kältekreis auffällig"
+    id: kreis_warnung
+    device_class: problem
+    entity_category: diagnostic
+    icon: "mdi:alert-circle-outline"
+    lambda: |-
+      // Nur bei laufendem Verdichter aussagekraeftig: im Stillstand steht der
+      // Kreis im Druckausgleich und die Ueberhitzung ist bedeutungslos.
+      if (!id(verdichter_melder).state) return false;
+      float u = id(ueberhitzung).state;
+      if (std::isnan(u)) return false;
+      if (id(kreis_warnung).state) return (u < 4.0f || u > 11.0f);
+      return (u < 3.0f || u > 12.0f);
+
+  - platform: template
+    # Waechst der Abstand zwischen Kondensation und Vorlauf, verschlechtert
+    # sich der Waermeuebergang im Plattenwaermetauscher — Verschmutzung oder
+    # Luft im Kreis. Ueblich sind 2..5 K.
+    name: "Wärmeübergang auffällig"
+    id: uebergang_warnung
+    device_class: problem
+    entity_category: diagnostic
+    icon: "mdi:water-alert-outline"
+    lambda: |-
+      if (!id(verdichter_melder).state) return false;
+      float a = id(annaeherung_kond).state;
+      if (std::isnan(a)) return false;
+      if (id(uebergang_warnung).state) return a > 7.0f;
+      return a > 9.0f;
+
+  - platform: template
+    # Der Waechter dazu: bleibt der Bus zu lange stumm, koennte
+    # die Anlage in einen Fehlerzustand gehen. Die Schwelle steht als
+    # Stellwert unten. Dieser Melder schlaegt an UND bricht laufende
+    # Werkzeuge ab, siehe Schutzlogik im interval-Abschnitt.
+    name: "Bus-Lücke zu lang"
+    id: bus_warnung
+    device_class: problem
+    entity_category: diagnostic
+    icon: "mdi:lan-disconnect"
+    lambda: |-
+      float s = id(zeit_seit_antwort).state;
+      float grenze = id(max_luecke).state;
+      if (std::isnan(s) || std::isnan(grenze)) return false;
+      if (id(bus_warnung).state) return s > grenze * 0.6f;
+      return s > grenze;
+
+  - platform: template
+    # Bei laufendem Verdichter zieht der Inverter symmetrisch. Hebt sich eine
+    # Phase deutlich ab, laeuft etwas einphasiges mit — der Heizstab ist der
+    # Kandidat, denn ueber Modbus ist er gar nicht abgebildet.
+    name: "Verdacht auf Heizstabbetrieb"
+    id: heizstab_melder
+    device_class: heat
+    entity_category: diagnostic
+    icon: "mdi:heating-coil"
+    lambda: |-
+      if (!id(verdichter_melder).state) return false;
+      float v = id(heizstab_verdacht).state;
+      if (std::isnan(v)) return false;
+      if (id(heizstab_melder).state) return v > 400.0f;
+      return v > 700.0f;
+
+# =============================================================
+# Sollwerte — Halteregister 24..29, SCHREIBBAR
+#
+# Die Skalierung ist Zehntelgrad: lambda beim Lesen, write_lambda beim
+# Schreiben. Fehlt der Kehrwert, schreibt eine Eingabe von 48 °C den Wert 48 —
+# die Waermepumpe liest das als 4,8 °C.
+# =============================================================
+number:
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    # OFFEN: 5..65 °C gilt unabhaengig von HR26, obwohl der Wert bei
+    # Raumregelung etwas anderes bedeutet als bei Vorlaufregelung.
+    name: "Soll-Temperatur Heizkreis 1"      # HR24: 21 °C kuehlen -> 55 °C heizen
+    address: 24
+    value_type: S_WORD
+    force_new_range: true
+    unit_of_measurement: "°C"
+    min_value: 5
+    max_value: 65
+    step: 0.5
+    lambda: "return x * 0.1;"
+    write_lambda: "return x * 10;"
+
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    # OFFEN: 30 °C liegt unter jeder Legionellenschwelle, 80 °C ueber dem,
+    # was ein R290-Monoblock liefert.
+    name: "Soll-Temperatur Warmwasser"       # HR29: 480 bei "Warmwasser 48° eco"
+    address: 29
+    value_type: S_WORD
+    force_new_range: true
+    unit_of_measurement: "°C"
+    min_value: 30
+    max_value: 80
+    step: 0.5
+    lambda: "return x * 0.1;"
+    write_lambda: "return x * 10;"
+
+  # Meldeschwelle der Registerbeobachtung, gezaehlt in SCHRITTEN DES REGISTERS,
+  # nicht in Anzeigeeinheiten. Die Schwelle wird ueber accuracy_decimals
+  # zurueckgerechnet, also genau um den Faktor, den der multiply-Filter
+  # anwendet. Bei Schwelle 1 meldet jeder Punkt ab einem Zaehlschritt:
+  # ein Rohregister ab 1, eine Temperatur ab 0,1 °C, ein Druck ab 0,01 bar.
+  # Ohne diese Umrechnung waeren die beiden Druckregister praktisch stumm —
+  # eine Schwelle von 1,0 bar entspricht 100 Zaehlschritten.
+  #
+  # Diskrete Punkte (Discrete Inputs, Coils) melden immer, unabhaengig hiervon.
+  # Hochdrehen, wenn Temperaturdrift die Liste zumuellt: 10 bedeutet dann
+  # 1,0 °C, 0,1 bar und 10 Rohschritte.
+  - platform: template
+    name: "Beobachtung Meldeschwelle"
+    id: scan_schwelle
+    optimistic: true
+    restore_value: true
+    initial_value: 1.0
+    min_value: 0
+    max_value: 100
+    step: 0.1
+    mode: box
+    entity_category: config
+    icon: "mdi:tune"
+
+  # Schutzschwelle: die laengste Zeit, die der Bus stumm bleiben darf, bevor
+  # der Waechter anschlaegt und laufende Werkzeuge abbricht. Hintergrund ist die
+  # Sorge, die Anlage koenne bei zu langer Funkstille in einen Fehlerzustand
+  # gehen. Belegt ist der Fehlerzustand nicht — bei den Scans am 2026-07-29
+  # lag der Normalbetrieb minutenlang still, ohne dass etwas passierte.
+  # Deshalb ein Stellwert und keine feste Zahl: 60 s ist reichlich vorsichtig
+  # bei einer gemessenen Zyklusdauer von 20 s.
+  - platform: template
+    name: "Maximale Bus-Lücke"
+    id: max_luecke
+    optimistic: true
+    restore_value: true
+    initial_value: 60
+    min_value: 30
+    max_value: 600
+    step: 10
+    mode: box
+    entity_category: config
+    icon: "mdi:timer-lock-outline"
+
+# =============================================================
+# Auswahlfelder — Halteregister
+# =============================================================
+select:
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    # ACHTUNG, OFFENE ENTSCHEIDUNG: dieses Feld SCHREIBT. HR26 folgt aber
+    # selbst dem Betriebsmodus, und in jourdant/esphome-lgap Issue 24 hat
+    # genau dieses Umstellen die Regelung von Wasser- auf Raumfuehler
+    # verstellt. Solange das nicht entschieden ist: nicht anfassen.
+    name: "Regelungsart"                     # HR26: 1 bei "rücklaufgesteuert"
+    address: 26
+    value_type: U_WORD
+    force_new_range: true
+    optionsmap:
+      "Vorlauftemperatur": 0
+      "Rücklauftemperatur": 1
+      "Raumtemperatur": 2
+
+  # --- Ziel und Wert der Schreibprobe. Vorbelegung "kein Ziel": ein
+  #     versehentlicher Druck auf den Knopf bleibt dann wirkungslos.
+  - platform: template
+    name: "Schreibprobe Ziel"
+    id: probe_ziel
+    optimistic: true
+    restore_value: false
+    entity_category: config
+    icon: "mdi:target"
+    options:
+      - "kein Ziel"
+      - "Coil 5"
+      - "Coil 6"
+
+  - platform: template
+    name: "Schreibprobe Wert"
+    id: probe_wert
+    optimistic: true
+    restore_value: false
+    entity_category: config
+    icon: "mdi:toggle-switch-outline"
+    options:
+      - "aus"
+      - "ein"
+
+# =============================================================
+# Schalter
+# =============================================================
+switch:
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    name: "Warmwasser Freigabe"          # verifiziert 2026-07-29: schaltet die
+    address: 6                           # Warmwasserbereitung ein und aus.
+    register_type: coil                  # Erster bestaetigter SCHREIBzugriff.
+    force_new_range: true
+
+  # -----------------------------------------------------------
+  # Registerbeobachtung
+  #
+  # Zweck: herausfinden, welcher Punkt auf eine Bedienung am Bedienteil
+  # reagiert — ohne einen einzigen Schreibzugriff auf den Bus. Einschalten,
+  # ans Bedienteil gehen, dort etwas umstellen, zurueckkommen und lesen,
+  # welche Punkte sich bewegt haben.
+  #
+  # Waehrend die Beobachtung laeuft, wird alle 10 s abgefragt statt alle 30 s,
+  # damit eine Bedienung nicht zwischen zwei Zyklen verschwindet. Das
+  # verdreifacht die Buslast — deshalb laeuft es nur, solange der Schalter an
+  # ist, und schaltet sich nach 30 Minuten selbst ab.
+  #
+  # GEMESSEN am 2026-07-30, 06:01..06:03 Uhr: ein vollstaendiger Zyklus mit
+  # 32 Einzelanfragen dauert rund 20 s — etwa 625 ms je Anfrage, die Anlage
+  # antwortet also deutlich traeger als die reine Leitungszeit von ~15 ms.
+  # Damit bringt der Beobachtungsmodus effektiv 20 s statt 30 s, nicht 10 s:
+  # der modbus_controller verwirft ein component.update, solange die vorige
+  # Warteschlange noch laeuft. Das ist harmlos — ein verworfener Trigger
+  # kostet nichts — aber der Gewinn ist kleiner als die 10 s vermuten lassen.
+  #
+  # Deshalb ausdruecklich NICHT auf 5 s stellen: dort waere jeder dritte
+  # Trigger sinnlos, und im Grenzfall laeuft die Warteschlange ueber. Genau
+  # das erzeugt die Timeouts, die in den Notizen als "Bus antwortet nicht"
+  # stehen. Eine Bedienung am Bedienteil verpasst man mit 20 s nicht.
+  #
+  # Nebenbefund derselben Messung: 32 Einzelanfragen bei 30 s Abfrageintervall
+  # bedeuten rund zwei Drittel Dauerlast auf dem Bus. Es laeuft seit dem
+  # Umbau ohne einen einzigen Timeout, aber Puffer ist da kaum. Wer weitere
+  # Register aufnimmt, sollte update_interval mit anheben.
+  #
+  # Der Ausgangswert eines Punktes wird NICHT nachgezogen, wenn eine Aenderung
+  # unter der Meldeschwelle bleibt. Eine langsam driftende Groesse meldet
+  # dadurch irgendwann doch — gewollt, denn eine echte langsame Aenderung
+  # darf nicht verloren gehen. Wer nur Schaltvorgaenge sucht, dreht die
+  # Schwelle hoch.
+  # -----------------------------------------------------------
+  - platform: template
+    name: "Registerbeobachtung"
+    id: scan_switch
+    optimistic: true
+    entity_category: config
+    icon: "mdi:radar"
+    turn_on_action:
+      - lambda: |-
+          id(scan_namen).clear();
+          id(scan_werte).clear();
+          id(scan_liste).clear();
+          id(scan_zaehler) = 0;
+          id(scan_laufzeit) = 0;
+      - text_sensor.template.publish:
+          id: scan_letzte_text
+          state: "läuft — Ausgangswerte werden erfasst"
+      - text_sensor.template.publish:
+          id: scan_liste_text
+          state: "—"
+      - sensor.template.publish:
+          id: scan_zaehler_sensor
+          state: 0.0
+      - component.update: therma_v
+    # Die Bedingung ist nicht kosmetisch: ein optimistic-Switch feuert seine
+    # turn_off_action auch beim Hochlaufen. Ohne sie stand nach jedem Neustart
+    # "beendet — 0 Änderungen" da und sah aus wie ein gelaufener Scan.
+    turn_off_action:
+      - if:
+          condition:
+            lambda: "return !id(scan_namen).empty();"
+          then:
+            - lambda: |-
+                ESP_LOGI("beobachtung", "beendet nach %d Aenderungen an %d Punkten",
+                         id(scan_zaehler), (int) id(scan_liste).size());
+            - text_sensor.template.publish:
+                id: scan_letzte_text
+                state: !lambda |-
+                  return str_sprintf("beendet — %d Änderungen an %d Punkten",
+                                     id(scan_zaehler), (int) id(scan_liste).size());
+
+# =============================================================
+# Werkzeuge fuer die weitere Kartierung
+# =============================================================
+button:
+  - platform: template
+    # Haelt den Zustand aller ueberwachten Punkte fest. Danach zum Bedienteil
+    # gehen, dort etwas umstellen, zurueckkommen und den Vergleich druecken.
+    # Gegenueber der Beobachtung: kein Zeitdruck, keine Selbstabschaltung.
+    name: "Referenzzustand festhalten"
+    id: ref_festhalten
+    entity_category: config
+    icon: "mdi:content-save-outline"
+    on_press:
+      - lambda: |-
+          id(ref_namen).clear();
+          id(ref_werte).clear();
+          for (auto *s : App.get_sensors()) {
+            if (s->is_internal() || std::isnan(s->state)) continue;
+            id(ref_namen).push_back(std::string(s->get_name().c_str()));
+            id(ref_werte).push_back(s->state);
+          }
+          for (auto *b : App.get_binary_sensors()) {
+            if (b->is_internal() || !b->has_state()) continue;
+            id(ref_namen).push_back(std::string(b->get_name().c_str()));
+            id(ref_werte).push_back(b->state ? 1.0f : 0.0f);
+          }
+          ESP_LOGI("referenz", "%d Punkte festgehalten", (int) id(ref_namen).size());
+      - text_sensor.template.publish:
+          id: ref_text
+          state: !lambda |-
+            return str_sprintf("%d Punkte festgehalten — jetzt am Bedienteil schalten",
+                               (int) id(ref_namen).size());
+
+  - platform: template
+    name: "Abweichung zum Referenzzustand"
+    id: ref_vergleichen
+    entity_category: config
+    icon: "mdi:compare-horizontal"
+    on_press:
+      - lambda: |-
+          if (id(ref_namen).empty()) {
+            id(ref_text).publish_state("kein Referenzzustand vorhanden");
+            return;
+          }
+          float schwelle = id(scan_schwelle).state;
+          if (std::isnan(schwelle) || schwelle < 0.0f) schwelle = 1.0f;
+          std::string erg;
+          int n = 0;
+
+          auto vergleiche = [&](const std::string &nam, float wert, bool diskret, float eff) {
+            for (size_t i = 0; i < id(ref_namen).size(); i++) {
+              if (id(ref_namen)[i] != nam) continue;
+              float alt = id(ref_werte)[i];
+              float d = fabsf(wert - alt);
+              if (d < 0.0005f) return;
+              if (!diskret && d < eff) return;
+              n++;
+              ESP_LOGW("referenz", "%s: %.2f -> %.2f", nam.c_str(), alt, wert);
+              if (erg.size() < 190) {
+                if (!erg.empty()) erg += " | ";
+                erg += nam + str_sprintf(" %.2f→%.2f", alt, wert);
+              }
+              return;
+            }
+          };
+
+          for (auto *s : App.get_sensors()) {
+            if (s->is_internal() || std::isnan(s->state)) continue;
+            int8_t dec = s->get_accuracy_decimals();
+            if (dec < 0) dec = 0;
+            vergleiche(std::string(s->get_name().c_str()), s->state, false,
+                       schwelle * powf(10.0f, -((float) dec)));
+          }
+          for (auto *b : App.get_binary_sensors()) {
+            if (b->is_internal() || !b->has_state()) continue;
+            vergleiche(std::string(b->get_name().c_str()), b->state ? 1.0f : 0.0f, true, 0.0f);
+          }
+
+          id(ref_text).publish_state(n == 0 ? std::string("keine Abweichung")
+                                            : str_sprintf("%d Punkte: ", n) + erg);
+
+  - platform: template
+    # Fragt einmalig die Register direkt neben den bekannten Inseln ab. Findet
+    # heraus, ob eine Einstellungsaenderung neue Register freigeschaltet hat.
+    #
+    # Bewusst ein Knopf und kein Dauerbetrieb: ein nicht antwortendes Register
+    # kostet jeden Zyklus eine Wartezeit, und bei 20 s Zyklusdauer ist dafuer
+    # kein Platz. Die Kommandos gehen in dieselbe Warteschlange wie der
+    # Normalbetrieb, laufen also nicht an ihm vorbei — und der Waechter unten
+    # schlaegt an, falls die Bus-Luecke dennoch zu lang wird.
+    name: "Randbereiche prüfen"
+    id: rand_pruefen
+    entity_category: config
+    icon: "mdi:magnify-scan"
+    on_press:
+      - lambda: |-
+          id(rand_ergebnis).clear();
+          id(rand_text).publish_state("Prüfung läuft …");
+
+          struct Kandidat { modbus_controller::ModbusRegisterType typ; uint16_t adr; const char *bez; };
+          static const Kandidat liste[] = {
+            {modbus_controller::ModbusRegisterType::READ, 8, "IR08"},
+            {modbus_controller::ModbusRegisterType::READ, 28, "IR28"},
+            {modbus_controller::ModbusRegisterType::READ, 29, "IR29"},
+            {modbus_controller::ModbusRegisterType::HOLDING, 23, "HR23"},
+            {modbus_controller::ModbusRegisterType::HOLDING, 30, "HR30"},
+            {modbus_controller::ModbusRegisterType::HOLDING, 31, "HR31"},
+            {modbus_controller::ModbusRegisterType::DISCRETE_INPUT, 5, "DI05"},
+            {modbus_controller::ModbusRegisterType::DISCRETE_INPUT, 10, "DI10"},
+            {modbus_controller::ModbusRegisterType::DISCRETE_INPUT, 30, "DI30"},
+            {modbus_controller::ModbusRegisterType::DISCRETE_INPUT, 32, "DI32"},
+            {modbus_controller::ModbusRegisterType::COIL, 4, "CO04"},
+            {modbus_controller::ModbusRegisterType::COIL, 7, "CO07"},
+          };
+          for (auto &k : liste) {
+            std::string bez = k.bez;
+            id(therma_v)->queue_command(
+              modbus_controller::ModbusCommandItem::create_read_command(
+                id(therma_v), k.typ, k.adr, 1,
+                [bez](modbus_controller::ModbusRegisterType, uint16_t,
+                      const std::vector<uint8_t> &daten) {
+                  uint16_t v = daten.size() >= 2
+                      ? (uint16_t)(((uint16_t) daten[0] << 8) | daten[1])
+                      : (daten.empty() ? 0 : (uint16_t) daten[0]);
+                  id(rand_ergebnis).push_back(bez + str_sprintf("=%u", v));
+                  ESP_LOGW("randbereich", "%s antwortet: %u", bez.c_str(), v);
+                }));
+          }
+      # Nach 30 s ist die Warteschlange durch: was geantwortet hat, steht in
+      # der Liste, alles andere hat geschwiegen.
+      - delay: 30s
+      - text_sensor.template.publish:
+          id: rand_text
+          state: !lambda |-
+            if (id(rand_ergebnis).empty())
+              return std::string("keines der 12 Randregister antwortet");
+            std::string s = str_sprintf("%d von 12 antworten: ", (int) id(rand_ergebnis).size());
+            for (size_t i = 0; i < id(rand_ergebnis).size(); i++) {
+              if (s.size() > 200) { s += " …"; break; }
+              if (i) s += ", ";
+              s += id(rand_ergebnis)[i];
+            }
+            return s;
+
+  - platform: template
+    # Schreibt EINMAL auf das gewaehlte Coil und protokolliert, was beim
+    # Ruecklesen nach 1, 10 und 60 s dort steht.
+    #
+    # Warum das gebraucht wird: bei Coil 5 ist festgehalten, ein Schreibversuch
+    # sei "ohne Wirkung" geblieben — aber nicht, WAS dabei zurueckkam.
+    # Ruecklesen 0 beweist nichts, denn genau so verhaelt sich ein
+    # flankengetriggertes Bit, das seine Aktion ausfuehrt und sich selbst
+    # zuruecksetzt. Steht nach 1 s noch 1 und nach 10 s schon 0, ist es eines.
+    #
+    # ACHTUNG: der einzige Knopf hier, der SCHREIBT. Bei Coil 5 ist unter den
+    # Kandidaten auch der Desinfektionszyklus — der heizt den Speicher
+    # stundenlang auf rund 70 °C. Vorbelegt ist "kein Ziel"; ein Druck ohne
+    # bewusste Auswahl bleibt wirkungslos.
+    name: "Schreibprobe ausführen"
+    id: probe_ausfuehren
+    entity_category: config
+    icon: "mdi:pencil-box-outline"
+    on_press:
+      - lambda: |-
+          auto ziel_idx = id(probe_ziel).active_index();
+          if (!ziel_idx.has_value() || *ziel_idx == 0) {
+            id(probe_text).publish_state("kein Ziel gewählt — nichts geschrieben");
+            ESP_LOGI("schreibprobe", "abgebrochen, kein Ziel gewaehlt");
+            return;
+          }
+          uint16_t adr = (*ziel_idx == 1) ? 5 : 6;
+          auto wert_idx = id(probe_wert).active_index();
+          bool wert = wert_idx.has_value() && *wert_idx == 1;
+          id(probe_protokoll) = str_sprintf("Coil %u := %s | ", adr, wert ? "ein" : "aus");
+          ESP_LOGW("schreibprobe", "schreibe Coil %u = %d", adr, (int) wert);
+          id(therma_v)->queue_command(
+            modbus_controller::ModbusCommandItem::create_write_single_coil(
+              id(therma_v), adr, wert));
+          id(probe_text).publish_state(id(probe_protokoll) + "geschrieben, warte auf Rücklesen");
+      - delay: 1s
+      - lambda: |-
+          auto ziel_idx = id(probe_ziel).active_index();
+          if (!ziel_idx.has_value() || *ziel_idx == 0) return;
+          uint16_t adr = (*ziel_idx == 1) ? 5 : 6;
+          id(therma_v)->queue_command(
+            modbus_controller::ModbusCommandItem::create_read_command(
+              id(therma_v), modbus_controller::ModbusRegisterType::COIL, adr, 1,
+              [](modbus_controller::ModbusRegisterType, uint16_t,
+                 const std::vector<uint8_t> &d) {
+                id(probe_protokoll) += str_sprintf("nach 1 s: %d | ",
+                    d.empty() ? -1 : (int) (d[0] & 1));
+                id(probe_text).publish_state(id(probe_protokoll));
+              }));
+      - delay: 9s
+      - lambda: |-
+          auto ziel_idx = id(probe_ziel).active_index();
+          if (!ziel_idx.has_value() || *ziel_idx == 0) return;
+          uint16_t adr = (*ziel_idx == 1) ? 5 : 6;
+          id(therma_v)->queue_command(
+            modbus_controller::ModbusCommandItem::create_read_command(
+              id(therma_v), modbus_controller::ModbusRegisterType::COIL, adr, 1,
+              [](modbus_controller::ModbusRegisterType, uint16_t,
+                 const std::vector<uint8_t> &d) {
+                id(probe_protokoll) += str_sprintf("nach 10 s: %d | ",
+                    d.empty() ? -1 : (int) (d[0] & 1));
+                id(probe_text).publish_state(id(probe_protokoll));
+              }));
+      - delay: 50s
+      - lambda: |-
+          auto ziel_idx = id(probe_ziel).active_index();
+          if (!ziel_idx.has_value() || *ziel_idx == 0) return;
+          uint16_t adr = (*ziel_idx == 1) ? 5 : 6;
+          id(therma_v)->queue_command(
+            modbus_controller::ModbusCommandItem::create_read_command(
+              id(therma_v), modbus_controller::ModbusRegisterType::COIL, adr, 1,
+              [](modbus_controller::ModbusRegisterType, uint16_t,
+                 const std::vector<uint8_t> &d) {
+                id(probe_protokoll) += str_sprintf("nach 60 s: %d",
+                    d.empty() ? -1 : (int) (d[0] & 1));
+                id(probe_text).publish_state(id(probe_protokoll));
+                ESP_LOGW("schreibprobe", "%s", id(probe_protokoll).c_str());
+              }));
+
+globals:
+  - id: scan_namen
+    type: std::vector<std::string>
+    restore_value: false
+  - id: scan_werte
+    type: std::vector<float>
+    restore_value: false
+  - id: scan_liste
+    type: std::vector<std::string>
+    restore_value: false
+  - id: scan_zaehler
+    type: int
+    restore_value: false
+    initial_value: "0"
+  - id: scan_laufzeit
+    type: int
+    restore_value: false
+    initial_value: "0"
+
+  # --- Betriebsstatistik. restore_value, damit ein Neustart die Zaehler nicht
+  #     verliert. ESPHome schreibt sie gebuendelt, nicht bei jeder Zuweisung.
+  - id: starts_heute
+    type: int
+    restore_value: true
+    initial_value: "0"
+  - id: starts_vortag
+    type: int
+    restore_value: true
+    initial_value: "0"
+  - id: ladungen_heute
+    type: int
+    restore_value: true
+    initial_value: "0"
+  - id: ladungen_vortag
+    type: int
+    restore_value: true
+    initial_value: "0"
+  - id: laufsekunden_gesamt
+    type: uint32_t
+    restore_value: true
+    initial_value: "0"
+  - id: laufsekunden_heute
+    type: uint32_t
+    restore_value: true
+    initial_value: "0"
+  - id: kuerzester_takt_24h
+    type: float
+    restore_value: true
+    initial_value: "0"
+  - id: aktueller_takt_start
+    type: uint32_t
+    restore_value: false
+    initial_value: "0"
+  - id: verdichter_laeuft
+    type: bool
+    restore_value: false
+    initial_value: "false"
+  - id: stat_dirty
+    type: bool
+    restore_value: false
+    initial_value: "true"
+
+  # --- Warmwasserladung: Energie und Speicherhub ueber eine ganze Ladung
+  - id: ladung_aktiv
+    type: bool
+    restore_value: false
+    initial_value: "false"
+  - id: ladung_wh
+    type: float
+    restore_value: false
+    initial_value: "0"
+  - id: ladung_start_temp
+    type: float
+    restore_value: false
+    initial_value: "0"
+
+  # --- Bus-Gesundheit
+  - id: letzte_antwort_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: "0"
+  - id: vorletzte_antwort_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: "0"
+  - id: verpasste
+    type: int
+    restore_value: true
+    initial_value: "0"
+  - id: luecke_gemeldet
+    type: bool
+    restore_value: false
+    initial_value: "false"
+
+  # --- Kartierungswerkzeuge
+  - id: ref_namen
+    type: std::vector<std::string>
+    restore_value: false
+  - id: ref_werte
+    type: std::vector<float>
+    restore_value: false
+  - id: rand_ergebnis
+    type: std::vector<std::string>
+    restore_value: false
+  - id: rand_offen
+    type: int
+    restore_value: false
+    initial_value: "0"
+  - id: probe_protokoll
+    type: std::string
+    restore_value: false
+
+interval:
+  # Abgeleitete Kaeltekreis-Werte. Die Sattdampftabelle von Propan (R290),
+  # Absolutdruck in bar je Temperatur, wird linear interpoliert. Ausserhalb
+  # der Tabelle wird NaN veroeffentlicht — der Sensor wird dann in Home
+  # Assistant unavailable, statt eine erfundene Zahl anzuzeigen.
+  - interval: 30s
+    then:
+      - lambda: |-
+          static const float T[] = {-20,-10,0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80};
+          static const float P[] = {2.45f,3.45f,4.74f,5.51f,6.35f,7.30f,8.36f,9.52f,10.80f,
+                                    12.20f,13.70f,15.40f,17.20f,19.20f,21.30f,23.60f,26.00f,
+                                    28.60f,31.40f};
+          static const int N = 19;
+
+          // Registerwert ist Ueberdruck in bar; +1 bar ergibt den Absolutdruck.
+          auto sattdampf = [&](float bar_ueber) -> float {
+            float pa = bar_ueber + 1.0f;
+            if (pa < P[0] || pa > P[N-1]) return NAN;
+            for (int i = 0; i < N - 1; i++) {
+              if (pa >= P[i] && pa <= P[i+1]) {
+                return T[i] + (pa - P[i]) * (T[i+1] - T[i]) / (P[i+1] - P[i]);
+              }
+            }
+            return NAN;
+          };
+
+          float nd = id(ir22_niederdruck).state;
+          float hd = id(ir21_hochdruck).state;
+          float sg = id(ir17_sauggas).state;
+
+          float t_verd = std::isnan(nd) ? NAN : sattdampf(nd);
+          float t_kond = std::isnan(hd) ? NAN : sattdampf(hd);
+
+          id(verdampfung).publish_state(t_verd);
+          id(kondensation).publish_state(t_kond);
+          id(ueberhitzung).publish_state(
+              (std::isnan(sg) || std::isnan(t_verd)) ? NAN : (sg - t_verd));
+          id(temperaturhub).publish_state(
+              (std::isnan(t_kond) || std::isnan(t_verd)) ? NAN : (t_kond - t_verd));
+          id(druckdifferenz).publish_state(
+              (std::isnan(hd) || std::isnan(nd)) ? NAN : (hd - nd));
+          id(verdichtungsverhaeltnis).publish_state(
+              (std::isnan(hd) || std::isnan(nd) || nd + 1.0f <= 0.0f)
+                  ? NAN : ((hd + 1.0f) / (nd + 1.0f)));
+
+          // Carnot: die theoretische Obergrenze des COP fuer diesen
+          // Betriebspunkt. Kein erreichbarer Wert, sondern die Messlatte.
+          if (!std::isnan(t_kond) && !std::isnan(t_verd) && (t_kond - t_verd) > 0.5f) {
+            id(carnot).publish_state((t_kond + 273.15f) / (t_kond - t_verd));
+          } else {
+            id(carnot).publish_state(NAN);
+          }
+
+          float vor = id(vorlauf).state;
+          float ruck = id(ruecklauf).state;
+          float aussen = id(aussentemp).state;
+          id(annaeherung_kond).publish_state(
+              (std::isnan(t_kond) || std::isnan(vor)) ? NAN : (t_kond - vor));
+          id(annaeherung_verd).publish_state(
+              (std::isnan(aussen) || std::isnan(t_verd)) ? NAN : (aussen - t_verd));
+          id(spreizung).publish_state(
+              (std::isnan(vor) || std::isnan(ruck)) ? NAN : (vor - ruck));
+
+          // --- Elektrische Messung aus den drei Kanaelen des Shelly 3EM ---
+          float p1 = id(l1_wirk).state, p2 = id(l2_wirk).state, p3 = id(l3_wirk).state;
+          float u1 = id(l1_volt).state, u2 = id(l2_volt).state, u3 = id(l3_volt).state;
+          float i1 = id(l1_amp).state, i2 = id(l2_amp).state, i3 = id(l3_amp).state;
+          bool p_ok = !(std::isnan(p1) || std::isnan(p2) || std::isnan(p3));
+          bool s_ok = p_ok && !(std::isnan(u1) || std::isnan(u2) || std::isnan(u3) ||
+                                std::isnan(i1) || std::isnan(i2) || std::isnan(i3));
+          float wirk = p_ok ? (p1 + p2 + p3) : NAN;
+          float schein = s_ok ? (u1 * i1 + u2 * i2 + u3 * i3) : NAN;
+          id(wirkleistung).publish_state(wirk);
+          id(scheinleistung).publish_state(schein);
+          id(leistungsfaktor).publish_state(
+              (std::isnan(wirk) || std::isnan(schein) || schein < 1.0f) ? NAN : (wirk / schein));
+
+          float va = id(ir23_scheinleistung).state;
+          id(ir23_abgleich).publish_state(
+              (std::isnan(va) || std::isnan(schein) || schein < 200.0f) ? NAN : (va / schein));
+
+          if (p_ok) {
+            float mx = std::max(p1, std::max(p2, p3));
+            float mn = std::min(p1, std::min(p2, p3));
+            id(schieflast).publish_state(mx > 20.0f ? (100.0f * (mx - mn) / mx) : NAN);
+            // Ueberschuss der staerksten Phase gegenueber dem Mittel der
+            // beiden anderen. Bei symmetrischem Drehstrom nahe null.
+            float rest = (p1 + p2 + p3 - mx) / 2.0f;
+            id(heizstab_verdacht).publish_state(mx > 20.0f ? (mx - rest) : NAN);
+          } else {
+            id(schieflast).publish_state(NAN);
+            id(heizstab_verdacht).publish_state(NAN);
+          }
+
+  # =============================================================
+  # Betriebsstatistik, Bus-Gesundheit und Schutzlogik. Sekundentakt, beruehrt
+  # den Bus nicht — gerechnet wird nur mit Werten, die schon im Speicher sind.
+  # =============================================================
+  - interval: 1s
+    then:
+      - lambda: |-
+          uint32_t jetzt = millis();
+          bool laeuft = id(verdichter_melder).state;
+
+          // Einmal beim Start die Zaehler sichtbar machen, damit sie nicht als
+          // "unknown" dastehen und wie ein Fehler aussehen.
+          static bool erstlauf = true;
+          if (erstlauf) {
+            erstlauf = false;
+            id(verpasste_zyklen).publish_state((float) id(verpasste));
+            id(stat_dirty) = true;
+          }
+
+          // --- Verdichter: Starts, Takte, Laufzeit ---
+          if (laeuft && !id(verdichter_laeuft)) {
+            id(verdichter_laeuft) = true;
+            id(aktueller_takt_start) = jetzt;
+            id(starts_heute)++;
+            id(stat_dirty) = true;
+            ESP_LOGI("statistik", "Verdichter an, %d. Start heute", id(starts_heute));
+          } else if (!laeuft && id(verdichter_laeuft)) {
+            id(verdichter_laeuft) = false;
+            if (id(aktueller_takt_start) > 0) {
+              float takt = (jetzt - id(aktueller_takt_start)) / 60000.0f;
+              if (id(kuerzester_takt_24h) <= 0.0f || takt < id(kuerzester_takt_24h))
+                id(kuerzester_takt_24h) = takt;
+              ESP_LOGI("statistik", "Verdichter aus nach %.1f min", takt);
+            }
+            id(stat_dirty) = true;
+          }
+          if (id(verdichter_laeuft)) {
+            id(laufsekunden_gesamt)++;
+            id(laufsekunden_heute)++;
+            if (id(laufsekunden_gesamt) % 60 == 0) id(stat_dirty) = true;
+          }
+
+          // --- Warmwasserladung: Energie je Kelvin Speicherhub.
+          //     Die Ladungsgrenzen kommen aus steigender Speichertemperatur
+          //     bei laufendem Verdichter, NICHT aus DI09 — dessen Bedeutung
+          //     als Warmwasser-Flag ist unbestaetigt.
+          float wt = id(ww_temp).state;
+          float wirk = id(wirkleistung).state;
+          if (!std::isnan(wt)) {
+            if (!id(ladung_aktiv)) {
+              if (laeuft && id(ladung_start_temp) > 0.0f && wt > id(ladung_start_temp) + 0.5f) {
+                id(ladung_aktiv) = true;
+                id(ladung_wh) = 0.0f;
+                id(ladungen_heute)++;
+                id(stat_dirty) = true;
+                ESP_LOGI("ladung", "Ladung erkannt ab %.1f °C", id(ladung_start_temp));
+              } else if (!laeuft) {
+                id(ladung_start_temp) = wt;
+              }
+            } else {
+              if (!std::isnan(wirk)) id(ladung_wh) += wirk / 3600.0f;
+              if (!laeuft) {
+                float hub = wt - id(ladung_start_temp);
+                if (hub > 1.0f && id(ladung_wh) > 1.0f)
+                  id(kwh_pro_kelvin).publish_state((id(ladung_wh) / 1000.0f) / hub);
+                ESP_LOGI("ladung", "Ladung beendet: %.0f Wh fuer %.1f K", id(ladung_wh), hub);
+                id(ladung_aktiv) = false;
+                id(ladung_start_temp) = wt;
+              }
+            }
+          }
+
+          if (!laeuft && !std::isnan(wirk)) id(standby_verbrauch).publish_state(wirk);
+
+          // --- Bus-Gesundheit ---
+          static uint32_t letzte_zaehlung = 0;
+          if (id(letzte_antwort_ms) > 0) {
+            float s = (jetzt - id(letzte_antwort_ms)) / 1000.0f;
+            id(zeit_seit_antwort).publish_state(s);
+            // Ein Durchlauf dauert gemessen rund 20 s. Bleibt der Bus dreimal
+            // so lange stumm, ist ein Zyklus ausgefallen.
+            if (s > 60.0f && (jetzt - letzte_zaehlung) > 60000) {
+              id(verpasste)++;
+              letzte_zaehlung = jetzt;
+              id(verpasste_zyklen).publish_state((float) id(verpasste));
+            }
+          }
+
+          // Nur echte Registerpunkte zaehlen. Die Unterscheidung laeuft ueber
+          // den Namen: jeder Registersensor traegt sein Kuerzel vorn, die fuenf
+          // Klarnamen sind einzeln aufgefuehrt. Ohne diese Trennung zaehlte der
+          // Wert auch die abgeleiteten Groessen mit, die im Stillstand
+          // bestimmungsgemaess leer sind — beim ersten Lauf ergab das 10 statt 0.
+          auto ist_register = [](const std::string &n) {
+            if (n.rfind("IR", 0) == 0 || n.rfind("HR", 0) == 0 ||
+                n.rfind("DI", 0) == 0 || n.rfind("CO", 0) == 0) return true;
+            return n == "Außentemperatur" || n == "Raumtemperatur" ||
+                   n == "Wasser Vorlauftemperatur" || n == "Wasser Rücklauftemperatur" ||
+                   n == "Warmwassertemperatur";
+          };
+          int fehlen = 0;
+          for (auto *s : App.get_sensors()) {
+            if (s->is_internal()) continue;
+            if (!ist_register(std::string(s->get_name().c_str()))) continue;
+            if (std::isnan(s->state)) fehlen++;
+          }
+          for (auto *b : App.get_binary_sensors()) {
+            if (b->is_internal()) continue;
+            if (!ist_register(std::string(b->get_name().c_str()))) continue;
+            if (!b->has_state()) fehlen++;
+          }
+          id(punkte_ohne_antwort).publish_state((float) fehlen);
+
+          // --- Schutzlogik zum Watchdog-Einwand: reisst die Bus-Luecke die
+          //     eingestellte Grenze, werden laufende Werkzeuge beendet, damit
+          //     kein vergessener Scan die Anlage stumm laufen laesst.
+          float grenze = id(max_luecke).state;
+          float luecke = id(zeit_seit_antwort).state;
+          if (!std::isnan(grenze) && !std::isnan(luecke) && luecke > grenze) {
+            if (!id(luecke_gemeldet)) {
+              id(luecke_gemeldet) = true;
+              ESP_LOGE("schutz", "Bus %.0f s stumm (Grenze %.0f s), Werkzeuge werden beendet",
+                       luecke, grenze);
+              if (id(scan_switch).state) id(scan_switch).turn_off();
+              id(rand_text).publish_state("abgebrochen: Bus-Lücke zu lang");
+            }
+          } else {
+            id(luecke_gemeldet) = false;
+          }
+
+          if (id(scan_switch).state)
+            id(scan_restlaufzeit).publish_state((1800 - id(scan_laufzeit)) / 60.0f);
+
+          // --- Statistik nur bei Änderung veroeffentlichen ---
+          if (id(stat_dirty)) {
+            id(stat_dirty) = false;
+            id(starts_heute_sensor).publish_state((float) id(starts_heute));
+            id(starts_vortag_sensor).publish_state((float) id(starts_vortag));
+            id(ladungen_heute_sensor).publish_state((float) id(ladungen_heute));
+            id(betriebsstunden).publish_state(id(laufsekunden_gesamt) / 3600.0f);
+            id(kuerzester_takt_sensor).publish_state(
+                id(kuerzester_takt_24h) > 0.0f ? id(kuerzester_takt_24h) : NAN);
+            id(mittlere_laufzeit).publish_state(
+                id(starts_heute) > 0
+                    ? (id(laufsekunden_heute) / 60.0f / (float) id(starts_heute)) : NAN);
+          }
+
+  # Schnelleres Abfragen, solange die Beobachtung laeuft. Selbstabschaltung
+  # nach 30 Minuten, damit ein vergessener Schalter den Bus nicht dauerhaft
+  # mit dem sechsfachen Verkehr belastet.
+  - interval: 10s
+    then:
+      - if:
+          condition:
+            lambda: "return id(scan_switch).state;"
+          then:
+            - lambda: |-
+                id(scan_laufzeit) += 10;
+            - if:
+                condition:
+                  lambda: "return id(scan_laufzeit) >= 1800;"
+                then:
+                  - switch.turn_off: scan_switch
+                else:
+                  - component.update: therma_v
+
+  # Auswertung. Laeuft nur bei aktiver Beobachtung und beruehrt den Bus nicht —
+  # verglichen werden die Werte, die im Speicher stehen.
+  - interval: 2s
+    then:
+      - if:
+          condition:
+            lambda: "return id(scan_switch).state;"
+          then:
+            - lambda: |-
+                float schwelle = id(scan_schwelle).state;
+                if (std::isnan(schwelle) || schwelle < 0.0f) schwelle = 1.0f;
+                std::string meldung;
+                int neu = 0;
+
+                // Die Schwelle zaehlt Registerschritte. Sie wird je Sensor um
+                // dessen accuracy_decimals zurueckgerechnet, damit sie fuer
+                // Rohregister, Temperaturen und Druecke dasselbe bedeutet.
+                auto pruefen = [&](const std::string &nam, float wert, bool diskret,
+                                   float schwelle_eff) {
+                  int idx = -1;
+                  for (size_t i = 0; i < id(scan_namen).size(); i++) {
+                    if (id(scan_namen)[i] == nam) { idx = (int) i; break; }
+                  }
+                  if (idx < 0) {
+                    id(scan_namen).push_back(nam);
+                    id(scan_werte).push_back(wert);
+                    return;
+                  }
+                  float alt = id(scan_werte)[idx];
+                  float d = fabsf(wert - alt);
+                  if (d < 0.0005f) return;
+                  if (!diskret && d < schwelle_eff) return;
+                  id(scan_werte)[idx] = wert;
+                  id(scan_zaehler)++;
+                  neu++;
+                  ESP_LOGW("beobachtung", "%s: %.2f -> %.2f", nam.c_str(), alt, wert);
+                  if (meldung.size() < 180) {
+                    if (!meldung.empty()) meldung += " | ";
+                    meldung += nam + str_sprintf(" %.2f→%.2f", alt, wert);
+                  }
+                  bool bekannt = false;
+                  for (size_t i = 0; i < id(scan_liste).size(); i++) {
+                    if (id(scan_liste)[i] == nam) { bekannt = true; break; }
+                  }
+                  if (!bekannt) id(scan_liste).push_back(nam);
+                };
+
+                for (auto *s : App.get_sensors()) {
+                  if (s->is_internal()) continue;
+                  // Abgeleitete Werte sind keine Register — sie wuerden die
+                  // Liste fuellen, ohne etwas ueber die Anlage zu sagen.
+                  if (s == id(scan_zaehler_sensor)) continue;
+                  if (s == id(verdampfung)) continue;
+                  if (s == id(kondensation)) continue;
+                  if (s == id(ueberhitzung)) continue;
+                  if (std::isnan(s->state)) continue;
+                  int8_t dec = s->get_accuracy_decimals();
+                  if (dec < 0) dec = 0;
+                  float eff = schwelle * powf(10.0f, -((float) dec));
+                  pruefen(std::string(s->get_name().c_str()), s->state, false, eff);
+                }
+                for (auto *b : App.get_binary_sensors()) {
+                  if (b->is_internal()) continue;
+                  if (!b->has_state()) continue;
+                  pruefen(std::string(b->get_name().c_str()), b->state ? 1.0f : 0.0f, true, 0.0f);
+                }
+
+                if (neu > 0) {
+                  id(scan_letzte_text).publish_state(meldung);
+                  id(scan_zaehler_sensor).publish_state((float) id(scan_zaehler));
+                  std::string liste;
+                  for (size_t i = 0; i < id(scan_liste).size(); i++) {
+                    if (liste.size() > 210) { liste += " …"; break; }
+                    if (i) liste += ", ";
+                    liste += id(scan_liste)[i];
+                  }
+                  id(scan_liste_text).publish_state(liste);
+                }
