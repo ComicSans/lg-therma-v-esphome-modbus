@@ -30,9 +30,11 @@ je Registertyp fand **32 antwortende Punkte**; zwei weitere kamen später durch
 > laufen lassen: er prüft die Adressen 0–63 in allen vier Registertypen
 > einzeln. Möglich, dass hier noch mehr liegt.
 
-Die offizielle Karte mit Coil 0 (Ein/Aus), Coil 2 (Flüstermodus), Holding 0
-(Betriebsmodus) und Holding 9 (Energiezustand/SG-Ready) ist auf diesem Gerät
-**nicht erreichbar** — dazu unten mehr.
+Die offizielle Karte passt auch hier nur teilweise: Coil 0 (Ein/Aus), Holding 0
+(Betriebsmodus) und Holding 9 (Energiezustand/SG-Ready) sind auf diesem Gerät
+**nicht erreichbar** — der Betriebsmodus liegt stattdessen schreibbar auf HR26
+(dazu unten mehr). Coil 2 dagegen trägt hier wie in der offiziellen Karte den
+**Flüstermodus** und ist schaltbar (CO2 in der Tabelle unten).
 
 ## Belegte Zuordnungen
 
@@ -124,9 +126,13 @@ Therma V ist ohnehin als ungenau bekannt.
 ## Gar nicht abgebildet
 
 Je einzeln am Bedienteil geprüft und im Registerraum nicht gefunden:
-Betriebsmodus Heizen/Kühlen/Auto als **Stellgröße**, Heizkreis 2 in jeder Form,
-Flüstermodus, Kreis-2-Pumpe, 3-Wege-Ventil als Zustand, Mischkreis,
-Wasserdruck, **Wasserdurchfluss**, Heizstabbetrieb.
+Heizkreis 2 in jeder Form, Kreis-2-Pumpe, 3-Wege-Ventil als Zustand,
+Mischkreis, Wasserdruck, **Wasserdurchfluss**, Heizstabbetrieb.
+
+Betriebsmodus als Stellgröße und Flüstermodus galten hier lange als nicht
+abgebildet — die Bedienteilmessung im Juli 2026 hat beide widerlegt: der
+Betriebsmodus ist schreibbar (HR26), der Flüstermodus schaltbar (CO2), beide
+in der Tabelle oben belegt.
 
 Konfiguration am Bedienteil ist über Modbus unsichtbar; nur physikalische
 Größen und die Haupt-Sollwerte spiegeln sich. Dass der Durchfluss fehlt, ist

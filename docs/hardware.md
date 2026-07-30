@@ -94,11 +94,14 @@ aufnimmt, muss das Intervall mit anheben.**
 - **Installateurmenü → Konnektivität → Energiezustand → ESS-Nutzungstyp auf
   „Modbus"** umgestellt und neu gestartet: der Registerraum bleibt exakt gleich.
 
-## Der belegte Weg zu Betriebsmodus und Heizkreis 2
+## Der belegte Weg zu Heizkreis 2
 
-Über diesen Anschluss gibt es sie nicht. Wer sie über Modbus braucht, braucht
-das **LG-Gateway PMBUSB00A** — CH1 als Modbus-Slave mit 9600, CH2 zur
-Außeneinheit, Therma V in der Kompatibilitätsliste, dreistelliger Betrag.
+Der **Betriebsmodus** (aus / kühlen / heizen / auto) ist über diesen Anschluss
+direkt schaltbar — er liegt schreibbar auf HR26, Beleg in
+[registerkarte.md](registerkarte.md). **Heizkreis 2** dagegen gibt es hier
+nicht. Wer ihn über Modbus braucht, braucht das **LG-Gateway PMBUSB00A** — CH1
+als Modbus-Slave mit 9600, CH2 zur Außeneinheit, Therma V in der
+Kompatibilitätsliste, dreistelliger Betrag.
 
 Die Alternative ohne Protokollarbeit ist **SG-Ready über zwei Kontakte**.
 
