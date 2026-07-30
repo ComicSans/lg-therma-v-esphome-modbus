@@ -17,6 +17,9 @@ Werkzeuge, mit denen sich die offenen Register weiter eingrenzen lassen.
 
 **Auslesen** — 34 antwortende Datenpunkte: Vorlauf, Rücklauf, Warmwasser, Raum,
 Außentemperatur, Sauggas, Hoch- und Niederdruck, Scheinleistung, Betriebsmodus.
+Die Außentemperatur ist ein Gerätefühler im besonnten Gehäuse und liegt im
+Stillstand bis 13 K zu hoch — für abgeleitete Rechnungen gehört ein
+unabhängiger Sensor daneben.
 
 **Stellen** — Betriebsmodus (aus / kühlen / heizen / auto), Flüstermodus,
 Warmwasser-Freigabe, Warmwasser- und Heizkreis-Solltemperatur. Als
@@ -118,16 +121,14 @@ Climate-Entität der Firmware als Steuer-Entität nutzen; dann entfällt die
 Vorlauf-Number.
 
 > **Was HR24 bedeutet, hängt von der Regelungsart am Bedienteil ab** — Vorlauf,
-> Rücklauf oder Raum, je Betriebsmodus getrennt einstellbar, über Modbus nicht
-> auslesbar. An dieser Anlage: Vorlauf im Heizen, **Rücklauf im Kühlen**. Für
-> den Heizbetrieb passt die Verdrahtung über die Vorlauf-Number damit genau.
+> Rücklauf oder Raum, je Betriebsmodus getrennt einstellbar und über Modbus
+> nicht auslesbar. An dieser Anlage: **Vorlauf im Heizen, Rücklauf im Kühlen.**
 >
-> Fürs Kühlen nicht: HEMS schreibt sein Kühl-Vorlauf-Soll dann auf ein
-> Rücklauf-Soll, und der Rücklauf ist beim Kühlen die wärmere Seite — die Anlage
-> fährt kälter als beabsichtigt, mit entsprechendem Kondensatrisiko. Zwei Wege:
-> die Regelungsart auch für den Kühlmodus auf Vorlauf stellen, oder die
-> Modus-Option „Kühlen“ in HEMS leer lassen, damit HEMS im Kühlbetrieb keinen
-> Sollwert schreibt.
+> Der Wert ist also je nach Modus eine andere Größe. Im Kühlbetrieb bedeuten
+> 21 °C auf HR24 einen Rücklauf-Soll; der Vorlauf läuft dabei bis auf etwa
+> 15 °C herunter. Wer den Sollwert nach Vorlauf-Logik ansetzt, fährt die Anlage
+> deutlich kälter, als die Zahl vermuten lässt. Ein Energiemanager, der HR24
+> stellt, muss die Regelungsart kennen — erfragen kann er sie nicht.
 
 ## Vorsicht bei Coil 5
 

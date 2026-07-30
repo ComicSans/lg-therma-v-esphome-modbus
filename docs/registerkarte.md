@@ -40,7 +40,7 @@ Die offizielle Karte passt auch hier nur teilweise: Coil 0 (Ein/Aus), Holding 0
 
 | Punkt | Bedeutung | Skalierung | Grundlage |
 |---|---|---|---|
-| IR12 | Außentemperatur | ×0,1 | 305 bei 30 °C am Bedienteil |
+| IR12 | Außentemperatur **des Geräts**, kein Wetterwert | ×0,1 | 305 bei 30 °C am Bedienteil. Der Fühler sitzt im besonnten Gehäuse: gegen drei unabhängige Außensensoren nachts bei Stillstand ±0 K, tagsüber bei Stillstand +7,9 K im Mittel und bis +12,9 K, bei laufendem Ventilator noch +3,9 K. Beim Ventilatorstart fiel der Wert um 8 K, während alle drei unabhängigen Sensoren stiegen |
 | IR15 | Wasser-Rücklauf | ×0,1 | Vorlauf > Rücklauf im Heizbetrieb, umgekehrt im Kühlbetrieb |
 | IR16 | Wasser-Vorlauf | ×0,1 | dito |
 | IR17 | **Sauggastemperatur** | ×0,1 | ergibt gegen die Sättigungstemperatur aus IR22 durchgehend 5–8 K Überhitzung; wird negativ, was für Sauggas normal ist |
@@ -123,10 +123,11 @@ Therma V ist ohnehin als ungenau bekannt.
 | IR18 | Liegt über neun Stunden Stillstand konstant 10–15 K über der Außenluft und sinkt mit ihr. Eine Verdichterfrequenz wäre dort 0. Passt zu Verdichtergehäuse (Kurbelwannenheizung) oder Leistungsmodul-Kühlkörper |
 | IR09 | Konstant 19 über 24 h — ein Kennwert, kein Messwert |
 | IR13 | Konstant 12000; das Bedienteil zeigt denselben Rohwert unter „Kältemittel" |
-| IR10, IR20, IR27 | Antworten, stehen im Stillstand auf 0 |
+| IR10, IR27 | Antworten, stehen im Stillstand auf 0 |
+| IR20 | **Folgt der Verdichterleistung** — Frequenz oder Kapazitätsanforderung, Einheit offen. Konstant sind 45–54 W Wirkleistung je Einheit über einen wechselnden Druckhub (15↔675 W, 20↔965, 30↔1354, 34↔1734, 42↔2074). Kein Expansionsventil: der Wert stand 26 Minuten konstant, während die Sauggasüberhitzung von 0,6 auf 6,3 K wanderte, und über einen ganzen Takt ist die Überhitzung unkorreliert |
 | HR25, HR27, HR28 | Antworten, konstant 0 über 24 h |
 | DI06, DI08, DI31 | Wechseln, Bedeutung offen |
-| DI07 | **Nicht** die Hauptpumpe: stand auf AUS, während das Display „Umwälzpumpe in Betrieb" meldete |
+| DI07 | **Drei-Minuten-Wiederanlaufsperre.** Ruht auf `on` und fällt nach jedem Betriebsende für exakt 3:00 min ab, dreimal an einem Tag gemessen. **Nicht** die Hauptpumpe: stand auf AUS, während das Display „Umwälzpumpe in Betrieb" meldete |
 | DI09 | Als Warmwasser-Flag unbestätigt — während einer eindeutigen Ladung lieferte der Punkt keinen Wert |
 | CO5 | Antwortet. Bedeutung offen, siehe Warnung unten |
 | DI32 | Antwortet, erst durch Einzelabfrage gefunden. Bedeutung offen |
