@@ -7,16 +7,28 @@ Modbus RTU über Klemme 21/22, Slave 1, 9600 Baud.
 
 Weder das allgemeine Therma-V-Handbuch (S. 262–264) noch das Modellhandbuch
 (S. 181–182) noch die LG-Folie „Open MODBUS" noch das basti242-Wiki treffen auf
-dieses Gerät zu — **auch nicht mit Versatz**. Ein vollständiger Scan über alle
-65536 Adressen je Registertyp fand genau **32 antwortende Punkte**, alles andere
-liefert Exception 2 (illegal data address):
+dieses Gerät zu — **auch nicht mit Versatz**. Ein Scan über alle 65536 Adressen
+je Registertyp fand **32 antwortende Punkte**; zwei weitere kamen später durch
+**Einzelabfrage** hinzu — insgesamt **34**. Alles andere liefert Exception 2
+(illegal data address):
 
 | Typ | Adressen | Anzahl |
 |---|---|---|
 | Input Register (FC 4) | 9–27 | 19 |
 | Holding Register (FC 3) | 24–29 | 6 |
-| Discrete Input (FC 2) | 6, 7, 8, 9, 31 | 5 |
-| Coil (FC 1) | 5, 6 | 2 |
+| Discrete Input (FC 2) | 6, 7, 8, 9, 31, **32** | 6 |
+| Coil (FC 1) | **4**, 5, 6 | 3 |
+
+> **DI32 und CO4 hat der Tiefenscan übersehen** — und der Grund ist derselbe
+> Blockmechanismus wie bei `force_new_range`, nur in der Suchrichtung. Der Scan
+> fragte in Vierergruppen ab; enthält eine Gruppe ein nicht existierendes
+> Register, lehnt das Gerät die **ganze Gruppe** mit Exception 2 ab, und die
+> vorhandenen Nachbarn verschwinden mit. Einzelabfragen finden, was
+> Gruppenabfragen verstecken.
+>
+> Wer nachbaut, sollte deshalb den Button **„Breiter Registerscan"** einmal
+> laufen lassen: er prüft die Adressen 0–63 in allen vier Registertypen
+> einzeln. Möglich, dass hier noch mehr liegt.
 
 Die offizielle Karte mit Coil 0 (Ein/Aus), Coil 2 (Flüstermodus), Holding 0
 (Betriebsmodus) und Holding 9 (Energiezustand/SG-Ready) ist auf diesem Gerät
@@ -77,6 +89,8 @@ Therma V ist ohnehin als ungenau bekannt.
 | DI07 | **Nicht** die Hauptpumpe: stand auf AUS, während das Display „Umwälzpumpe in Betrieb" meldete |
 | DI09 | Als Warmwasser-Flag unbestätigt — während einer eindeutigen Ladung lieferte der Punkt keinen Wert |
 | CO5 | Antwortet. Bedeutung offen, siehe Warnung unten |
+| DI32 | Antwortet, erst durch Einzelabfrage gefunden. Bedeutung offen |
+| CO4 | Antwortet, erst durch Einzelabfrage gefunden. **Nur lesend eingebunden** — in LGs offizieller Karte liegt hier Notaus/Notbetrieb |
 
 ## Gar nicht abgebildet
 
@@ -112,7 +126,7 @@ Tages:
 Die Sprünge liegen exakt auf den Generationsgrenzen, nicht auf
 Betriebszuständen. Genau in einer der verfälschten Generationen entstand die
 Fehlzuordnung „IR11 = Heißgastemperatur" durch einen Ablesevergleich am
-Bedienteil. **Deshalb steht `force_new_range: true` an jedem Register** — 32
+Bedienteil. **Deshalb steht `force_new_range: true` an jedem Register** — 34
 Einzelanfragen kosten Buslast, aber sie können nicht mehr verrutschen.
 
 ### 2. Eine Zeitreihe über mehrere Firmware-Generationen ist kein Datensatz

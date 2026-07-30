@@ -4,9 +4,10 @@
 # ACHTUNG: Dieses Geraet hat eine EIGENE Registerbelegung. Keine der
 # veroeffentlichten Karten (LG-Handbuch, LG-Folie "Open MODBUS",
 # basti242-Wiki) passt — auch nicht mit Versatz. Ein vollstaendiger Scan am
-# 2026-07-29 ergab genau 32 antwortende Punkte:
+# 2026-07-29 ergab 32 antwortende Punkte, zwei weitere kamen am 2026-07-30
+# durch Einzelabfrage der Randbereiche hinzu (DI32, CO4) — also 34:
 #   Input-Register 9..27, Halteregister 24..29,
-#   Discrete Inputs 6,7,8,9,31, Coils 5 und 6.
+#   Discrete Inputs 6,7,8,9,31,32, Coils 4,5 und 6.
 # Alles andere antwortet mit Exception 2 (illegal data address).
 #
 # Verkabelung: A -> Klemme 21, B -> Klemme 22 (3rd Party Controller, 5 V DC).
@@ -136,6 +137,12 @@ time:
               id(ladungen_vortag) = id(ladungen_heute);
               id(ladungen_heute) = 0;
               id(kuerzester_takt_24h) = 0;
+              // Muss mit zurueckgesetzt werden: die mittlere Laufzeit teilt
+              // laufsekunden_heute durch starts_heute. Bleibt der Zaehler
+              // stehen, waehrend der Nenner taeglich auf null geht, klettert
+              // der Wert ins Absurde — und restore_value trug ihn sogar ueber
+              // Neustarts weiter.
+              id(laufsekunden_heute) = 0;
               id(stat_dirty) = true;
 
 uart:
@@ -1071,6 +1078,32 @@ binary_sensor:
     force_new_range: true
     entity_category: diagnostic
 
+  # --- Am 2026-07-30 mit "Randbereiche pruefen" NEU gefunden. Der Tiefenscan
+  #     vom Vortag hatte sie uebersehen, weil er in Vierergruppen abfragte:
+  #     enthaelt eine Gruppe ein nicht existierendes Register, lehnt das Geraet
+  #     die ganze Gruppe mit Exception 2 ab — und die existierenden Nachbarn
+  #     verschwinden mit. Dasselbe Blockproblem wie bei force_new_range, nur in
+  #     der Suchrichtung: Einzelabfragen finden, was Gruppenabfragen verstecken.
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    name: "DI32 unbestimmt"
+    address: 32
+    register_type: discrete_input
+    force_new_range: true
+    entity_category: diagnostic
+
+  # NUR LESEND, und das mit Bedacht: in LGs offizieller Karte liegt auf Coil 4
+  # Notaus/Notbetrieb. Diese Anlage spricht jene Karte nicht, das ist also kein
+  # Beleg — aber es ist der schlechteste denkbare Kandidat fuer einen
+  # Blindversuch. Erst passiv identifizieren.
+  - platform: modbus_controller
+    modbus_controller_id: therma_v
+    name: "CO4 unbestimmt (nur Anzeige)"
+    address: 4
+    register_type: coil
+    force_new_range: true
+    entity_category: diagnostic
+
   # =============================================================
   # Melder. Jeder mit ZWEI Schwellen, nie mit einer — sonst flattert die
   # Meldung um den Schwellwert. Dasselbe Muster wie im HEMS-Projekt.
@@ -1598,6 +1631,36 @@ button:
                 ESP_LOGW("schreibprobe", "%s", id(probe_protokoll).c_str());
               }));
 
+  - platform: template
+    # BREITER SCAN. Prueft die Adressen 0..63 in allen vier Registertypen
+    # EINZELN, 256 Anfragen. Hintergrund: der Tiefenscan vom 2026-07-29 fragte
+    # in Vierergruppen ab und hat dadurch existierende Register uebersehen —
+    # DI32 und CO4 wurden erst durch Einzelabfrage sichtbar. Enthaelt eine
+    # Gruppe ein fehlendes Register, lehnt das Geraet die ganze Gruppe mit
+    # Exception 2 ab, und die vorhandenen Nachbarn verschwinden mit.
+    #
+    # Selbstdrosselung: 8 Anfragen je 15 s, damit die Warteschlange kurz bleibt
+    # und der Normalbetrieb dazwischen durchkommt. Dauer rund acht Minuten.
+    # Ohne die Drosselung wuerde der Waechter den Scan abbrechen — und genau
+    # das waere richtig, denn 256 Anfragen am Stueck legen den Bus lahm.
+    name: "Breiter Registerscan"
+    id: breit_scan
+    entity_category: config
+    icon: "mdi:radar"
+    on_press:
+      - lambda: |-
+          if (id(breit_aktiv)) {
+            id(breit_aktiv) = false;
+            id(rand_text).publish_state("breiter Scan abgebrochen");
+            ESP_LOGW("breitscan", "abgebrochen");
+            return;
+          }
+          id(breit_aktiv) = true;
+          id(breit_zeiger) = 0;
+          id(breit_treffer).clear();
+          id(rand_text).publish_state("breiter Scan läuft — 0 von 256");
+          ESP_LOGW("breitscan", "gestartet");
+
 globals:
   - id: scan_namen
     type: std::vector<std::string>
@@ -1693,6 +1756,17 @@ globals:
     initial_value: "false"
 
   # --- Kartierungswerkzeuge
+  - id: breit_aktiv
+    type: bool
+    restore_value: false
+    initial_value: "false"
+  - id: breit_zeiger
+    type: int
+    restore_value: false
+    initial_value: "0"
+  - id: breit_treffer
+    type: std::vector<std::string>
+    restore_value: false
   - id: ref_namen
     type: std::vector<std::string>
     restore_value: false
@@ -1949,6 +2023,57 @@ interval:
             id(mittlere_laufzeit).publish_state(
                 id(starts_heute) > 0
                     ? (id(laufsekunden_heute) / 60.0f / (float) id(starts_heute)) : NAN);
+          }
+
+  # Haeppchenweise Abarbeitung des breiten Scans.
+  - interval: 15s
+    then:
+      - lambda: |-
+          if (!id(breit_aktiv)) return;
+          // Schutz: bei zu langer Bus-Luecke abbrechen statt draufzusatteln.
+          float luecke = id(zeit_seit_antwort).state;
+          float grenze = id(max_luecke).state;
+          if (!std::isnan(luecke) && !std::isnan(grenze) && luecke > grenze * 0.7f) {
+            ESP_LOGW("breitscan", "pausiert, Bus-Luecke %.0f s", luecke);
+            return;
+          }
+          static const modbus_controller::ModbusRegisterType typen[4] = {
+            modbus_controller::ModbusRegisterType::READ,
+            modbus_controller::ModbusRegisterType::HOLDING,
+            modbus_controller::ModbusRegisterType::DISCRETE_INPUT,
+            modbus_controller::ModbusRegisterType::COIL};
+          static const char *kuerzel[4] = {"IR", "HR", "DI", "CO"};
+          for (int n = 0; n < 8 && id(breit_zeiger) < 256; n++, id(breit_zeiger)++) {
+            int i = id(breit_zeiger);
+            int t = i / 64;
+            uint16_t adr = (uint16_t)(i % 64);
+            std::string bez = str_sprintf("%s%u", kuerzel[t], adr);
+            id(therma_v)->queue_command(
+              modbus_controller::ModbusCommandItem::create_read_command(
+                id(therma_v), typen[t], adr, 1,
+                [bez](modbus_controller::ModbusRegisterType, uint16_t,
+                      const std::vector<uint8_t> &d) {
+                  uint16_t v = d.size() >= 2
+                      ? (uint16_t)(((uint16_t) d[0] << 8) | d[1])
+                      : (d.empty() ? 0 : (uint16_t) d[0]);
+                  id(breit_treffer).push_back(bez + str_sprintf("=%u", v));
+                  ESP_LOGW("breitscan", "%s antwortet: %u", bez.c_str(), v);
+                }));
+          }
+          if (id(breit_zeiger) >= 256) {
+            id(breit_aktiv) = false;
+            std::string s = str_sprintf("breiter Scan fertig, %d Treffer: ",
+                                        (int) id(breit_treffer).size());
+            for (size_t i = 0; i < id(breit_treffer).size(); i++) {
+              if (s.size() > 200) { s += " …"; break; }
+              if (i) s += ", ";
+              s += id(breit_treffer)[i];
+            }
+            id(rand_text).publish_state(s);
+            ESP_LOGW("breitscan", "fertig, %d Treffer", (int) id(breit_treffer).size());
+          } else {
+            id(rand_text).publish_state(str_sprintf("breiter Scan läuft — %d von 256, %d Treffer",
+                id(breit_zeiger), (int) id(breit_treffer).size()));
           }
 
   # Schnelleres Abfragen, solange die Beobachtung laeuft. Selbstabschaltung

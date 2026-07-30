@@ -15,7 +15,7 @@ weiter eingegrenzt werden können.
 
 ## Was funktioniert
 
-**Auslesen** — 32 antwortende Datenpunkte: Vorlauf, Rücklauf, Warmwasser, Raum,
+**Auslesen** — 34 antwortende Datenpunkte: Vorlauf, Rücklauf, Warmwasser, Raum,
 Außentemperatur, Sauggas, Hoch- und Niederdruck, Scheinleistung, Betriebsmodus.
 
 **Stellen** — Warmwasser-Freigabe (ein/aus), Warmwasser-Solltemperatur,
@@ -33,8 +33,10 @@ Betriebsstunden, Warmwasserladungen, Verbrauch je Kelvin Speicherhub.
 Antwort, verpasste Zyklen, plus eine Schutzschaltung gegen zu lange
 Abfragelücken.
 
-**Kartierungswerkzeuge** — Registerbeobachtung und Referenzzustand-Vergleich,
-um offene Register am Bedienteil zu identifizieren, **ohne zu schreiben**.
+**Kartierungswerkzeuge** — Registerbeobachtung, Referenzzustand-Vergleich und
+zwei Adress-Scanner, um offene Register zu identifizieren, **ohne zu schreiben**.
+Der breite Scan prüft 256 Adressen einzeln und hat auf diesem Weg zwei Register
+gefunden, die ein gruppenweiser Tiefenscan übersehen hatte.
 
 ## Was nicht funktioniert
 
@@ -113,7 +115,7 @@ Ablesevergleich am Bedienteil die Fehlzuordnung „dieses Register ist die
 Heißgastemperatur" — sie hielt sich, bis die Generationen getrennt ausgewertet
 wurden.
 
-32 Einzelanfragen kosten Buslast (gemessen rund 20 s je Zyklus), aber sie können
+34 Einzelanfragen kosten Buslast (gemessen rund 20 s je Zyklus), aber sie können
 nicht mehr verrutschen.
 
 ### Eine Zeitreihe über mehrere Firmware-Generationen ist kein Datensatz
@@ -139,7 +141,7 @@ Registerbeobachtung und der Referenzzustand-Vergleich da.
 
 ## Dokumentation
 
-- [docs/registerkarte.md](docs/registerkarte.md) — alle 32 Punkte, was belegt
+- [docs/registerkarte.md](docs/registerkarte.md) — alle 34 Punkte, was belegt
   ist und woran, was offen bleibt
 - [docs/hardware.md](docs/hardware.md) — Anschluss, DIP-Schalter, Buslast,
   Sackgassen
@@ -147,7 +149,12 @@ Registerbeobachtung und der Referenzzustand-Vergleich da.
 ## Stand
 
 Gemessen und in Betrieb seit Juli 2026. Die Firmware läuft ohne Timeouts; alle
-32 Registerpunkte antworten.
+34 Registerpunkte antworten. Ein voller Abfragezyklus dauert rund 20 s.
+
+Ungetestet ist bisher nur die **Schreibprobe** — sie kompiliert und ist
+vorbelegt auf „kein Ziel", aber noch nie ausgeführt worden. Der breite
+Registerscan und die Randbereichsprüfung sind einmal gelaufen; letztere hat DI32
+und CO4 gefunden.
 
 Beiträge sind willkommen — besonders Messungen an **anderen Therma-V-Baureihen**.
 Die spannendste offene Frage ist, ob die hier gefundene Registerbelegung
