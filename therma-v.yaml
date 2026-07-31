@@ -1918,28 +1918,33 @@ climate:
     min_cooling_off_time: 30s
     min_cooling_run_time: 30s
     min_idle_time: 30s
-    # heat_action und cool_action stehen fuer "die Anlage soll laufen, und zwar
-    # in dieser Richtung". Beide greifen nur, wenn die Anlage aus ist — laeuft
-    # sie bereits, entscheidet das Auswahlfeld, und die Entitaet mischt sich
-    # nicht ein. Ohne cool_action kennt die Platform kein CLIMATE_MODE_COOL, und
-    # die Spiegelung unten koennte HR26=1 gar nicht anzeigen: bis zum 31.07.2026
-    # meldete die Entitaet im Kuehlbetrieb `heat`.
+    # DER REGLER SCHREIBT HR26 NICHT MEHR. Die Aktionen sind Pflichtfelder der
+    # thermostat-Platform und bleiben nur noch als Log stehen. Was ein Mensch
+    # ausdruecklich tut — die Entitaet auf Aus stellen — geht weiter durch,
+    # siehe on_state unten; das ist ein Handgriff wie am Auswahlfeld, kein
+    # Automatismus.
+    #
+    # Warum: HR26 gehoert HEMS. Bis zum 31.07.2026 schrieben heat_action und
+    # cool_action den Modus, sobald die Anlage aus war (`hr26_modus == 0`) —
+    # und genau diesen Zustand stellt HEMS her, wenn sein Taktschutz eine Pause
+    # einlegt. In der Pause steigt der Vorlauf ueber den Kuehl-Sollwert (am
+    # 31.07. gemessen: 23,2 °C gegen Sollwert 21), der Regler haette
+    # cool_action gefeuert, HR26 auf 1 gesetzt und die Pause aufgehoben. HEMS
+    # haette im naechsten Zyklus wieder 0 geschrieben: dasselbe Schreib-Pingpong,
+    # das die Warmwasser-Aussetzung beseitigt hat, nur von der anderen Seite.
+    # Das Fenster ist schmal (bis die Spiegelung unten den Modus auf OFF zieht),
+    # aber es trifft eine Schutzfunktion, die eine echte Waermepumpe anhaelt.
+    #
+    # Der Preis: Die Anlage laesst sich ueber diese Entitaet nicht mehr
+    # einschalten. Dafuer gibt es das Auswahlfeld, und HEMS bedient genau das.
     heat_action:
-      - lambda: |-
-          if (id(hr26_modus).state == 0) {
-            id(therma_v)->queue_command(
-              modbus_controller::ModbusCommandItem::create_write_single_command(
-                id(therma_v), 26, 2));
-            ESP_LOGI("climate", "eingeschaltet -> Heizen (Modus genauer im Auswahlfeld)");
-          }
+      - logger.log:
+          level: INFO
+          format: "Climate wuerde heizen — HR26 gehoert HEMS, kein Schreibzugriff von hier"
     cool_action:
-      - lambda: |-
-          if (id(hr26_modus).state == 0) {
-            id(therma_v)->queue_command(
-              modbus_controller::ModbusCommandItem::create_write_single_command(
-                id(therma_v), 26, 1));
-            ESP_LOGI("climate", "eingeschaltet -> Kuehlen (Modus genauer im Auswahlfeld)");
-          }
+      - logger.log:
+          level: INFO
+          format: "Climate wuerde kuehlen — HR26 gehoert HEMS, kein Schreibzugriff von hier"
     idle_action:
       - logger.log:
           level: DEBUG
@@ -2582,9 +2587,19 @@ interval:
                                       fabsf(ziel - ziel_gesehen) > 0.05f;
 
           if (anlage_hat_geaendert) {
+            // IMMER BEIDE PUNKTE setzen, mit 2 K Abstand in der richtigen
+            // Reihenfolge. Setzte man nur einen, stuende beim Heizen low auf 55
+            // und high weiter auf 21 — ESPHome prueft low > high nur, wenn
+            // beide im selben Aufruf kommen, der Zustand waere also still
+            // verdreht. Der jeweils andere Punkt ist ein Platzhalter.
             auto call = id(wp_climate).make_call();
-            if (kuehlbetrieb) call.set_target_temperature_high(hr24);
-            else              call.set_target_temperature_low(hr24);
+            if (kuehlbetrieb) {
+              call.set_target_temperature_high(hr24);
+              call.set_target_temperature_low(hr24 - 2.0f);
+            } else {
+              call.set_target_temperature_low(hr24);
+              call.set_target_temperature_high(hr24 + 2.0f);
+            }
             call.perform();
             ESP_LOGI("climate", "Sollwert folgt der Anlage: %.1f (%s)", hr24,
                      kuehlbetrieb ? "kuehlen" : "heizen");
