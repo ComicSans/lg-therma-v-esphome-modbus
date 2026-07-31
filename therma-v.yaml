@@ -1894,17 +1894,36 @@ climate:
       max_temperature: 65
       temperature_step: 0.5
     default_preset: Anlage
+    # ZWEI Sollpunkte, obwohl die Anlage mit HR24 nur einen kennt: ESPHomes
+    # thermostat verlangt bei cool_action zwingend beide. Die Sync unten haelt
+    # deshalb immer den Punkt nach, der zum aktuellen Betriebsmodus gehoert —
+    # low beim Heizen, high beim Kuehlen. Der jeweils andere steht daneben und
+    # bedeutet nichts. Preis dafuer, dass die Entitaet den Kuehlbetrieb
+    # ueberhaupt anzeigen kann; die Alternative waere gewesen, sie ganz
+    # abzuschaffen.
     preset:
       - name: Anlage
         default_target_temperature_low: 21
+        default_target_temperature_high: 24
     heat_deadband: 0.5
     heat_overrun: 0.5
     min_heating_off_time: 30s
     min_heating_run_time: 30s
+    # Ohne diese Zeile kennt die Entitaet kein CLIMATE_MODE_HEAT_COOL, und die
+    # Spiegelung unten koennte HR26=3 ("Auto") nicht anzeigen — derselbe Fehler
+    # wie beim Kuehlen, nur eine Stufe weiter.
+    heat_cool_mode: true
+    cool_deadband: 0.5
+    cool_overrun: 0.5
+    min_cooling_off_time: 30s
+    min_cooling_run_time: 30s
     min_idle_time: 30s
-    # Die heat_action steht fuer "die Anlage soll laufen". Welcher der drei
-    # aktiven Modi (kuehlen/heizen/auto) es wird, entscheidet das Auswahlfeld;
-    # heizen ist die Vorgabe, wenn die Entitaet selbst eingeschaltet wird.
+    # heat_action und cool_action stehen fuer "die Anlage soll laufen, und zwar
+    # in dieser Richtung". Beide greifen nur, wenn die Anlage aus ist — laeuft
+    # sie bereits, entscheidet das Auswahlfeld, und die Entitaet mischt sich
+    # nicht ein. Ohne cool_action kennt die Platform kein CLIMATE_MODE_COOL, und
+    # die Spiegelung unten koennte HR26=1 gar nicht anzeigen: bis zum 31.07.2026
+    # meldete die Entitaet im Kuehlbetrieb `heat`.
     heat_action:
       - lambda: |-
           if (id(hr26_modus).state == 0) {
@@ -1912,6 +1931,14 @@ climate:
               modbus_controller::ModbusCommandItem::create_write_single_command(
                 id(therma_v), 26, 2));
             ESP_LOGI("climate", "eingeschaltet -> Heizen (Modus genauer im Auswahlfeld)");
+          }
+    cool_action:
+      - lambda: |-
+          if (id(hr26_modus).state == 0) {
+            id(therma_v)->queue_command(
+              modbus_controller::ModbusCommandItem::create_write_single_command(
+                id(therma_v), 26, 1));
+            ESP_LOGI("climate", "eingeschaltet -> Kuehlen (Modus genauer im Auswahlfeld)");
           }
     idle_action:
       - logger.log:
@@ -2541,8 +2568,13 @@ interval:
           static float hr24_gesehen = NAN;
           static float ziel_gesehen = NAN;
           float hr24 = id(hk1_soll).state;
-          float ziel = id(wp_climate).target_temperature;
           if (std::isnan(hr24)) return;
+
+          // Welcher der beiden Sollpunkte HR24 fuehrt, haengt am Betriebsmodus:
+          // beim Kuehlen der obere, sonst der untere.
+          bool kuehlbetrieb = (lroundf(id(hr26_modus).state) == 1);
+          float ziel = kuehlbetrieb ? id(wp_climate).target_temperature_high
+                                    : id(wp_climate).target_temperature_low;
 
           bool anlage_hat_geaendert = !std::isnan(hr24_gesehen) &&
                                       fabsf(hr24 - hr24_gesehen) > 0.05f;
@@ -2551,9 +2583,11 @@ interval:
 
           if (anlage_hat_geaendert) {
             auto call = id(wp_climate).make_call();
-            call.set_target_temperature(hr24);
+            if (kuehlbetrieb) call.set_target_temperature_high(hr24);
+            else              call.set_target_temperature_low(hr24);
             call.perform();
-            ESP_LOGI("climate", "Sollwert folgt der Anlage: %.1f", hr24);
+            ESP_LOGI("climate", "Sollwert folgt der Anlage: %.1f (%s)", hr24,
+                     kuehlbetrieb ? "kuehlen" : "heizen");
           } else if (nutzer_hat_geaendert && fabsf(ziel - hr24) > 0.05f) {
             auto c = id(hk1_soll).make_call();
             c.set_value(ziel);
@@ -2561,20 +2595,30 @@ interval:
             ESP_LOGI("climate", "Sollwert an die Anlage: %.1f", ziel);
           }
           hr24_gesehen = id(hk1_soll).state;
-          ziel_gesehen = id(wp_climate).target_temperature;
+          ziel_gesehen = kuehlbetrieb ? id(wp_climate).target_temperature_high
+                                      : id(wp_climate).target_temperature_low;
 
-          // Ein/Aus der Anlage in die Climate-Entitaet spiegeln. Der genaue
-          // Modus (kuehlen/heizen/auto) steht im Auswahlfeld; die Entitaet
-          // zeigt nur, OB die Anlage laeuft.
+          // Den Betriebsmodus der Anlage in die Climate-Entitaet spiegeln.
+          // Bis zum 31.07.2026 wurde hier jeder aktive Modus auf `heat`
+          // abgebildet — die Entitaet meldete also `heat`, waehrend die Anlage
+          // kuehlte (belegt am 30.07.: HR26 ging 06:28:16 auf 1, die Entitaet
+          // meldete 06:28:25 heat). Fuer HEMS war das folgenlos, dessen
+          // Heizkreis-Rolle haengt am Auswahlfeld. Die Anzeige log trotzdem.
           static int modus_gesehen = -1;
           int m = (int) lroundf(id(hr26_modus).state);
           if (m != modus_gesehen && m >= 0 && m <= 3) {
             modus_gesehen = m;
             auto call = id(wp_climate).make_call();
-            if (m == 0) call.set_mode(climate::CLIMATE_MODE_OFF);
-            else call.set_mode(climate::CLIMATE_MODE_HEAT);
+            switch (m) {
+              case 0: call.set_mode(climate::CLIMATE_MODE_OFF); break;
+              case 1: call.set_mode(climate::CLIMATE_MODE_COOL); break;
+              case 2: call.set_mode(climate::CLIMATE_MODE_HEAT); break;
+              // 3 ist "Auto" — die Anlage waehlt die Richtung selbst, und genau
+              // das ist HEAT_COOL.
+              default: call.set_mode(climate::CLIMATE_MODE_HEAT_COOL); break;
+            }
             call.perform();
-            ESP_LOGI("climate", "Ein/Aus von der Anlage uebernommen: %d", m);
+            ESP_LOGI("climate", "Betriebsmodus von der Anlage uebernommen: %d", m);
           }
 
   # Schnelleres Abfragen, solange die Beobachtung laeuft. Selbstabschaltung
