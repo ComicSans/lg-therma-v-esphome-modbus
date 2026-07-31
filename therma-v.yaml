@@ -106,11 +106,17 @@
 #    uebernommen; ein angeschnittener Takt zaehlt nicht als kuerzester, und eine
 #    Ladung mit Neustart darin zaehlt, liefert aber keine Kennzahl.
 #
+# 10. CO3 heisst am 2026-07-31 "Außeneinheit in Betrieb". Nach dem Flash vom
+#    30.07. abends decken sich rund 20 Flanken mit dem Verdichtermelder; die
+#    vier alten Abweichungen gingen auf dessen zu niedrige Schwelle zurueck,
+#    nicht auf CO3. DI07 ist als 3-Minuten-Wiederanlaufsperre ueber zehn
+#    weitere Betriebsenden bestaetigt, jedes exakt 3:00 min.
+#
+# 11. Die Warmwasserladung wird ueber DI09 begrenzt, nicht mehr allein ueber
+#    den Speicherhub. Am 31.07. zaehlte die alte Logik in Kuehltakten zwei
+#    Ladungen, die es nicht gab.
+#
 # OFFEN und bewusst unveraendert gelassen:
-#   - DI07 ist die 3-Minuten-Wiederanlaufsperre (dreimal exakt 3:00 gemessen),
-#     CO3 mit hoher Wahrscheinlichkeit "Verdichter in Betrieb" (n=1). Beide
-#     behalten ihren Registernamen: eine Umbenennung leert Dashboard-Karten,
-#     und dafuer reicht die Beleglage bei CO3 nicht. Siehe die Kommentare dort.
 #   - HR29 laesst 30..80 °C zu. 30 °C liegt unter jeder Legionellenschwelle,
 #     80 °C ueber dem, was ein R290-Monoblock liefert.
 #   - api: ohne encryption, ota: ohne password, und der Fallback-AP nutzt das
@@ -1170,10 +1176,17 @@ binary_sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # UNBESTAETIGT. Waehrend der Warmwasserladung am 29.07. 13:24..14:03 UTC
-    # lieferte der Punkt keinen Wert, war also nicht "aus" — die Zuordnung ist
-    # weder belegt noch widerlegt. In der Zeit mit Werten gab es keine Ladung.
+    # BESTAETIGT am 2026-07-31 ueber zwei Ladungen und einen Gegenbeleg:
+    # 30.07. 05:58:50..06:29:13 UTC und 31.07. 04:01:09..04:38:39 deckungsgleich
+    # mit dem Speicherhub (39,2 -> 49,4 °C). Entscheidend ist der Gegenbeleg: In
+    # den Kuehltakten des 31.07. zwischen 08:09 und 08:54 blieb DI09 aus, obwohl
+    # die Speichertemperatur genug schwankte, um die rein temperaturbasierte
+    # Erkennung zweimal ausloesen zu lassen. Der Punkt trennt also Warmwasser
+    # von Kuehlen, und genau dafuer wird er unten in der Ladungserkennung
+    # gebraucht. Am 29.07. lieferte er noch keinen Wert; daher galt er lange als
+    # unbestaetigt.
     name: "DI09 Warmwasserbereitung"
+    id: di09_ww
     address: 9
     register_type: discrete_input
     force_new_range: true
@@ -1278,12 +1291,20 @@ binary_sensor:
     # 2 s an einem Verdichterwechsel, aber vier NICHT (09:44 aus und 11:59 an
     # bei durchlaufendem Verdichter). Median der Wirkleistung waehrend "on"
     # 1406 W gegen 180 W waehrend "off", und jede Volllastphase liegt
-    # vollstaendig darin. Passt zu einer uebergeordneten Kaeltekreis-Anforderung,
-    # die den Verdichter umschliesst, statt ihn abzubilden.
+    # vollstaendig darin.
     # AUSGESCHLOSSEN ist der Ventilator: die Abweichung des Geraetefuehlers zum
     # unabhaengigen Aussensensor ist waehrend "on" (Median −3,6 K) und "off"
     # (−4,0 K) praktisch gleich. Liefe der Ventilator, muesste sie einbrechen.
-    name: "CO3 unbestimmt"
+    #
+    # BESTAETIGT am 2026-07-31, und damit loesen sich die vier Abweichungen auf:
+    # Sie lagen alle VOR dem Flash vom 30.07. 22:12, als der Verdichtermelder
+    # noch bei 150/300 W schaltete und damit die 180 W der blossen Umwaelzpumpe
+    # fuer Verdichterbetrieb hielt. Nicht CO3 wich ab, sondern der Melder log.
+    # Mit den Schwellen 350/500 W decken sich beide: rund 20 Flanken zwischen
+    # 30.07. 20:00 und 31.07. 09:33 fallen zusammen, ueberwiegend mit +5 s
+    # Abfrageversatz, einige mit −25 s aus der Lesereihenfolge. Der Beleg ist
+    # nicht zirkulaer — der Melder haengt an der Wirkleistung des Shelly.
+    name: "Außeneinheit in Betrieb"
     address: 3
     register_type: coil
     force_new_range: true
@@ -2294,14 +2315,23 @@ interval:
           }
 
           // --- Warmwasserladung: Energie je Kelvin Speicherhub.
-          //     Die Ladungsgrenzen kommen aus steigender Speichertemperatur
-          //     bei laufendem Verdichter, NICHT aus DI09 — dessen Bedeutung
-          //     als Warmwasser-Flag ist unbestaetigt.
+          //     Die Ladungsgrenzen brauchen ZWEI Bedingungen: DI09 meldet
+          //     Warmwasserbereitung, UND die Speichertemperatur steigt bei
+          //     laufendem Verdichter. Der frueher hier stehende Satz "bei
+          //     laufendem Verdichter OHNE Ladung kann der Speicher nur
+          //     abkuehlen" ist am 2026-07-31 widerlegt: In den Kuehltakten
+          //     08:09..08:54 zaehlte die rein temperaturbasierte Erkennung
+          //     zwei Ladungen, die es nicht gab (Zaehler 3 gegen eine einzige
+          //     echte Ladung 04:01..04:38). Der Fuehler loest in 1,1-K-Stufen
+          //     auf, und nach einer Zapfung mischt sich der Speicher neu — ein
+          //     Rueckstieg um eine Stufe ueber das mitgefuehrte Minimum reicht.
+          //     DI09 trennt beides sauber; der Beleg steht oben am Sensor.
+          bool ww_bereitung = id(di09_ww).has_state() && id(di09_ww).state;
           float wt = id(ww_temp).state;
           float wirk = id(wirkleistung).state;
           if (!std::isnan(wt)) {
             if (!id(ladung_aktiv)) {
-              if (laeuft && id(ladung_start_temp) > 0.0f && wt > id(ladung_start_temp) + 0.5f) {
+              if (laeuft && ww_bereitung && id(ladung_start_temp) > 0.0f && wt > id(ladung_start_temp) + 0.5f) {
                 id(ladung_aktiv) = true;
                 id(ladung_teil) = false;
                 id(ladung_wh) = 0.0f;
@@ -2318,16 +2348,22 @@ interval:
                 // Zapfung den Speicher auf 41,0 zieht, wartet auf 48,2 — die
                 // Ladung endet vorher. Genau so verlor der 30.07. eine belegte
                 // Ladung von 06:01 bis 06:27 UTC.
-                // Die Gegenrichtung ist ungefaehrlich: Bei laufendem Verdichter
-                // OHNE Ladung kann der Speicher nur abkuehlen; ein Anstieg um
-                // mehr als 0,5 K ueber sein eigenes Minimum IST die Ladung.
-                // Der Hub wird damit ab dem tiefsten Punkt gerechnet, also ab
-                // dort, wo die Anlage wirklich anfangen musste.
+                // Die Gegenrichtung ist NICHT ungefaehrlich — das stand hier
+                // frueher und hat am 31.07. zwei Phantom-Ladungen gekostet.
+                // Ein Anstieg ueber das Minimum belegt fuer sich noch keine
+                // Ladung; erst zusammen mit DI09 tut er das.
+                // Der Hub wird ab dem tiefsten Punkt gerechnet, also ab dort,
+                // wo die Anlage wirklich anfangen musste.
                 id(ladung_start_temp) = wt;
               }
             } else {
               if (!std::isnan(wirk)) id(ladung_wh) += wirk / 3600.0f;
-              if (!laeuft) {
+              // Ende, sobald der Verdichter steht ODER die Anlage die
+              // Warmwasserbereitung verlaesst. Der zweite Fall ist der
+              // Uebergang von Warmwasser auf Heizen oder Kuehlen ohne
+              // Verdichterstopp; ohne ihn liefe die Wh-Zaehlung in den
+              // naechsten Betriebsmodus weiter und verdaebe die Kennzahl.
+              if (!laeuft || !ww_bereitung) {
                 float hub = wt - id(ladung_start_temp);
                 // Bei einer Ladung, in die ein Neustart fiel, fehlen Wh und ein
                 // Stueck Hub. Sie zaehlt als Ladung, liefert aber keine Kennzahl

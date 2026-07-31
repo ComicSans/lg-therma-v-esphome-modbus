@@ -986,11 +986,11 @@ sections:
       name: Heizkreis 1 invers (DI31)
     - entity: binary_sensor.heizungskeller_warmepumpe_modbus_di06_unbestimmt
     - entity: binary_sensor.heizungskeller_warmepumpe_modbus_di09_warmwasserbereitung
-      name: DI09 — Warmwasser? unbestätigt
+      name: DI09 — Warmwasserbereitung
     - entity: binary_sensor.heizungskeller_warmepumpe_modbus_di32_unbestimmt
       name: DI32 — Einzelscan-Fund
-    - entity: binary_sensor.heizungskeller_warmepumpe_modbus_co3_unbestimmt
-      name: CO3 — unbestimmt (nur Anzeige)
+    - entity: binary_sensor.heizungskeller_warmepumpe_modbus_ausseneinheit_in_betrieb
+      name: CO3 — Außeneinheit in Betrieb
     - entity: binary_sensor.heizungskeller_warmepumpe_modbus_co5_unbestimmt_nur_anzeige
       name: CO5 — offen (nur Anzeige)
     - entity: binary_sensor.heizungskeller_warmepumpe_modbus_co29_unbestimmt

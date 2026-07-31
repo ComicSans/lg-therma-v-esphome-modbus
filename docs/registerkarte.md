@@ -57,6 +57,9 @@ Die offizielle Karte passt auch hier nur teilweise: Coil 0 (Ein/Aus), Holding 0
 | CO4 | Heizkreis 1 aktiv | — | ging an/aus zeitgleich mit Heizkreis 1, zwei Wechsel; nur lesend eingebunden |
 | CO6 | Warmwasser-Freigabe, **schaltbar** | — | schaltet die Warmwasserbereitung nachweislich |
 | DI31 | Heizkreis 1, invertiert zu CO4 | — | on wenn HK1 aus, off wenn HK1 läuft |
+| **CO3** | **Außeneinheit in Betrieb** | — | rund 20 Flanken decken sich mit dem Verdichtermelder, überwiegend mit 5 s Abfrageversatz. Der Melder hängt an der Wirkleistung eines Shelly, der Beleg ist also nicht zirkulär |
+| **DI07** | **Drei-Minuten-Wiederanlaufsperre** | — | ruht auf `on` und fällt nach jedem Betriebsende ab, dreizehnmal exakt 3:00 min gemessen |
+| **DI09** | **Warmwasserbereitung** | — | deckt zwei Ladungen deckungsgleich ab und blieb in den Kühltakten des 31.07. aus, obwohl die Speichertemperatur genug schwankte, um eine rein temperaturbasierte Erkennung auszulösen |
 
 ### HR26 ist der Betriebsmodus, nicht die Regelungsart
 
@@ -126,9 +129,8 @@ Therma V ist ohnehin als ungenau bekannt.
 | IR10, IR27 | Antworten, stehen im Stillstand auf 0 |
 | IR20 | **Folgt der Verdichterleistung** — Frequenz oder Kapazitätsanforderung, Einheit offen. Konstant sind 45–54 W Wirkleistung je Einheit über einen wechselnden Druckhub (15↔675 W, 20↔965, 30↔1354, 34↔1734, 42↔2074). Kein Expansionsventil: der Wert stand 26 Minuten konstant, während die Sauggasüberhitzung von 0,6 auf 6,3 K wanderte, und über einen ganzen Takt ist die Überhitzung unkorreliert |
 | HR25, HR27, HR28 | Antworten, konstant 0 über 24 h |
-| DI06, DI08, DI31 | Wechseln, Bedeutung offen |
-| DI07 | **Drei-Minuten-Wiederanlaufsperre.** Ruht auf `on` und fällt nach jedem Betriebsende für exakt 3:00 min ab, dreimal an einem Tag gemessen. **Nicht** die Hauptpumpe: stand auf AUS, während das Display „Umwälzpumpe in Betrieb" meldete |
-| DI09 | Als Warmwasser-Flag unbestätigt — während einer eindeutigen Ladung lieferte der Punkt keinen Wert |
+| DI06 | Wechselt, Bedeutung offen |
+| DI08 | **Volllast**, erhärtet über 14 h: vier Phasen, in jeder Minute über 1 kW Wirkleistung, Median 2204 W ohne Ausreißer nach unten. Jede Phase liegt vollständig in einer CO3-Phase. Kein Beleg für eine bestimmte Stufe, deshalb hier und nicht in der Tabelle oben |
 | CO5 | Antwortet. Bedeutung offen, siehe Warnung unten |
 | DI32 | Antwortet, erst durch Einzelabfrage gefunden. Bedeutung offen |
 | CO4 | Antwortet, erst durch Einzelabfrage gefunden. **Nur lesend eingebunden** — in LGs offizieller Karte liegt hier Notaus/Notbetrieb |
