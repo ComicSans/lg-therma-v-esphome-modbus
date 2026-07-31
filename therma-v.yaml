@@ -1161,14 +1161,17 @@ binary_sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # VOLLLAST. Die alte Hypothese bei n=2 ist am 2026-07-30 ueber 14 h
-    # erhaertet: vier Phasen, zusammen 56 min, und in JEDER Minute davon lag
-    # die gemessene Wirkleistung ueber 1 kW, Median 2204 W, Spanne 2035..2519 W
-    # ohne einen einzigen Ausreisser nach unten. Jede DI08-Phase liegt zudem
-    # vollstaendig innerhalb einer CO3-Phase.
+    # HOHE LASTSTUFE. Am 2026-07-30 ueber 14 h erhaertet: vier Phasen,
+    # zusammen 56 min, und in JEDER Minute davon lag die gemessene
+    # Wirkleistung ueber 1 kW, Median 2204 W, Spanne 2035..2519 W ohne einen
+    # einzigen Ausreisser nach unten. Jede DI08-Phase liegt zudem vollstaendig
+    # innerhalb einer CO3-Phase.
     # Nicht dasselbe wie "Verdichter laeuft": der Verdichter arbeitet auch
     # darunter, DI08 markiert allein die hohe Stufe.
-    name: "Verdichter Volllast"
+    # Der Name hiess bis zum 2026-07-31 "Verdichter Volllast". Das behauptete
+    # mehr, als die Daten tragen: belegt ist eine hohe Stufe, nicht dass es
+    # DIE hoechste ist - es koennte ebenso die zweite Ventilatorstufe sein.
+    name: "Verdichter hohe Stufe"
     address: 8
     register_type: discrete_input
     force_new_range: true

@@ -130,7 +130,7 @@ Therma V ist ohnehin als ungenau bekannt.
 | IR20 | **Folgt der Verdichterleistung** — Frequenz oder Kapazitätsanforderung, Einheit offen. Konstant sind 45–54 W Wirkleistung je Einheit über einen wechselnden Druckhub (15↔675 W, 20↔965, 30↔1354, 34↔1734, 42↔2074). Kein Expansionsventil: der Wert stand 26 Minuten konstant, während die Sauggasüberhitzung von 0,6 auf 6,3 K wanderte, und über einen ganzen Takt ist die Überhitzung unkorreliert |
 | HR25, HR27, HR28 | Antworten, konstant 0 über 24 h |
 | DI06 | Wechselt, Bedeutung offen |
-| DI08 | **Volllast**, erhärtet über 14 h: vier Phasen, in jeder Minute über 1 kW Wirkleistung, Median 2204 W ohne Ausreißer nach unten. Jede Phase liegt vollständig in einer CO3-Phase. Kein Beleg für eine bestimmte Stufe, deshalb hier und nicht in der Tabelle oben |
+| DI08 | **Hohe Laststufe**, erhärtet über 14 h: vier Phasen, in jeder Minute über 1 kW Wirkleistung, Median 2204 W ohne Ausreißer nach unten. Jede Phase liegt vollständig in einer CO3-Phase. Dass es die *höchste* Stufe ist, ist damit nicht belegt — es könnte ebenso die zweite Ventilatorstufe sein. Deshalb hier und nicht in der Tabelle oben, und deshalb heißt der Datenpunkt seit dem 31.07.2026 „Verdichter hohe Stufe" statt „Verdichter Volllast" |
 | CO5 | Antwortet. Bedeutung offen, siehe Warnung unten |
 | DI32 | Antwortet, erst durch Einzelabfrage gefunden. Bedeutung offen |
 | CO4 | Antwortet, erst durch Einzelabfrage gefunden. **Nur lesend eingebunden** — in LGs offizieller Karte liegt hier Notaus/Notbetrieb |

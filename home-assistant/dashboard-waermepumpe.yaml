@@ -2,7 +2,7 @@
 #
 # Erzeugt aus der laufenden View (Storage-Dashboard, path "waermepumpe") am
 # 2026-07-30 abends, nach dem Flash der Firmware mit den Beschriftungen
-# "Verdichter startbereit" (DI07) und "Verdichter Volllast" (DI08). Die Vorlage
+# "Verdichter startbereit" (DI07) und "Verdichter hohe Stufe" (DI08). Die Vorlage
 # wird IMMER aus dem laufenden Stand erzeugt und nie von Hand gepflegt: Sie lag
 # vorher bei 13 Sections gegen 16 im laufenden Dashboard, und wer eine solche
 # Vorlage zurückschreibt, verliert die Differenz.
@@ -388,8 +388,8 @@ sections:
     entity: binary_sensor.heizungskeller_warmepumpe_modbus_verdichter_startbereit
     name: Startbereit
   - type: tile
-    entity: binary_sensor.heizungskeller_warmepumpe_modbus_verdichter_volllast
-    name: Volllast
+    entity: binary_sensor.heizungskeller_warmepumpe_modbus_verdichter_hohe_stufe
+    name: Hohe Stufe
   - type: tile
     entity: sensor.heizungskeller_warmepumpe_modbus_verdichterstarts_heute
     name: Starts heute
@@ -428,8 +428,8 @@ sections:
 
 
       **Startbereit** ist die Drei-Minuten-Wiedereinschaltsperre: nach jedem Betriebsende fällt sie für
-      exakt 3:00 min ab. Steht sie auf aus, verpufft ein Startbefehl. **Volllast** meldet die hohe Stufe,
-      gemessen 2035 bis 2519 W; der Verdichter arbeitet auch darunter.'
+      exakt 3:00 min ab. Steht sie auf aus, verpufft ein Startbefehl. **Hohe Stufe** meldet eine hohe Laststufe,
+      gemessen 2035 bis 2519 W; der Verdichter arbeitet auch darunter. Ob es die höchste ist, ist nicht belegt.'
 - type: grid
   cards:
   - type: heading
