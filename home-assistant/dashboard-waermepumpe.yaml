@@ -2,7 +2,8 @@
 #
 # Erzeugt aus der laufenden View (Storage-Dashboard, path "waermepumpe") am
 # 2026-07-30 abends, nach dem Flash der Firmware mit den Beschriftungen
-# "Verdichter startbereit" (DI07) und "Verdichter hohe Stufe" (DI08). Die Vorlage
+# "Verdichter startbereit" (DI07) und "Verdichter Volllast" (DI08; am 2026-07-31
+# auf "Verdichter hohe Stufe" umbenannt, hier nachgezogen). Die Vorlage
 # wird IMMER aus dem laufenden Stand erzeugt und nie von Hand gepflegt: Sie lag
 # vorher bei 13 Sections gegen 16 im laufenden Dashboard, und wer eine solche
 # Vorlage zurückschreibt, verliert die Differenz.
