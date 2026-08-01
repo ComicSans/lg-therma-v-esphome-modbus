@@ -450,6 +450,9 @@ sensor:
     # Zu 99,7 % byte-identisch mit IR11, inklusive aller Artefakte. Bleibt
     # drin, damit die Beobachtung zeigt, ob die Spiegelung bestehen bleibt.
     name: "Wärmetauscher außen (Spiegelregister)"
+    # Eine Temperatur wie ihr Zwilling auf IR18; das Fehlen war ein
+    # Versehen und nahm dem Vergleich der beiden die Historie.
+    state_class: measurement
     address: 19
     register_type: read
     value_type: S_WORD
@@ -538,6 +541,8 @@ sensor:
     # Kapazitaetsanforderung, trennt ein Tag nicht: 42 bei 2,2 kW extrapoliert
     # plausibel auf ~80 Hz wie auch auf ~100 %. Daher ohne Einheit.
     name: "Verdichterleistung Anforderung"
+    # Momentanwert der Anforderung, kein Zaehler.
+    state_class: measurement
     address: 20
     register_type: read
     value_type: S_WORD
@@ -951,6 +956,12 @@ sensor:
   # =============================================================
   - platform: template
     name: "Verdichterstarts heute"
+    # Der Zaehler faellt um Mitternacht auf null; Home Assistant deutet
+    # den Ruecksprung als neuen Zyklus und summiert die Tage korrekt.
+    # Ohne state_class laeuft er in keine Langzeitstatistik, und genau
+    # der Verlauf ueber Wochen ist die Zahl, die man an einer
+    # Waermepumpe beobachten will.
+    state_class: total_increasing
     id: starts_heute_sensor
     accuracy_decimals: 0
     entity_category: diagnostic
@@ -959,6 +970,11 @@ sensor:
 
   - platform: template
     name: "Verdichterstarts gestern"
+    # Nicht total_increasing: der Wert ist ein Tagesschnappschuss und
+    # springt zwischen den Tagen in beide Richtungen. Als measurement ist
+    # das Stundenmittel der Wert selbst, und der Tagesverlauf bleibt
+    # auswertbar.
+    state_class: measurement
     id: starts_vortag_sensor
     accuracy_decimals: 0
     entity_category: diagnostic
@@ -978,6 +994,8 @@ sensor:
   - platform: template
     # Der aussagekraeftigste Einzelwert fuer ein Taktungsproblem.
     name: "Kürzester Takt heute"
+    # Tagesminimum, kein Zaehler.
+    state_class: measurement
     id: kuerzester_takt_sensor
     unit_of_measurement: "min"
     accuracy_decimals: 1
@@ -997,6 +1015,8 @@ sensor:
 
   - platform: template
     name: "Warmwasserladungen heute"
+    # Wie die Verdichterstarts: Reset um Mitternacht, siehe oben.
+    state_class: total_increasing
     id: ladungen_heute_sensor
     accuracy_decimals: 0
     entity_category: diagnostic
@@ -1045,6 +1065,9 @@ sensor:
     # Wie oft ein erwarteter Durchlauf ausgeblieben ist. Ersatzgroesse fuer
     # den Timeout-Zaehler, den ESPHome nicht herausgibt.
     name: "Verpasste Abfragezyklen"
+    # Laeuft monoton bis zum naechsten Neustart. Ohne state_class liesse
+    # sich nicht sehen, ob der Bus schleichend schlechter wird.
+    state_class: total_increasing
     id: verpasste_zyklen
     accuracy_decimals: 0
     entity_category: diagnostic
@@ -1056,6 +1079,8 @@ sensor:
     # Ersatzgroesse fuer den Exception-Zaehler — und aussagekraeftiger,
     # weil sie zeigt, WIE VIELE Punkte weg sind.
     name: "Punkte ohne Antwort"
+    # Momentanzahl, kein Zaehler: wie viele Register gerade stumm sind.
+    state_class: measurement
     id: punkte_ohne_antwort
     accuracy_decimals: 0
     entity_category: diagnostic

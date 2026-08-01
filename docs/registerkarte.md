@@ -161,6 +161,22 @@ Größen und die Haupt-Sollwerte spiegeln sich. Dass der Durchfluss fehlt, ist
 der Grund, warum sich **kein COP** berechnen lässt — ohne Volumenstrom keine
 thermische Leistung.
 
+## Warum unbelegte Punkte keine Zustandsklasse tragen
+
+Alle gedeuteten Sensoren haben eine `state_class` und laufen damit in die
+Langzeitstatistik von Home Assistant. Die noch unbelegten haben bewusst
+**keine**: IR09, IR10, IR27, HR25, HR27, HR28, der Betriebsmodus-Rohwert, der
+Kältemittel-Kennwert und die beiden Beobachtungs-Sensoren.
+
+Der Grund steht einen Abschnitt weiter unten: Eine Zeitreihe über mehrere
+Fassungen der Registerliste ist kein Datensatz — die Blockbildung von ESPHome
+ändert sich mit jeder Änderung, und damit auch die Artefakte. Eine
+Langzeitstatistik auf einem Punkt, dessen Bedeutung offen ist, lädt genau zu
+dieser Auswertung ein: Monate schöner Kurven, die verschiedene Regime mischen.
+
+Wer einen Punkt deutet, gibt ihm dabei seine Zustandsklasse — und hat dann
+bewusst entschieden, ab wann die Historie gilt.
+
 ## Zwei Fallstricke, die echte Fehldeutungen erzeugt haben
 
 ### 1. Fehlendes `force_new_range` verschiebt Werte zwischen Nachbarregistern

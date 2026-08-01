@@ -45,7 +45,10 @@ Verdichtungsverhältnis, Carnot-Obergrenze, Wärmeübergang an beiden
 Wärmetauschern, Spreizung.
 
 **Statistik** — Verdichterstarts pro Tag, mittlere und kürzeste Taktlänge,
-Betriebsstunden, Warmwasserladungen, Verbrauch je Kelvin Speicherhub.
+Betriebsstunden, Warmwasserladungen, Verbrauch je Kelvin Speicherhub. Alle
+gedeuteten Werte tragen eine Zustandsklasse und laufen damit in die
+Langzeitstatistik; die Tageszähler als `total_increasing`, weil ihr Reset um
+Mitternacht dort korrekt als neuer Zyklus gilt.
 
 **Bus-Gesundheit** — Zeit seit letzter Antwort, Zyklusdauer, Punkte ohne
 Antwort, verpasste Zyklen, plus eine Schutzschaltung gegen zu lange
