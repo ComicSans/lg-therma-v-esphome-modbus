@@ -1,7 +1,17 @@
 # Registerkarte
 
-Gemessen an einer **LG Therma V R290 Monobloc, Hydro Unit HN1639HC.NK0**,
-Modbus RTU über Klemme 21/22, Slave 1, 9600 Baud.
+Gemessen an einer **LG Therma V R290 Monobloc, Hydro Unit HN1639HC.NK0,
+Geräte-Firmware 3.07.2a**, Modbus RTU über Klemme 21/22, Slave 1, 9600 Baud.
+
+Der Firmwarestand gehört zur Karte und nicht zur Fußnote: Bei einem Gerät, für
+das keine veröffentlichte Belegung passt, ist er neben der Modellnummer die
+zweite Größe, an der sich die Belegung ändern kann. Ob sie es tut, ist offen —
+hier liegt nur ein Stand vor.
+
+> **„Generation" heißt weiter unten etwas anderes.** Dort ist eine Fassung der
+> ESPHome-Registerliste gemeint, nicht der Firmwarestand des Geräts. Die
+> Blockbildung von ESPHome ändert sich mit jeder solchen Fassung, und genau
+> daran ist eine Zuordnung schon einmal gescheitert.
 
 ## Die veröffentlichten Karten passen hier nicht
 

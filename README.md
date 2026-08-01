@@ -1,17 +1,31 @@
 # LG Therma V über Modbus RTU in Home Assistant
 
-Eine vollständige ESPHome-Konfiguration für die **LG Therma V R290 Monobloc**
-(Hydro Unit HN1639HC.NK0), angebunden über Modbus RTU mit einem ESP32 — ohne
-LG-Gateway, ohne Cloud.
+Eine vollständige ESPHome-Konfiguration für die **LG Therma V R290 Monobloc**,
+angebunden über Modbus RTU mit einem ESP32 — ohne LG-Gateway, ohne Cloud.
 
-Enthalten ist nicht nur die Firmware, sondern auch das, was beim Nachbau die
-meiste Zeit kostet: eine empirisch geprüfte
+Enthalten ist nicht nur die ESP32-Firmware, sondern auch das, was beim Nachbau
+die meiste Zeit kostet: eine empirisch geprüfte
 [Registerkarte](docs/registerkarte.md), die dokumentierten Sackgassen und die
 Werkzeuge, mit denen sich die offenen Register weiter eingrenzen lassen.
 
+## Gemessen an genau diesem Gerät
+
+| | |
+|---|---|
+| **Hydro Unit** | HN1639HC.NK0 |
+| **Kältemittel** | R290 (Propan) |
+| **Geräte-Firmware** | **3.07.2a** (am Bedienteil unter Information ablesbar) |
+| **Anschluss** | Terminal Block 2, Klemme 21 (A) / 22 (B) |
+| **Bus** | Modbus RTU, Slave 1, 9600 Baud, 8N1 |
+
 > **Dieses Gerät spricht eine eigene Registerbelegung.** Keine der
 > veröffentlichten Karten passt — auch nicht mit Versatz. Was hier steht, gilt
-> gemessen für diese Baureihe an diesem Anschluss.
+> gemessen für diese Baureihe, diesen Firmwarestand und diesen Anschluss.
+>
+> Ob die Belegung an einem anderen Modell oder einem anderen Firmwarestand
+> gleich aussieht, ist **offen**. Die Registerkarte nennt zu jedem Punkt den
+> Beleg, aus dem sie stammt — wer nachbaut, kann damit gegenprüfen statt zu
+> vertrauen. Ein Adress-Scan ist dafür der erste Schritt und schreibt nichts.
 
 ## Was du bekommst
 
@@ -103,7 +117,7 @@ Rohkonfigurationseditor des Dashboards.
 
 ## Als Wärmepumpen-Rolle in HEMS
 
-Die Firmware-Entitäten passen direkt auf die Rollen von
+Die Entitäten dieser Firmware passen direkt auf die Rollen von
 [HEMS](https://github.com/ComicSans/hahems), einem PV- und
 Energiemanager für Home Assistant:
 
@@ -117,8 +131,15 @@ Energiemanager für Home Assistant:
 
 Die Modus-Optionen des Selects müssen in HEMS **exakt** so eingetragen werden,
 wie sie hier heißen — Groß- und Kleinschreibung zählt. Alternativ lässt sich die
-Climate-Entität der Firmware als Steuer-Entität nutzen; dann entfällt die
+Climate-Entität dieser Firmware als Steuer-Entität nutzen; dann entfällt die
 Vorlauf-Number.
+
+Für die HEMS-Rolle **Wärmepumpen-Analyse** liefert diese Firmware vier der fünf
+Pflichtwerte: Vorlauf (IR16), Rücklauf (IR15), elektrische Leistung (aus dem
+Shelly, nicht aus IR23 — das ist Scheinleistung) und Außentemperatur. **Der
+Durchfluss fehlt** und ist über diesen Anschluss nicht erreichbar; ohne ihn
+gibt es keine thermische Leistung und damit keinen COP. Wer die Analyse
+vollständig will, braucht einen eigenen Volumenstromsensor im Heizkreis.
 
 > **Was HR24 bedeutet, hängt von der Regelungsart am Bedienteil ab** — Vorlauf,
 > Rücklauf oder Raum, je Betriebsmodus getrennt einstellbar und über Modbus
@@ -155,5 +176,13 @@ und Referenzzustand-Vergleich da.
 ## Mitmachen
 
 Beiträge sind willkommen — besonders Messungen an **anderen
-Therma-V-Baureihen**. Die spannendste offene Frage ist, ob die hier gefundene
-Registerbelegung modellspezifisch ist oder für die ganze R290-Reihe gilt.
+Therma-V-Baureihen** und **anderen Firmwareständen**. Die spannendste offene
+Frage ist, ob die hier gefundene Registerbelegung an Modell, an Firmware oder
+an beidem hängt.
+
+Was eine Meldung brauchbar macht: Modellnummer der Hydro Unit, Firmwarestand
+vom Bedienteil, die Ausgabe des Buttons **Breiter Registerscan**, und zu jedem
+gedeuteten Register der Beleg — ein abgelesener Wert am Bedienteil zur selben
+Minute, oder eine Flanke, die mit einem beobachtbaren Ereignis zusammenfällt.
+Eine Zuordnung ohne Beleg ist eine Vermutung, und davon gibt es im Netz
+bereits genug.
