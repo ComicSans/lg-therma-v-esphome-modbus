@@ -52,7 +52,28 @@ Mitternacht dort korrekt als neuer Zyklus gilt.
 
 **Bus-Gesundheit** — Zeit seit letzter Antwort, Zyklusdauer, Punkte ohne
 Antwort, verpasste Zyklen, plus eine Schutzschaltung gegen zu lange
-Abfragelücken.
+Abfragelücken. Zusammengefasst zu einem Urteil: `gut` / `auffällig` / `gestört`.
+
+**Diagnose** — zehn Melder in der Firmware, nicht als Template in Home
+Assistant: Frostgefahr, Stillstand, Taktung, Druck (`ok` / `zu hoch` / `zu
+niedrig`), Kältekreis, Wärmeübergang, Busgesundheit, Verschleiß, Spreizung und
+der Messfehler-Verdacht „Temperaturen identisch". Dazu ein Sammel-Textsensor,
+der alles Anstehende in einer Zeile zeigt. Jeder Melder hat zwei Schwellen, damit
+er am Grenzwert nicht flattert; die Kreis-Melder zusätzlich fünf Minuten
+Anlaufkarenz.
+
+**Verschleiß und Effizienz** — Spreizung im Tagesmittel unter Last,
+Laufzeitanteil, Starts je Betriebsstunde, und ein `Effizienzhinweis` in
+Klartext: Umwälzpumpe drosseln, Volumenstrom prüfen, längere Takte,
+Temperaturhub senken. Qualitativ formuliert, nicht in Prozent — die
+Pumpenkennlinie ist hier nicht bekannt, eine Zahl wäre Scheingenauigkeit. Die
+Schwellen stammen aus der Wärmepumpen-Analyse des HEMS-Projekts, die dort
+entfallen ist. Der Datenblattvergleich (COP gegen Kennlinie) ist **nicht**
+dabei: Er braucht den Volumenstrom, und den gibt dieser Anschluss nicht her.
+
+Der Grund für die Firmware statt HA: Die Bewertung muss auch dastehen, wenn Home
+Assistant neu startet oder jemand die Templates verschiebt. Der ESP hat alle
+Eingangsgrößen ohnehin im Speicher.
 
 **Kartierungswerkzeuge** — Registerbeobachtung, Referenzzustand-Vergleich und
 zwei Adress-Scanner, um offene Register zu identifizieren, **ohne zu schreiben**.
@@ -64,6 +85,14 @@ Die langsame Einzelabfrage findet dabei Register, die ein gruppenweiser Scan
 Über diesen Anschluss sind **nicht** erreichbar, je einzeln geprüft: Heizkreis 2
 in jeder Form, Kreis-2-Pumpe, Mischkreis, Wasserdruck, **Wasserdurchfluss**. Ein
 Heizstab ist an dieser Anlage nicht verbaut.
+
+**Der Fehlercode der Anlage steht in keinem Register.** Am 01.08.2026 stand am
+Bedienteil CH03 — Kommunikationsfehler zwischen Bedienteil und Hauptplatine —
+und die Anlage blieb 76 Minuten stehen, während der Modbus lückenlos weiter
+antwortete: kein einziger Punkt ohne Antwort, keine Buslücke über 45 Sekunden.
+Die Diagnosemelder hängen deshalb an der **Wirkung** einer Störung, nicht am
+Code. Das ist kein Notbehelf: So wirken sie gegen jeden Fehler, der die Anlage
+anhält, nicht nur gegen den einen mit dem bekannten Kürzel.
 
 Der fehlende Durchfluss hat eine Folge: **ein COP lässt sich nicht berechnen.**
 Ohne Volumenstrom keine thermische Leistung. Als Ersatz dient der Verbrauch je
@@ -153,6 +182,13 @@ vollständig will, braucht einen eigenen Volumenstromsensor im Heizkreis.
 > 15 °C herunter. Wer den Sollwert nach Vorlauf-Logik ansetzt, fährt die Anlage
 > deutlich kälter, als die Zahl vermuten lässt. Ein Energiemanager, der HR24
 > stellt, muss die Regelungsart kennen — erfragen kann er sie nicht.
+>
+> **Im Auto-Modus (HR26 = 3) ist HR24 gar keine Temperatur**, sondern die
+> Verschiebung der Heizkurve: 19 = 0, 20 = +1, 18 = −1, Bereich 16..22. Dafür
+> gibt es die Entität **Heizkurven-Verschiebung** (−3..+3), die außerhalb des
+> Auto-Modus auf unbekannt steht. Die Vorlauf-Number zeigt dort weiter ihre
+> 19 °C — wer sie als Sollwert stellt, verschiebt in Wahrheit die Kurve. Ein
+> Energiemanager, der HR24 schreibt, muss deshalb den Modus mitlesen.
 
 ## Vorsicht bei Coil 5
 

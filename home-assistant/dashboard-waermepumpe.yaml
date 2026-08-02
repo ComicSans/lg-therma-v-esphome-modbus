@@ -241,7 +241,9 @@ sections:
   - type: markdown
     content: 'Jeder Melder hat **zwei** Schwellen, nie eine, sonst flattert er. Die Kältekreis-Melder
       urteilen erst nach **fünf Minuten** stabilem Verdichterlauf: beim Anlaufen ist die Überhitzung noch
-      nicht eingeschwungen.
+      nicht eingeschwungen. Bewertet wird zudem nicht der Momentanwert, sondern der **Median der letzten
+      dreieinhalb Minuten** — Druck und Sauggasfühler pendeln im Lauf gegeneinander, ein einzelner Wert
+      sagt nichts.
 
 
       Die unteren sechs kommen aus der Effizienz-Integration und beurteilen die Anlagenauslegung, nicht
@@ -446,15 +448,15 @@ sections:
   - type: gauge
     entity: sensor.heizungskeller_warmepumpe_modbus_sauggasuberhitzung
     name: Überhitzung
-    min: 0
+    min: -5
     max: 20
     needle: true
     segments:
-    - from: 0
+    - from: -5
       color: '#c62828'
-    - from: 3
+    - from: -0.5
       color: '#f9a825'
-    - from: 4
+    - from: 0
       color: '#2e7d32'
     - from: 11
       color: '#f9a825'
@@ -468,12 +470,15 @@ sections:
 
 
       {% if u <= -90 %}*Kein Wert — die Drücke liefern gerade nichts.* {% elif l != ''on'' %}**Verdichter
-      steht, der Wert sagt nichts aus.** Im Stillstand gleicht sich alles der Umgebung an. {% elif u <
-      3 %}🔴 **Zu niedrig.** Es verdampft nicht alles Kältemittel — Flüssigkeit erreicht den Verdichter
-      und schädigt ihn. Meist zu weit offenes Expansionsventil oder zu viel Kältemittel. *Kurz nach dem
-      Start ist das normal und wird nicht gemeldet.* {% elif u < 4 %}🟡 **Grenzwertig niedrig.** Beobachten.
-      {% elif u <= 11 %}🟢 **Im guten Bereich.** Der Verdampfer wird ausgenutzt, der Verdichter bekommt
-      trockenes Gas. {% elif u <= 12 %}🟡 **Grenzwertig hoch.** {% else %}🔴 **Zu hoch.** Der Verdampfer
+      steht, der Wert sagt nichts aus.** Im Stillstand gleicht sich alles der Umgebung an — 5 bis 8 K
+      sind dann der Normalfall und bedeuten nichts. {% elif u <
+      -0.5 %}🔴 **Unter der Verdampfungstemperatur.** Über dreieinhalb Minuten gemittelt kann das Sauggas
+      nicht kälter sein als die Verdampfung — hier stimmt etwas nicht. Zu weit offenes Expansionsventil,
+      zu viel Kältemittel oder ein Fühlerfehler. *Kurz nach dem
+      Start ist das normal und wird nicht gemeldet.* {% elif u < 0 %}🟡 **An der Nullgrenze.** Beobachten.
+      {% elif u <= 11 %}🟢 **Betriebsüblich.** Diese Anlage fährt im Lauf mit rund 1 bis 2 K — gemessen
+      über 533 Werte Ende Juli 2026. Die aus Lehrbüchern bekannten 5 bis 8 K gelten hier für den
+      Stillstand, nicht für den Betrieb. {% elif u <= 12 %}🟡 **Grenzwertig hoch.** {% else %}🔴 **Zu hoch.** Der Verdampfer
       wird nicht ausgenutzt. Kältemittelmangel, klemmendes Ventil, verschmutzter oder vereister Luftwärmetauscher.{%
       endif %}
 

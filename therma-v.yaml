@@ -187,6 +187,12 @@ time:
               // faellt aus dem kuerzesten Takt des neuen Tages heraus — sonst
               // brachte er die Laufzeit von gestern mit.
               if (id(verdichter_laeuft)) id(takt_angeschnitten) = true;
+              // Spreizungsmittel gehoert zum Tag wie die Zaehler darueber.
+              // Der Melder haelt seinen Zustand, bis genug neue Punkte da
+              // sind — er ist an das Mittel gebunden, nicht an den Zaehler.
+              id(spreiz_summe) = 0.0f;
+              id(spreiz_punkte) = 0.0f;
+              id(spreiz_null) = 0.0f;
               id(stat_dirty) = true;
 
 uart:
@@ -358,9 +364,17 @@ sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # Gegen die Sattdampftemperatur aus IR22 gerechnet durchgehend 5..8 K
-    # Ueberhitzung. Wird negativ (bis -0,6 °C) — normal fuer Sauggas und der
-    # Grund, warum "Expansionsventil-Schrittzahl" ausgeschlossen ist.
+    # Wird negativ (bis -0,6 °C) — normal fuer Sauggas und der Grund, warum
+    # "Expansionsventil-Schrittzahl" ausgeschlossen ist.
+    #
+    # Die urspruengliche Notiz hier las "gegen die Sattdampftemperatur aus IR22
+    # gerechnet durchgehend 5..8 K Ueberhitzung". Das galt nur scheinbar: die
+    # Stichprobe stammte vom 29./30.07., als der Verdichtermelder noch am
+    # Pumpennachlauf haengen blieb und ueberwiegend STILLSTAND als Betrieb
+    # auswies. Im Stillstand sind 5..8 K genau der Erwartungswert. Bei
+    # laufendem Verdichter liegt die Ueberhitzung bei 1,2 K im Median und
+    # pendelt stark — was daraus folgt, steht am Sensor "Sauggasueberhitzung"
+    # und an der Schwelle des Kaeltekreis-Melders.
     name: "Sauggastemperatur"
     id: ir17_sauggas
     address: 17
@@ -721,6 +735,27 @@ sensor:
     update_interval: never
 
   - platform: template
+    # GEGLAETTET, und zwar zwingend: der Momentanwert ist an dieser Anlage
+    # nicht bewertbar. Im Lauf pendeln Niederdruck (5,03..7,52 bar, also
+    # Verdampfung 8,1..20,7 °C) und Sauggastemperatur (11..20 °C) mit rund
+    # drei Minuten Periode gegeneinander — der Druck folgt sofort, der Fuehler
+    # traege. Die Differenz sprang dadurch am 02.08.2026 zwischen -6,7 und
+    # +8,8 K, und 11 % der Betriebswerte waren negativ. Negativ heisst: Sauggas
+    # kaelter als die Verdampfung, physikalisch unmoeglich. Es ist die
+    # Phasenverschiebung, nicht die Anlage.
+    #
+    # Median statt Mittel, weil die Ausreisser einseitig sind. Sieben Werte
+    # sind bei 30 s Zyklus 3,5 min — laenger als eine Pendelperiode, und kurz
+    # genug, dass das Fenster vor Ablauf der 5-min-Anlaufkarenz der Melder
+    # vollstaendig mit Werten des laufenden Takts gefuellt ist.
+    #
+    # NEBENWIRKUNG auf die NaN-Regel des Rechenintervalls: der Median-Filter
+    # nimmt NaN ins Fenster auf, laesst es beim Rechnen aber aus. Faellt der
+    # Druck aus der Sattdampftabelle, wird dieser Sensor also nicht mehr sofort
+    # unavailable, sondern erst wenn alle sieben Plaetze NaN sind. Ein einzelner
+    # Aussetzer wird ueberbrueckt statt angezeigt — hier gewollt, denn erfunden
+    # ist dabei nichts: der Wert stammt aus echten Messungen der letzten
+    # 3,5 Minuten.
     name: "Sauggasüberhitzung"
     id: ueberhitzung
     unit_of_measurement: "K"
@@ -729,6 +764,10 @@ sensor:
     entity_category: diagnostic
     icon: "mdi:waves-arrow-up"
     update_interval: never
+    filters:
+      - median:
+          window_size: 7
+          send_every: 1
 
   - platform: template
     name: "Temperaturhub"
@@ -1023,6 +1062,96 @@ sensor:
     icon: "mdi:water-plus"
     update_interval: never
 
+  - platform: template
+    # SCHALTHAEUFIGKEIT als gleitende Stunde, nicht als Tageswert. Die
+    # Verdichterstarts heute sagen am Abend etwas anderes als am Morgen:
+    # dieselbe Zahl bedeutet um 06:00 ein Taktungsproblem und um 22:00 einen
+    # ruhigen Tag. Der gleitende Wert ist zu jedem Zeitpunkt derselbe Massstab.
+    #
+    # Gezaehlt werden die Startzeitpunkte der letzten 3600 s; die Liste wird
+    # bei jedem Tick vorne beschnitten. Ein Neustart leert sie — der Wert ist
+    # bewusst fluechtig, denn eine ueber den Neustart gerettete Liste wuerde
+    # gegen ein neu bei null startendes millis() gerechnet.
+    name: "Verdichterstarts je Stunde"
+    id: starts_pro_stunde
+    unit_of_measurement: "1/h"
+    state_class: measurement
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    icon: "mdi:sine-wave"
+    update_interval: never
+
+  # =============================================================
+  # Verschleiss und Effizienz
+  #
+  # Die Schwellen stammen aus der Waermepumpen-Analyse des HEMS-Projekts, die
+  # dort am 01.08.2026 entfallen ist. Sie sind uebernommen, nicht neu erfunden:
+  # zwei Schwellen je Hinweis, Tagesmittel statt Momentanwert, und qualitativ
+  # formuliert — "Umwaelzpumpe drosseln" statt "80 Prozent wuerden reichen".
+  # Die Pumpenkennlinie ist hier nicht bekannt, eine Prozentangabe waere
+  # Scheingenauigkeit.
+  #
+  # NICHT uebernommen wurde der Datenblattvergleich (COP gegen Kennlinie): er
+  # braucht den Volumenstrom, und der ist an dieser Anlage ueber Modbus nicht
+  # abgebildet. Was davon bleibt, ist der Verbrauch je Kelvin Speicherhub —
+  # ein Trend gegen sich selbst statt gegen ein Datenblatt.
+  # =============================================================
+  - platform: template
+    # Tagesmittel ueber die Zeit mit laufendem Verdichter. Im Stillstand
+    # gleichen sich Vor- und Ruecklauf an; ein Mittel ueber den ganzen Tag
+    # zoege jeden Hinweis gegen null und machte ihn stumm.
+    name: "Spreizung Tagesmittel"
+    id: spreizung_mittel
+    unit_of_measurement: "K"
+    state_class: measurement
+    accuracy_decimals: 1
+    entity_category: diagnostic
+    icon: "mdi:arrow-expand-vertical"
+    update_interval: never
+
+  - platform: template
+    # Anteil der Laufzeit am Tag. Die zweite Verschleissgroesse neben den
+    # Starts: viele Starts bei geringer Laufzeit sind Takten, viele Starts bei
+    # hoher Laufzeit sind Last.
+    name: "Laufzeitanteil heute"
+    id: laufzeitanteil
+    unit_of_measurement: "%"
+    state_class: measurement
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    icon: "mdi:percent-outline"
+    update_interval: never
+
+  - platform: template
+    # Starts je Betriebsstunde — die Kennzahl, die Takten unabhaengig von der
+    # Tageslast macht. Zwei Starts bei acht Betriebsstunden sind gesund,
+    # zwanzig bei zwei Stunden nicht, und beide Tage koennen dieselbe
+    # Startzahl haben.
+    name: "Starts je Betriebsstunde"
+    id: starts_je_stunde_lauf
+    unit_of_measurement: "1/h"
+    state_class: measurement
+    accuracy_decimals: 1
+    entity_category: diagnostic
+    icon: "mdi:engine-outline"
+    update_interval: never
+
+  - platform: template
+    # Wie lange der Verdichter schon steht. Die Groesse, an der die
+    # Stillstandsueberwachung haengt — und die einzige, die einen Ausfall
+    # sichtbar macht, den der Modbus nicht meldet: Am 01.08.2026 stand die
+    # Anlage von 14:03:26 bis 15:19:26 Uhr, waehrend alle 34 Register
+    # weiter fehlerfrei antworteten (Punkte ohne Antwort 0, Bus-Luecke nie
+    # ueber 45 s). Der Fehlercode CH03 stand dabei nur am Bedienteil.
+    name: "Stillstandsdauer"
+    id: stillstandsdauer
+    unit_of_measurement: "min"
+    state_class: measurement
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    icon: "mdi:timer-off-outline"
+    update_interval: never
+
   # =============================================================
   # Bus-Gesundheit
   #
@@ -1146,6 +1275,52 @@ text_sensor:
     name: "Ergebnis Randbereichsprüfung"
     entity_category: diagnostic
     icon: "mdi:radar"
+    update_interval: never
+
+  # -----------------------------------------------------------
+  # Diagnose in Klartext. Warum in der Firmware und nicht als
+  # Template-Sensor in Home Assistant: Die Bewertung muss auch dann
+  # dastehen, wenn HA neu startet, wenn der Recorder haengt oder wenn
+  # jemand die Templates verschiebt. Der ESP hat alle Eingangsgroessen
+  # ohnehin im Speicher — nur die Aussenluft-Referenz und die
+  # Leistungsmessung kommen von aussen, und beide haben einen Rueckfall.
+  # -----------------------------------------------------------
+  - platform: template
+    # Drei Stufen statt einer Zahl, weil der Rohdruck ohne Betriebspunkt
+    # nichts aussagt: bewertet wird ueber die Sattdampf-Temperaturen, die
+    # im 30-s-Intervall ohnehin gerechnet werden.
+    id: druck_text
+    name: "Druckbewertung"
+    entity_category: diagnostic
+    icon: "mdi:gauge"
+    update_interval: never
+
+  - platform: template
+    # Zusammenfassung der drei Ersatzgroessen darueber zu einem Urteil.
+    # Der Zaehler der verpassten Zyklen laeuft ueber Neustarts weiter und
+    # taugt deshalb NICHT als Kriterium — er stuende nach einem einzigen
+    # Ausfall fuer immer auf "auffaellig". Er wird nur mitgeschrieben.
+    id: bus_text
+    name: "Busgesundheit"
+    entity_category: diagnostic
+    icon: "mdi:lan-check"
+    update_interval: never
+
+  - platform: template
+    # Was sich an dieser Anlage verbessern liesse — qualitativ, aus den
+    # Tagesmitteln. Bewusst getrennt von der Diagnose: die meldet Stoerungen,
+    # das hier sind Empfehlungen an einer Anlage, die laeuft.
+    id: effizienz_text
+    name: "Effizienzhinweis"
+    icon: "mdi:lightbulb-on-outline"
+    update_interval: never
+
+  - platform: template
+    # Sammelmeldung: alles, was gerade ansteht, in einer Zeile. Was hier
+    # "keine Auffälligkeit" meldet, braucht keine weitere Nachschau.
+    id: diagnose_text
+    name: "Diagnose"
+    icon: "mdi:stethoscope"
     update_interval: never
 
 
@@ -1431,10 +1606,30 @@ binary_sensor:
       // ein Problem, wo keines ist. Erst nach 5 min stabilem Lauf wird geurteilt.
       if (id(aktueller_takt_start) == 0) return false;
       if ((millis() - id(aktueller_takt_start)) < 300000UL) return false;
+      // Der Wert ist medianbereinigt, siehe die Begruendung am Sensor selbst.
       float u = id(ueberhitzung).state;
       if (std::isnan(u)) return false;
-      if (id(kreis_warnung).state) return (u < 4.0f || u > 11.0f);
-      return (u < 3.0f || u > 12.0f);
+      // UNTERE SCHWELLE am 02.08.2026 von 3/4 K auf -0,5/0 K gesetzt. Die alten
+      // Werte waren gegen Stillstandsdaten kalibriert: bis zum 30.07. blieb der
+      // Verdichtermelder am Pumpennachlauf haengen, und im Stillstand liegt die
+      // gerechnete Ueberhitzung bei 7,9 K im Median — daher die "durchgehend
+      // 5..8 K" in der Notiz an IR17. Bei WIRKLICH laufendem Verdichter sind es
+      // 1,2 K im Median (533 Messwerte, 30.07.-02.08.). Gegen 3 K gemessen lagen
+      // damit 74 % des Normalbetriebs im Alarm — der Melder meldete den
+      // Regelfall. Der Modus erklaert nichts: Warmwasser 0,9 K, Heizen/Kuehlen
+      // 1,5..1,9 K, keiner kommt in die Naehe von 5 K.
+      //
+      // Die neue Schwelle misst nicht mehr gegen einen Sollwert, sondern gegen
+      // die Physik: ein ueber 3,5 min gemitteltes Sauggas KANN nicht kaelter
+      // sein als die Verdampfung. Die 0,5 K Puffer decken Fuehlertoleranz und
+      // den Rest der Phasenverschiebung. Nachgerechnet auf denselben Daten:
+      // eine einzige Meldung in 3,5 Tagen, am 01.08. um 16:14 bei -5,5 K
+      // Median — die Groessenordnung, bei der eine Meldung etwas bedeutet.
+      //
+      // Die obere Schwelle bleibt: im Betrieb liegt das 90. Perzentil bei
+      // 7,6 K, 11/12 K sind unveraendert weit genug weg.
+      if (id(kreis_warnung).state) return (u < 0.0f || u > 11.0f);
+      return (u < -0.5f || u > 12.0f);
 
   - platform: template
     # Waechst der Abstand zwischen Kondensation und Vorlauf, verschlechtert
@@ -1481,6 +1676,217 @@ binary_sensor:
       if (id(bus_warnung).state) return s > grenze * 0.6f;
       return s > grenze;
 
+  # =============================================================
+  # Stoerungsmelder
+  #
+  # WAS DIESE MELDER NICHT KOENNEN: Den Fehlercode der Anlage lesen. In
+  # keinem der 34 antwortenden Register steht er — CH03 stand am 01.08.2026
+  # am Bedienteil, waehrend der Modbus lueckenlos weiter antwortete. Die
+  # Melder haengen deshalb an der WIRKUNG einer Stoerung, nicht an ihrer
+  # Ursache. Das ist kein Notbehelf: so wirken sie gegen jede Stoerung, die
+  # die Anlage anhaelt, nicht nur gegen die eine mit dem bekannten Code.
+  # =============================================================
+  - platform: template
+    # DER WICHTIGSTE MELDER DER DATEI. Steht die Anlage im Winter, kann das
+    # Wasser im Kreis einfrieren — der einzige Fehler hier, der Hardware
+    # zerstoert statt nur Komfort zu kosten.
+    #
+    # Bewusst OHNE Ursachenpruefung: nicht "die Anlage ist gestoert", sondern
+    # "es wird kalt und niemand heizt dagegen". Damit meldet er auch bei
+    # abgeschaltetem Geraet, bei Stromausfall am Verdichter und bei einer
+    # Fehlbedienung.
+    #
+    # Die Umwaelzpumpe ist ABSICHTLICH keine Bedingung: sie schuetzt zwar vor
+    # dem lokalen Einfrieren, aber ohne Waermeeintrag kuehlt der ganze Kreis
+    # trotzdem aus. Kriterium ist die Wassertemperatur selbst.
+    #
+    # IM SOMMER NICHT PRUEFBAR. Wer ihn testen will, setzt die beiden
+    # Schwellen voruebergehend hoch (Aussenluft < 30, Wasser < 25) und
+    # beobachtet, ob er anschlaegt und wieder abfaellt.
+    name: "Frostgefahr"
+    id: frost_warnung
+    device_class: problem
+    icon: "mdi:snowflake-alert"
+    lambda: |-
+      // Aussenluft wie ueberall hier: der unabhaengige Sensor zuerst, der
+      // Geraetefuehler als Rueckfall — er misst im besonnten Gehaeuse zu
+      // warm, was fuer diese Frage die sichere Richtung waere, aber nachts
+      // und bei Stillstand stimmt er.
+      float aussen = id(aussentemp_ref).state;
+      if (std::isnan(aussen)) aussen = id(aussentemp).state;
+      float vor = id(vorlauf).state;
+      float ruck = id(ruecklauf).state;
+      float wasser = NAN;
+      if (!std::isnan(vor) && !std::isnan(ruck)) wasser = std::min(vor, ruck);
+      else if (!std::isnan(vor)) wasser = vor;
+      else if (!std::isnan(ruck)) wasser = ruck;
+      // Ohne Werte KEINE Meldung: ein Melder, der bei fehlender Messung
+      // Alarm gibt, wird nach der zweiten Nacht abgeschaltet.
+      if (std::isnan(aussen) || std::isnan(wasser)) return false;
+      if (id(frost_warnung).state) return (aussen < 5.0f && wasser < 10.0f);
+      return (aussen < 3.0f && wasser < 8.0f);
+
+  - platform: template
+    # Der Melder zum Fall vom 01.08.2026: Anlage steht, Bus antwortet
+    # fehlerfrei, nichts in Home Assistant sieht ein Problem. Gemessen
+    # standen zwischen 14:03:26 und 15:19:26 Uhr 76 Minuten still.
+    #
+    # DIE ABGRENZUNG, die den Melder brauchbar macht: HEMS stellt fuer seinen
+    # Taktschutz denselben Zustand her (HR26 = 0, Verdichter aus). Solche
+    # Pausen dauern Minuten. Die Grenze steht deshalb als Stellwert unten und
+    # beginnt bei zwei Stunden — lang genug, dass keine Regelpause sie
+    # erreicht, kurz genug, dass eine Nacht nicht durchlaeuft.
+    #
+    # Bei gestoertem Bus schweigt er: dann meldet die Busgesundheit, und zwei
+    # Melder fuer dasselbe Ereignis machen die Ursache nur unschaerfer.
+    name: "Stillstand Status"
+    id: stillstand_warnung
+    device_class: problem
+    icon: "mdi:sleep-off"
+    lambda: |-
+      if (id(verdichter_melder).state) return false;
+      if (id(bus_warnung).state) return false;
+      float fehlen = id(punkte_ohne_antwort).state;
+      if (!std::isnan(fehlen) && fehlen > 0.0f) return false;
+      float dauer = id(stillstandsdauer).state;
+      float grenze = id(stillstand_grenze).state;
+      if (std::isnan(dauer) || std::isnan(grenze)) return false;
+      // Zweite Schwelle ueber die Zeit: einmal gemeldet, bleibt die Meldung
+      // stehen, bis der Verdichter wirklich wieder laeuft (oben) — sie soll
+      // nicht um die Grenze herum flattern, waehrend die Anlage steht.
+      if (id(stillstand_warnung).state) return dauer > grenze * 0.5f;
+      return dauer > grenze;
+
+  - platform: template
+    # Taktung: kurze Laufzeiten und viele Starts verschleissen den Verdichter.
+    # Zwei Wege hinein, damit beide Erscheinungsformen erfasst sind — viele
+    # Starts in einer Stunde, und im Mittel zu kurze Takte.
+    #
+    # Die Datenbasis-Sperre ist noetig: nach Mitternacht und nach jedem
+    # Neustart steht die mittlere Laufzeit auf einem einzelnen Takt, und ein
+    # einzelner kurzer Takt ist kein Taktungsproblem.
+    #
+    # In der ersten Stunde nach einem Neustart traegt allein die mittlere
+    # Laufzeit: die Startzeitpunkte der gleitenden Stunde sind fluechtig und
+    # muessen sich erst wieder fuellen. Der Melder ist dann traeger, aber nicht
+    # blind — mittlere_laufzeit ueberlebt den Neustart.
+    name: "Taktung Status"
+    id: taktung_warnung
+    device_class: problem
+    icon: "mdi:chart-timeline-variant"
+    lambda: |-
+      if (id(starts_heute) < 5) return false;
+      float ml = id(mittlere_laufzeit).state;
+      float sh = id(starts_pro_stunde).state;
+      bool ml_ok = !std::isnan(ml);
+      bool sh_ok = !std::isnan(sh);
+      if (!ml_ok && !sh_ok) return false;
+      if (id(taktung_warnung).state)
+        return (ml_ok && ml < 12.0f) || (sh_ok && sh >= 3.0f);
+      return (ml_ok && ml < 10.0f) || (sh_ok && sh >= 4.0f);
+
+  - platform: template
+    # Druck ueber die Sattdampf-Temperaturen bewertet, nicht ueber den
+    # Rohwert: 10,9 bar sind im Kuehlbetrieb normal und im Heizbetrieb bei
+    # 55 °C Vorlauf zu wenig. Kondensation und Verdampfung tragen den
+    # Betriebspunkt bereits in sich.
+    #
+    # Schwellen fuer R290: Kondensation ueber 62 °C liegt am oberen Ende
+    # dessen, was ein Monoblock faehrt (Hochdruckstoerung droht),
+    # Verdampfung unter -20 °C zeigt Unterversorgung — zu wenig Luft am
+    # Verdampfer, Vereisung oder Kaeltemittelmangel.
+    #
+    # Anlaufkarenz wie bei den beiden anderen Kreis-Meldern: in den ersten
+    # fuenf Minuten sortiert sich der Kreis noch.
+    name: "Druck Status"
+    id: druck_warnung
+    device_class: problem
+    icon: "mdi:gauge-low"
+    lambda: |-
+      if (!id(verdichter_melder).state) return false;
+      if (id(aktueller_takt_start) == 0) return false;
+      if ((millis() - id(aktueller_takt_start)) < 300000UL) return false;
+      float k = id(kondensation).state;
+      float v = id(verdampfung).state;
+      if (std::isnan(k) && std::isnan(v)) return false;
+      if (id(druck_warnung).state)
+        return (!std::isnan(k) && k > 58.0f) || (!std::isnan(v) && v < -17.0f);
+      return (!std::isnan(k) && k > 62.0f) || (!std::isnan(v) && v < -20.0f);
+
+  # =============================================================
+  # Verschleiss- und Effizienzmelder. Schwellen aus der entfallenen
+  # HEMS-Waermepumpenanalyse, siehe Kommentar bei "Spreizung Tagesmittel".
+  # =============================================================
+  - platform: template
+    # Melden Vor- und Ruecklauf praktisch dieselbe Zahl, ist die Spreizung
+    # strukturell null. Dann ist "Umwaelzpumpe drosseln" ein Fehlschluss aus
+    # einem Messfehler — meist speist dieselbe Quelle beide Werte. Dieser
+    # Melder schaltet den Spreizungshinweis darunter ab.
+    #
+    # Beleg fuer die Notwendigkeit: An dieser Anlage lieferten IR15 und IR16
+    # bei der ersten Kartierung denselben Wert (187), bis die Zuordnung stand.
+    name: "Temperaturen identisch"
+    id: temp_identisch
+    device_class: problem
+    entity_category: diagnostic
+    icon: "mdi:equal"
+    lambda: |-
+      // Die Punkte sammeln sich sekuendlich unter Last und laufen bis
+      // Mitternacht weiter — die Untergrenze greift also nur zu Tagesbeginn
+      // und nach dem ersten Flashen, nicht nach jedem Neustart. Genau so
+      // gewollt: ein Neustart am Abend soll den Tag nicht verwerfen.
+      float n = id(spreiz_punkte);
+      if (n < 60.0f) return false;   // erste Minute Last am Tag: keine Aussage
+      float anteil = id(spreiz_null) / n;
+      if (id(temp_identisch).state) return anteil > 0.6f;
+      return anteil > 0.9f;
+
+  - platform: template
+    # Spreizung: zu klein heisst, die Umwaelzpumpe foerdert mehr als noetig
+    # (Strom fuer nichts); zu gross heisst, es kommt zu wenig durch. Beide
+    # Richtungen in einem Melder — welche es ist, sagt der Effizienzhinweis.
+    #
+    # Schwellen aus der HEMS-Analyse: niedrig an 3,0 K / aus 4,0 K,
+    # hoch an 8,0 K / aus 7,0 K. Ausgewertet wird das Tagesmittel unter Last,
+    # nicht der Momentanwert: eine Spreizung, die im Abfragetakt kippt, ist
+    # kein Hinweis, sondern Flackern.
+    name: "Spreizung Status"
+    id: spreizung_warnung
+    device_class: problem
+    entity_category: diagnostic
+    icon: "mdi:arrow-collapse-vertical"
+    lambda: |-
+      if (id(temp_identisch).state) return false;
+      float s = id(spreizung_mittel).state;
+      if (std::isnan(s)) return false;
+      if (id(spreizung_warnung).state) return (s < 4.0f || s > 7.0f);
+      return (s < 3.0f || s > 8.0f);
+
+  - platform: template
+    # Verschleiss: Takte pro Tag. Ein Verdichter, der oefter startet,
+    # verschleisst schneller, ohne mehr zu leisten. Schwellen aus der
+    # HEMS-Analyse: an ab 20 Takten, aus unter 14.
+    #
+    # Warum zusaetzlich zum Taktung-Melder oben: der sieht die gleitende
+    # Stunde und die mittlere Laufzeit und schlaegt schon waehrend eines
+    # schlechten Nachmittags an. Dieser hier ist die Tagesbilanz — er bleibt
+    # ruhig, wenn ein einzelner Nachmittag unruhig war, und meldet, wenn der
+    # Tag als Ganzes zu viele Starts hatte.
+    name: "Verschleiß Status"
+    id: verschleiss_warnung
+    device_class: problem
+    entity_category: diagnostic
+    icon: "mdi:wrench-clock"
+    lambda: |-
+      float heute = (float) id(starts_heute);
+      float gestern = (float) id(starts_vortag);
+      // Der Tag ist noch nicht um: die hoechste der beiden Zahlen entscheidet,
+      // damit ein bereits auffaelliger Vormittag nicht bis Mitternacht wartet
+      // und ein auffaelliger Vortag nicht um 00:00 verschwindet.
+      float takte = std::max(heute, gestern);
+      if (id(verschleiss_warnung).state) return takte >= 14.0f;
+      return takte >= 20.0f;
+
 # =============================================================
 # Sollwerte — Halteregister 24..29, SCHREIBBAR
 #
@@ -1491,8 +1897,16 @@ binary_sensor:
 number:
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # OFFEN: 5..65 °C gilt unabhaengig von HR26, obwohl der Wert bei
-    # Raumregelung etwas anderes bedeutet als bei Vorlaufregelung.
+    # 5..65 °C gilt unabhaengig von HR26, obwohl der Wert je nach Modus etwas
+    # anderes bedeutet: Vorlauf im Heizen, Ruecklauf im Kuehlen — und im
+    # AUTO-MODUS ueberhaupt keine Temperatur, sondern eine Kurvenverschiebung
+    # von -3 bis +3 Stufen (16..22, 19 = keine Verschiebung). Dafuer steht die
+    # Entitaet "Heizkurven-Verschiebung" darunter; die 19 hier stehen zu lassen
+    # waere im Auto-Modus keine Sollwertanzeige, sondern eine Falle.
+    #
+    # Der Wertebereich bleibt trotzdem 5..65: min_value/max_value sind Traits,
+    # die Home Assistant bei der Registrierung uebernimmt — zur Laufzeit auf
+    # 16..22 umschalten geht nicht, deshalb die zweite Entitaet.
     name: "Soll-Temperatur Heizkreis 1"      # HR24: 21 °C kuehlen -> 55 °C heizen
     id: hk1_soll
     address: 24
@@ -1505,11 +1919,59 @@ number:
     lambda: "return x * 0.1;"
     write_lambda: "return x * 10;"
 
+  # HEIZKURVEN-VERSCHIEBUNG — dieselbe Modbus-Adresse wie hk1_soll, andere
+  # Bedeutung. Steht der Betriebsmodus (HR26) auf 3 = Auto, fuehrt die Anlage
+  # den Vorlauf selbst; HR24 traegt dann nur noch den Griff des Nutzers am
+  # Bedienteil: 19 = automatisch gefuehrter Wert, 20 = +1, 18 = -1, Bereich
+  # 16..22. Diese Entitaet zeigt und stellt die Stufe, nicht die Rohzahl —
+  # "+2" ist die Groesse, die der Nutzer am Bedienteil sieht, "21 °C" nicht.
+  #
+  # HERKUNFT, abweichend vom Rest dieser Datei: vom Betreiber berichtet
+  # (2026-08-02), nicht am Bus gemessen. Die Registerbelegungen oben haengen
+  # jeweils an einer Bedienung mit Zeitstempel — diese Zuordnung nicht. Eine
+  # Gegenprobe waere: am Bedienteil im Auto-Modus die Kurve auf +3 schieben und
+  # pruefen, ob HR24 auf 220 (22,0 °C) steht.
+  #
+  # Ausserhalb des Auto-Modus steht die Entitaet auf unbekannt und nimmt keine
+  # Eingabe an — lieber leer als eine Stufe, die nichts verschiebt.
+  - platform: template
+    name: "Heizkurven-Verschiebung"
+    id: kurve_shift
+    min_value: -3
+    max_value: 3
+    step: 1
+    mode: slider
+    icon: "mdi:chart-bell-curve-cumulative"
+    set_action:
+      - lambda: |-
+          int m = (int) lroundf(id(hr26_modus).state);
+          if (m != 3) {
+            // Den alten Zustand zurueckschicken, sonst bleibt der Regler in
+            // Home Assistant auf dem Wert stehen, den der Nutzer gezogen hat,
+            // und die Ablehnung sieht aus wie eine Annahme.
+            id(kurve_shift).publish_state(id(kurve_shift).state);
+            ESP_LOGW("kurve", "Verschiebung nur im Auto-Modus stellbar, HR26 steht auf %d", m);
+            return;
+          }
+          float stufe = roundf(x);
+          if (stufe < -3.0f) stufe = -3.0f;
+          if (stufe > 3.0f) stufe = 3.0f;
+          auto c = id(hk1_soll).make_call();
+          c.set_value(19.0f + stufe);
+          c.perform();
+          // Sofort anzeigen, damit der Regler nicht bis zum naechsten
+          // Registerlesen auf dem alten Wert steht. Die Spiegelung im
+          // 10-s-Intervall bestaetigt ihn — oder holt ihn zurueck, wenn die
+          // Anlage den Schreibvorgang nicht uebernimmt.
+          id(kurve_shift).publish_state(stufe);
+          ESP_LOGI("kurve", "Verschiebung %+d -> HR24 %.0f", (int) stufe, 19.0f + stufe);
+
   - platform: modbus_controller
     modbus_controller_id: therma_v
     # OFFEN: 30 °C liegt unter jeder Legionellenschwelle, 80 °C ueber dem,
     # was ein R290-Monoblock liefert.
     name: "Soll-Temperatur Warmwasser"       # HR29: 480 bei "Warmwasser 48° eco"
+    id: ww_soll
     address: 29
     value_type: S_WORD
     force_new_range: true
@@ -1566,6 +2028,25 @@ number:
     mode: box
     entity_category: config
     icon: "mdi:ray-start-arrow"
+
+  - platform: template
+    # Ab wann ein Stillstand als Stoerung gilt. Zwei Stunden sind der
+    # Kompromiss: HEMS' Taktpausen dauern Minuten, eine sommerliche
+    # Kuehlpause auch mal eine Stunde — 76 Minuten wie am 01.08.2026 lagen
+    # knapp darunter. Wer den Melder schaerfer will, geht auf 60; wer im
+    # Winter durchheizt, kann hoeher gehen, ohne den Frostmelder zu
+    # beruehren, denn der haengt nicht an dieser Grenze.
+    name: "Stillstandsgrenze"
+    id: stillstand_grenze
+    optimistic: true
+    restore_value: true
+    initial_value: 120
+    min_value: 15
+    max_value: 720
+    step: 15
+    unit_of_measurement: "min"
+    entity_category: config
+    icon: "mdi:timer-alert-outline"
 
   - platform: template
     name: "Maximale Bus-Lücke"
@@ -1901,9 +2382,16 @@ button:
 # also strukturell nicht.
 #
 # Deshalb: EIN Sollwert (target_temperature), synchronisiert mit HR24. Er zeigt
-# in jedem Modus, was die Anlage anpeilt — 55 °C beim Heizen, 21 °C beim Kuehlen.
-# Genau das war in ThinQ das Problem: dort wurde der Zielwert im Auto-Modus
-# blind. Hier ist er immer sichtbar.
+# 55 °C beim Heizen und 21 °C beim Kuehlen — die Groesse, die die Anlage in
+# diesem Modus anpeilt.
+#
+# AUSSER IM AUTO-MODUS: dort ist HR24 keine Temperatur, sondern eine
+# Kurvenverschiebung von -3 bis +3 (16..22, 19 = 0). Eine Klimakarte, die
+# "Ziel 19 °C" anzeigt, waere dann keine Sollwertanzeige mehr, sondern eine
+# falsche. Die Sync unten haelt den Sollwert im Auto-Modus deshalb an; die
+# Verschiebung steht in einer eigenen Entitaet, in der Einheit, die auch am
+# Bedienteil steht. In ThinQ wurde der Zielwert im Auto-Modus blind — hier
+# steht statt einer blinden Zahl die richtige.
 #
 # Die BETRIEBSART (aus/kuehlen/heizen/auto) waehlt das Auswahlfeld
 # "Betriebsmodus" darunter — es schreibt alle vier Werte von HR26. Die
@@ -2098,6 +2586,38 @@ globals:
     type: bool
     restore_value: true
     initial_value: "false"
+
+  # --- Verschleiss und Effizienz. Tagesmittel der Spreizung unter Last:
+  #     Summe und Punktzahl statt eines gleitenden Filters, damit der Wert
+  #     ueber Mitternacht sauber zurueckgesetzt werden kann. restore_value,
+  #     weil ein Neustart am Abend sonst den ganzen Tag verwirft.
+  - id: spreiz_summe
+    type: float
+    restore_value: true
+    initial_value: "0"
+  - id: spreiz_punkte
+    type: float
+    restore_value: true
+    initial_value: "0"
+  # Punkte mit praktisch null Spreizung — der Messfehler-Verdacht.
+  - id: spreiz_null
+    type: float
+    restore_value: true
+    initial_value: "0"
+
+  # --- Stoerungsmelder
+  #
+  # Beide fluechtig und bewusst ohne restore_value: sie halten millis(), das
+  # nach einem Neustart wieder bei null zaehlt. Ein geretteter Wert waere
+  # schlimmer als keiner — derselbe Grund wie bei aktueller_takt_start.
+  # stillstand_seit wird beim Hochlaufen aus dem Ist uebernommen (start_sync).
+  - id: start_zeiten
+    type: std::vector<uint32_t>
+    restore_value: false
+  - id: stillstand_seit
+    type: uint32_t
+    restore_value: false
+    initial_value: "0"
 
   # --- Bus-Gesundheit
   - id: letzte_antwort_ms
@@ -2315,6 +2835,15 @@ interval:
                 // nur ein Teilstueck und darf nicht als kuerzester Takt gelten.
                 id(aktueller_takt_start) = jetzt;
                 id(takt_angeschnitten) = true;
+                id(stillstand_seit) = 0;
+              } else {
+                // Der Stillstand hat hier einen unbekannten Anfang: er kann
+                // Sekunden oder Stunden alt sein. Gezaehlt wird ab jetzt —
+                // die Ueberwachung meldet nach einem Neustart also fruehestens
+                // eine Grenze spaeter. Die Gegenrichtung waere schlimmer: ein
+                // geratener Startzeitpunkt loeste Alarm fuer einen Stillstand
+                // aus, den es so nie gab.
+                id(stillstand_seit) = jetzt;
               }
               float wt0 = id(ww_temp).state;
               if (id(ladung_aktiv)) {
@@ -2347,10 +2876,17 @@ interval:
             id(aktueller_takt_start) = jetzt;
             id(takt_angeschnitten) = false;   // Anfang bekannt
             id(starts_heute)++;
+            // Fuer die gleitende Schalthaeufigkeit. jetzt kann 0 sein, wenn
+            // der Start in die erste Millisekunde nach dem Boot faellt — der
+            // Wert 0 ist unten die Marke fuer "kein Stillstand", deshalb hier
+            // auf 1 anheben.
+            id(start_zeiten).push_back(jetzt > 0 ? jetzt : 1);
+            id(stillstand_seit) = 0;
             id(stat_dirty) = true;
             ESP_LOGI("statistik", "Verdichter an, %d. Start heute", id(starts_heute));
           } else if (!laeuft && id(verdichter_laeuft)) {
             id(verdichter_laeuft) = false;
+            id(stillstand_seit) = jetzt > 0 ? jetzt : 1;
             if (id(aktueller_takt_start) > 0) {
               float takt = (jetzt - id(aktueller_takt_start)) / 60000.0f;
               // Ein angeschnittener Takt — Neustart oder Tageswechsel mitten im
@@ -2366,6 +2902,15 @@ interval:
               }
             }
             id(takt_angeschnitten) = false;
+            // Zurueck auf die Marke "kein laufender Takt". Ohne das blieb der
+            // Zeitstempel des GERADE beendeten Laufs stehen, und beim naechsten
+            // Start klaffte ein Fenster: der Verdichtermelder haengt an der
+            // Leistungsschwelle und kippt sofort, dieser Tick kommt erst bis zu
+            // eine Sekunde spaeter. In diesem Fenster prueften die drei
+            // Anlaufkarenzen gegen einen stundenalten Zeitstempel und liessen
+            // durch — sichtbar als Alarme von genau einer Sekunde Dauer, rund
+            // zwoelf der 105 Meldungen zwischen dem 30.07. und 02.08.2026.
+            id(aktueller_takt_start) = 0;
             id(stat_dirty) = true;
           }
           if (id(verdichter_laeuft)) {
@@ -2520,6 +3065,70 @@ interval:
           if (id(scan_switch).state)
             id(scan_restlaufzeit).publish_state((1800 - id(scan_laufzeit)) / 60.0f);
 
+          // --- Schalthaeufigkeit und Stillstandsdauer -------------------
+          // Beide werden im Minutentakt veroeffentlicht: sekuendlich waeren
+          // es 86400 Zustaende am Tag je Sensor, und die Aufloesung braucht
+          // niemand — die Melder daran arbeiten mit Grenzen in Minuten.
+          {
+            // Startzeitpunkte aelter als eine Stunde fallen vorne heraus. Die
+            // Subtraktion in uint32_t ist auch ueber den millis()-Ueberlauf
+            // hinweg richtig, deshalb hier kein Sonderfall dafuer.
+            auto &zs = id(start_zeiten);
+            while (!zs.empty() && (jetzt - zs.front()) > 3600000UL) zs.erase(zs.begin());
+
+            // Spreizung nur unter Last mitteln: im Stillstand gleichen sich
+            // Vor- und Ruecklauf an, und ein Mittel ueber den ganzen Tag zoege
+            // jeden Hinweis gegen null. Die Anlaufkarenz der Kreis-Melder gilt
+            // hier nicht — die Spreizung steht mit der Pumpe, nicht mit dem
+            // Kaeltekreis.
+            if (id(verdichter_laeuft)) {
+              float sp = id(spreizung).state;
+              if (!std::isnan(sp)) {
+                id(spreiz_summe) += fabsf(sp);
+                id(spreiz_punkte) += 1.0f;
+                // 0,05 K statt 0: der Fuehler loest in Zehntelgrad auf, und
+                // zwei Register, die dieselbe Quelle spiegeln, liefern exakt
+                // dieselbe Zahl.
+                if (fabsf(sp) < 0.05f) id(spreiz_null) += 1.0f;
+              }
+            }
+
+            static uint32_t letzte_diag = 0;
+            if (letzte_diag == 0 || (jetzt - letzte_diag) >= 60000UL) {
+              letzte_diag = jetzt;
+              id(starts_pro_stunde).publish_state((float) zs.size());
+              // --- Verschleiss- und Effizienzkennzahlen ------------------
+              id(spreizung_mittel).publish_state(
+                  id(spreiz_punkte) > 0.0f
+                      ? id(spreiz_summe) / id(spreiz_punkte) : NAN);
+              // Laufzeitanteil gegen die seit Mitternacht vergangene Zeit,
+              // nicht gegen 24 h: sonst stuende morgens um 06:00 selbst bei
+              // Dauerlauf ein Anteil von 25 %.
+              auto zeit = id(ha_zeit).now();
+              if (zeit.is_valid()) {
+                float sek_heute =
+                    zeit.hour * 3600.0f + zeit.minute * 60.0f + zeit.second;
+                id(laufzeitanteil).publish_state(
+                    sek_heute > 60.0f
+                        ? 100.0f * id(laufsekunden_heute) / sek_heute : NAN);
+              }
+              float lauf_h = id(laufsekunden_heute) / 3600.0f;
+              id(starts_je_stunde_lauf).publish_state(
+                  lauf_h > 0.25f ? id(starts_heute) / lauf_h : NAN);
+              // stillstand_seit == 0 bedeutet ZWEIERLEI: der Verdichter laeuft
+              // (dann ist die Dauer echt 0), oder die Zustandsuebernahme steht
+              // noch aus (dann ist sie unbekannt). Solange start_sync offen
+              // ist, wird deshalb NaN veroeffentlicht — eine 0 saehe aus wie
+              // "laeuft gerade" und wuerde die Stillstandsueberwachung fuer
+              // die erste Minute stumm stellen.
+              id(stillstandsdauer).publish_state(
+                  id(start_sync) ? NAN
+                  : (id(stillstand_seit) == 0
+                         ? 0.0f
+                         : (jetzt - id(stillstand_seit)) / 60000.0f));
+            }
+          }
+
           // --- Statistik nur bei Änderung veroeffentlichen ---
           if (id(stat_dirty)) {
             id(stat_dirty) = false;
@@ -2595,6 +3204,10 @@ interval:
   # (gemessen 21 °C im Kuehl-, 55 °C im Heizbetrieb). Nur eine Aenderung, die
   # von der Climate-Seite kommt, wird nach HR24 geschrieben. Der Merker
   # verhindert das Ping-Pong, an dem eine bidirektionale Sync sonst scheitert.
+  #
+  # IM AUTO-MODUS RUHT DIESE SYNC — dort traegt HR24 eine Kurvenverschiebung
+  # und keine Temperatur; sie laeuft ueber die Entitaet "Heizkurven-
+  # Verschiebung", die hier ebenfalls nachgefuehrt wird.
   - interval: 10s
     then:
       - lambda: |-
@@ -2603,9 +3216,40 @@ interval:
           float hr24 = id(hk1_soll).state;
           if (std::isnan(hr24)) return;
 
+          int modus = (int) lroundf(id(hr26_modus).state);
           // Welcher der beiden Sollpunkte HR24 fuehrt, haengt am Betriebsmodus:
           // beim Kuehlen der obere, sonst der untere.
-          bool kuehlbetrieb = (lroundf(id(hr26_modus).state) == 1);
+          bool kuehlbetrieb = (modus == 1);
+          // Im Auto-Modus ist HR24 gar keine Temperatur, sondern die
+          // Verschiebung der Heizkurve (16..22, 19 = 0). Dort darf die
+          // Climate-Entitaet weder folgen noch schreiben — siehe unten.
+          bool automatik = (modus == 3);
+
+          // Die Verschiebung nachfuehren, auch wenn sie am Bedienteil gestellt
+          // wurde: die Anlage hat Vorrang, die Entitaet zeigt nur, was in HR24
+          // steht. Nur bei Aenderung publizieren, sonst schickt jeder
+          // 10-s-Takt denselben Wert nach Home Assistant.
+          // Ausserhalb von 16..22 ist die Zahl keine Verschiebung — etwa in den
+          // Sekunden nach dem Moduswechsel, in denen noch der alte Heizwert im
+          // Register steht. Dann lieber nichts anzeigen als Stufe +36. Wer das
+          // im Log dauerhaft sieht, hat entweder eine andere Firmware oder die
+          // Zuordnung 16..22 stimmt fuer diese Anlage nicht.
+          float stufe = NAN;
+          if (automatik && hr24 >= 15.5f && hr24 <= 22.5f) {
+            stufe = roundf(hr24 - 19.0f);
+          } else if (automatik) {
+            ESP_LOGW("kurve", "Auto-Modus, aber HR24 = %.1f liegt ausserhalb 16..22", hr24);
+          }
+          float stufe_alt = id(kurve_shift).state;
+          bool stufe_neu = std::isnan(stufe) != std::isnan(stufe_alt) ||
+                           (!std::isnan(stufe) && fabsf(stufe - stufe_alt) > 0.01f);
+          if (stufe_neu) {
+            id(kurve_shift).publish_state(stufe);
+            if (!std::isnan(stufe))
+              ESP_LOGI("kurve", "Verschiebung von der Anlage: %+d (HR24 %.1f)",
+                       (int) stufe, hr24);
+          }
+
           float ziel = kuehlbetrieb ? id(wp_climate).target_temperature_high
                                     : id(wp_climate).target_temperature_low;
 
@@ -2614,7 +3258,17 @@ interval:
           bool nutzer_hat_geaendert = !std::isnan(ziel_gesehen) &&
                                       fabsf(ziel - ziel_gesehen) > 0.05f;
 
-          if (anlage_hat_geaendert) {
+          if (automatik) {
+            // Beide Richtungen ruhen. Die Anlage-Richtung, weil ein Sollwert
+            // von 19 °C auf der Klimakarte kein Vorlauf-Soll ist, sondern eine
+            // Verschiebungsstufe — genau die Verwechslung, die diese Karte
+            // vermeiden soll. Die Nutzer-Richtung, weil die Klimakarte 5..65
+            // anbietet: ein Zug auf 55 haette bis heute die 55 nach HR24
+            // geschrieben, also Stufe +36 in ein Register, das 16..22 kennt.
+            // Die Merker laufen trotzdem mit, sonst gilt der Sprung, den die
+            // Anlage beim Moduswechsel selbst macht, hinterher als
+            // Nutzeraenderung und wird zurueckgeschrieben.
+          } else if (anlage_hat_geaendert) {
             // IMMER BEIDE PUNKTE setzen, mit 2 K Abstand in der richtigen
             // Reihenfolge. Setzte man nur einen, stuende beim Heizen low auf 55
             // und high weiter auf 21 — ESPHome prueft low > high nur, wenn
@@ -2648,11 +3302,10 @@ interval:
           // meldete 06:28:25 heat). Fuer HEMS war das folgenlos, dessen
           // Heizkreis-Rolle haengt am Auswahlfeld. Die Anzeige log trotzdem.
           static int modus_gesehen = -1;
-          int m = (int) lroundf(id(hr26_modus).state);
-          if (m != modus_gesehen && m >= 0 && m <= 3) {
-            modus_gesehen = m;
+          if (modus != modus_gesehen && modus >= 0 && modus <= 3) {
+            modus_gesehen = modus;
             auto call = id(wp_climate).make_call();
-            switch (m) {
+            switch (modus) {
               case 0: call.set_mode(climate::CLIMATE_MODE_OFF); break;
               case 1: call.set_mode(climate::CLIMATE_MODE_COOL); break;
               case 2: call.set_mode(climate::CLIMATE_MODE_HEAT); break;
@@ -2661,7 +3314,7 @@ interval:
               default: call.set_mode(climate::CLIMATE_MODE_HEAT_COOL); break;
             }
             call.perform();
-            ESP_LOGI("climate", "Betriebsmodus von der Anlage uebernommen: %d", m);
+            ESP_LOGI("climate", "Betriebsmodus von der Anlage uebernommen: %d", modus);
           }
 
   # Schnelleres Abfragen, solange die Beobachtung laeuft. Selbstabschaltung
@@ -2761,3 +3414,155 @@ interval:
                   }
                   id(scan_liste_text).publish_state(liste);
                 }
+
+  # =============================================================
+  # Klartext-Diagnose. Beruehrt den Bus nicht — bewertet wird, was ohnehin
+  # im Speicher steht. Veroeffentlicht wird NUR bei Aenderung: ein Text, der
+  # sich alle 30 s selbst wiederholt, fuellt die Datenbank und macht jede
+  # Historie unlesbar.
+  # =============================================================
+  - interval: 30s
+    then:
+      - lambda: |-
+          // --- Druck: ok / zu hoch / zu niedrig -------------------------
+          // Dasselbe Betriebs-Gate wie bei den abgeleiteten Kreiswerten: im
+          // Stillstand steht der Kreis im Druckausgleich, und ein Urteil
+          // ueber "zu niedrig" waere dort immer richtig und immer wertlos.
+          float hd = id(ir21_hochdruck).state;
+          float nd = id(ir22_niederdruck).state;
+          float k = id(kondensation).state;
+          float v = id(verdampfung).state;
+          bool im_betrieb = !std::isnan(hd) && !std::isnan(nd) && (hd - nd) > 2.0f;
+
+          std::string dr;
+          if (!im_betrieb) {
+            dr = "im Stillstand — keine Aussage";
+          } else if (!std::isnan(k) && k > 62.0f) {
+            dr = str_sprintf("zu hoch — Kondensation %.0f °C", k);
+          } else if (!std::isnan(v) && v < -20.0f) {
+            dr = str_sprintf("zu niedrig — Verdampfung %.0f °C", v);
+          } else if (id(druck_warnung).state) {
+            // Zwischen den beiden Schwellen: der Melder steht noch, das
+            // Urteil ist aber schon nicht mehr eindeutig.
+            dr = "grenzwertig";
+          } else if (std::isnan(k) && std::isnan(v)) {
+            dr = "keine Messwerte";
+          } else {
+            dr = str_sprintf("ok — %.0f/%.0f bar, Kondensation %.0f °C",
+                             hd, nd, std::isnan(k) ? 0.0f : k);
+          }
+          static std::string dr_alt;
+          if (dr != dr_alt) { dr_alt = dr; id(druck_text).publish_state(dr); }
+
+          // --- Busgesundheit -------------------------------------------
+          float fehlen = id(punkte_ohne_antwort).state;
+          float zyklus = id(zyklusdauer).state;
+          float luecke = id(zeit_seit_antwort).state;
+          std::string bg;
+          if (id(bus_warnung).state) {
+            bg = str_sprintf("gestört — %.0f s ohne Antwort",
+                             std::isnan(luecke) ? 0.0f : luecke);
+          } else if (!std::isnan(fehlen) && fehlen > 0.0f) {
+            bg = str_sprintf("gestört — %.0f Punkte ohne Antwort", fehlen);
+          } else if (!std::isnan(zyklus) && zyklus > 45.0f) {
+            bg = str_sprintf("auffällig — Zyklus %.0f s", zyklus);
+          } else {
+            bg = str_sprintf("gut — Zyklus %.0f s", std::isnan(zyklus) ? 0.0f : zyklus);
+          }
+          if (id(verpasste) > 0)
+            bg += str_sprintf(", %d verpasste seit Neustart", id(verpasste));
+          static std::string bg_alt;
+          if (bg != bg_alt) { bg_alt = bg; id(bus_text).publish_state(bg); }
+
+          // --- Effizienzhinweis ----------------------------------------
+          // Qualitativ, nicht quantitativ: Die Pumpenkennlinie ist hier nicht
+          // bekannt, "80 Prozent wuerden reichen" waere Scheingenauigkeit.
+          std::string eff;
+          auto eff_dazu = [&](const std::string &s) {
+            if (!eff.empty()) eff += " | ";
+            eff += s;
+          };
+          float sp_mittel = id(spreizung_mittel).state;
+          if (id(temp_identisch).state) {
+            eff_dazu("Vor- und Rücklauf melden dieselbe Zahl — Fühlerzuordnung "
+                     "prüfen, bis dahin kein Spreizungsurteil");
+          } else if (id(spreizung_warnung).state && !std::isnan(sp_mittel)) {
+            if (sp_mittel < 4.0f)
+              eff_dazu(str_sprintf(
+                  "Spreizung nur %.1f K — Umwälzpumpe drosseln spart Strom, "
+                  "ohne Wärme zu kosten", sp_mittel));
+            else
+              eff_dazu(str_sprintf(
+                  "Spreizung %.1f K — es kommt zu wenig durch: Volumenstrom, "
+                  "Filter und Ventile prüfen", sp_mittel));
+          }
+          if (id(verschleiss_warnung).state) {
+            float sjs = id(starts_je_stunde_lauf).state;
+            eff_dazu(str_sprintf(
+                "%d Starts heute (%d gestern, %.1f je Betriebsstunde) — "
+                "längere Takte schonen den Verdichter",
+                id(starts_heute), id(starts_vortag),
+                std::isnan(sjs) ? 0.0f : sjs));
+          }
+          // Hoher Temperaturhub kostet Leistungszahl. Nur unter Last und
+          // ohne Anspruch auf einen Sollwert: welcher Vorlauf noetig ist,
+          // bestimmt die Heizkurve am Bedienteil, und die ist über Modbus
+          // nicht sichtbar.
+          if (im_betrieb && !std::isnan(k) && !std::isnan(v) && (k - v) > 40.0f)
+            eff_dazu(str_sprintf(
+                "Temperaturhub %.0f K — jedes Kelvin weniger Vorlauf bringt "
+                "rund 2 %% Leistungszahl", k - v));
+          if (eff.empty()) eff = "kein Hinweis";
+          if (eff.size() > 250) { eff.resize(247); eff += "…"; }
+          static std::string eff_alt;
+          if (eff != eff_alt) { eff_alt = eff; id(effizienz_text).publish_state(eff); }
+
+          // --- Sammelmeldung -------------------------------------------
+          // Reihenfolge ist Dringlichkeit: Frost zerstoert Hardware, ein
+          // Stillstand kostet Waerme, der Rest ist Beobachtung.
+          std::string d;
+          auto dazu = [&](const std::string &s) {
+            if (!d.empty()) d += " | ";
+            d += s;
+          };
+          if (id(frost_warnung).state) {
+            float a = id(aussentemp_ref).state;
+            if (std::isnan(a)) a = id(aussentemp).state;
+            dazu(str_sprintf("FROSTGEFAHR — außen %.0f °C, Wasser %.0f °C",
+                             std::isnan(a) ? 0.0f : a,
+                             std::isnan(id(vorlauf).state) ? 0.0f : id(vorlauf).state));
+          }
+          if (id(stillstand_warnung).state) {
+            float sd = id(stillstandsdauer).state;
+            dazu(str_sprintf("Anlage steht seit %.0f min, Bus antwortet",
+                             std::isnan(sd) ? 0.0f : sd));
+          }
+          if (id(druck_warnung).state) dazu("Druck: " + dr);
+          if (id(kreis_warnung).state) {
+            float u = id(ueberhitzung).state;
+            dazu(str_sprintf("Kältekreis — Überhitzung %.1f K", std::isnan(u) ? 0.0f : u));
+          }
+          if (id(uebergang_warnung).state) {
+            bool kuehlen = (id(hr26_modus).state == 1.0f);
+            float a = kuehlen ? id(annaeherung_verd).state : id(annaeherung_kond).state;
+            dazu(str_sprintf("Wärmeübergang — Annäherung %.1f K", std::isnan(a) ? 0.0f : a));
+          }
+          if (id(taktung_warnung).state) {
+            float ml = id(mittlere_laufzeit).state;
+            float sh = id(starts_pro_stunde).state;
+            dazu(str_sprintf("Taktung — %.0f Starts/h, im Mittel %.0f min",
+                             std::isnan(sh) ? 0.0f : sh, std::isnan(ml) ? 0.0f : ml));
+          }
+          // Verschleiss und Spreizung gehoeren in die Sammelmeldung, aber
+          // hinter die Stoerungen: sie kosten Effizienz, nicht Betrieb.
+          if (id(verschleiss_warnung).state)
+            dazu(str_sprintf("Verschleiß — %d Starts heute, %d gestern",
+                             id(starts_heute), id(starts_vortag)));
+          if (id(spreizung_warnung).state && !std::isnan(sp_mittel))
+            dazu(str_sprintf("Spreizung %.1f K im Tagesmittel", sp_mittel));
+          if (id(bus_warnung).state || (!std::isnan(fehlen) && fehlen > 0.0f))
+            dazu("Bus: " + bg);
+          if (d.empty()) d = "keine Auffälligkeit";
+          if (d.size() > 250) { d.resize(247); d += "…"; }
+          static std::string d_alt;
+          if (d != d_alt) { d_alt = d; id(diagnose_text).publish_state(d); }
