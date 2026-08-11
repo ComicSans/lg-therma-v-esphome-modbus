@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /Users/tobias/GitHub/mcp-server/scripts/standards-refresh.mjs \"${CLAUDE_PROJECT_DIR:-.}\"",
+            "timeout": 30,
+            "statusMessage": "Prüfe, ob der Standards-Wochencheck fällig ist"
+          }
+        ]
+      }
+    ]
+  }
+}
