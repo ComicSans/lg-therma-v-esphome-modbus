@@ -424,10 +424,16 @@ sensor:
   # --- Temperaturen mit plausibler, aber unbestaetigter Zuordnung ---
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # Hiess bis 2026-07-30 "Verdichterfrequenz (Verdacht)". Liegt ueber neun
-    # Stunden Stillstand konstant 10..15 K ueber der Aussenluft und sinkt mit
-    # ihr — eine Frequenz waere 0. Passt zu Verdichtergehaeuse
-    # (Kurbelwannenheizung) oder Leistungsmodul-Kuehlkoerper. UNBESTAETIGT.
+    # Hiess bis 2026-07-30 "Verdichterfrequenz (Verdacht)". BELEGT seit
+    # 2026-08-08 als Gehaeuse der Hochdruckseite, aus 8622 Minuten einer
+    # Generation: r(IR18, Hochdruck) = +0,959 gegen nur +0,689 zur
+    # Wirkleistung. Bei 2600..3200 W im Kuehlen steht IR18 auf 58 °C, bei
+    # 1500..2000 W waehrend der Warmwasserladung auf 72 °C — doppelte Leistung,
+    # 14 K kaelter. Das schliesst den Leistungsmodul-Kuehlkoerper aus.
+    # Heissgas ist es aber auch nicht: nach 60 Stopps faellt der Wert aus dem
+    # Kuehlbetrieb in 30 min nur 2..5 K und bleibt auf einem Plateau. Nur die
+    # warme Masse auf Druckgasbedingungen erklaert beide Haelften.
+    # Liefert trotz multiply 0.1 nur ganze Kelvin.
     name: "Verdichtertemperatur"
     address: 18
     register_type: read
@@ -444,8 +450,13 @@ sensor:
   - platform: modbus_controller
     modbus_controller_id: therma_v
     # Hiess bis 2026-07-30 "Heissgastemperatur" — falsch, siehe Kopf Punkt 3.
-    # Folgt in der stabilen Generation der Aussenluft mit Nachlauf
-    # (15,4 bei 15,2 aussen). UNBESTAETIGT.
+    # BELEGT seit 2026-08-08: der Aussenwaermetauscher, Kondensator im Kuehlen
+    # und Verdampfer im Heizen. Der Trenner ist das Vorzeichen gegen die
+    # Saettigungstemperaturen aus IR21/IR22 (unabhaengig gerechnet, kein
+    # Zirkel): im Kuehlen liegt IR11 +0,7 K ueber der Kondensation (1672 min),
+    # bei Warmwasser +5,2 K ueber der Verdampfung (622 min) und dabei 7,8 K
+    # UNTER der Aussenluft. Das Vorzeichen dreht mit der Betriebsrichtung —
+    # ein Fuehler am Lamellenblock, keiner in der Luft.
     name: "Wärmetauscher außen"
     address: 11
     register_type: read
@@ -556,6 +567,19 @@ sensor:
     # plausibel auf ~80 Hz wie auch auf ~100 %. Daher ohne Einheit.
     name: "Verdichterleistung Anforderung"
     # Momentanwert der Anforderung, kein Zaehler.
+    #
+    # DER NAME IST UEBERHOLT: seit 2026-08-08 belegt als DREHZAHL, nicht als
+    # Leistung. IR20 = 20 zieht bei Warmwasser 1690 W, IR20 = 30 im Kuehlen nur
+    # 1351 W — der niedrigere Wert steht fuer die hoehere Leistung, das kann
+    # keine Leistungsskala. Die frueher konstanten 45..54 W je Einheit gelten
+    # nur im Kuehlbetrieb; bei Warmwasser sind es 60..85. Ueber 1072 stabile
+    # Minuten: W / IR20 = 25,5 * Druckverhaeltnis + 0,6 (r = 0,932), also
+    # Leistung proportional zu Drehzahl mal Verdichtungsarbeit.
+    # Wertebereich 15..60; Hertz liegt nahe, ist aber nicht belegt.
+    #
+    # Der Name bleibt trotzdem stehen: eine Umbenennung aendert die Entity-ID
+    # und schneidet die Historie ab, wie schon bei CO3 und DI08 geschehen. Das
+    # Dashboard zeigt "Verdichterdrehzahl (IR20)" ueber den Anzeigenamen.
     state_class: measurement
     address: 20
     register_type: read
@@ -1371,6 +1395,13 @@ binary_sensor:
     # Der Name hiess bis zum 2026-07-31 "Verdichter Volllast". Das behauptete
     # mehr, als die Daten tragen: belegt ist eine hohe Stufe, nicht dass es
     # DIE hoechste ist - es koennte ebenso die zweite Ventilatorstufe sein.
+    #
+    # 2026-08-08: die Regel "zieht beim Takt-Hoechstwert von IR20 an" faellt.
+    # Ueber 63 Takte erreichen 32 ihren Hoechstwert ohne eine einzige
+    # DI08-Flanke - alle unter IR20 = 42. Ab 42 zieht DI08 in 25 von 31 Takten.
+    # Die Schwelle ist auf Taktebene notwendig, aber nicht hinreichend, und auf
+    # Zyklusebene gilt sie nicht: am 03.08. 19:33:43 kommt DI08 bei IR20 = 35
+    # und IR20 erreicht 42 erst danach. Die zweite Bedingung bleibt offen.
     name: "Verdichter hohe Stufe"
     address: 8
     register_type: discrete_input

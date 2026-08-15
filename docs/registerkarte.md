@@ -88,7 +88,7 @@ Regelung hängt.
 | IR15 | Wasser-Rücklauf | ×0,1 | Vorlauf > Rücklauf im Heizbetrieb, umgekehrt im Kühlbetrieb |
 | IR16 | Wasser-Vorlauf | ×0,1 | dito |
 | IR17 | **Sauggastemperatur** | ×0,1 | gegen die Sättigungstemperatur aus IR22 gerechnet: im **Stillstand** 5–8 K, bei **laufendem Verdichter** nur 1,2 K im Median (533 Werte, 30.07.–02.08.2026). Die ältere Angabe „durchgehend 5–8 K" stammte aus einer Stichprobe, die überwiegend Stillstand war. Der Momentanwert pendelt im Lauf zwischen −6,7 und +8,8 K, weil der Druck sofort folgt und der Fühler träge ist — auswertbar ist nur der gleitende Median. Wird negativ, was für Sauggas normal ist |
-| IR21 | **Hochdruck** | ×0,01 bar (Überdruck) | über eine Warmwasserladung deckt sich die Propan-Sättigungstemperatur mit dem Vorlauf auf unter 1,5 K, über sieben Punkte monoton mitlaufend |
+| IR21 | **Hochdruck** | ×0,01 bar (Überdruck) | über eine Warmwasserladung deckt sich die Propan-Sättigungstemperatur mit dem Vorlauf auf unter 1,5 K, über sieben Punkte monoton mitlaufend. Die Deckung ist um rund 1 K einseitig verschoben — siehe unten |
 | IR22 | **Niederdruck** | ×0,01 bar | im Stillstand praktisch gleich IR21 (Druckausgleich), im Betrieb weit darunter |
 | IR23 | **Scheinleistung** | VA | siehe unten |
 | IR24 | Raumtemperatur | ×0,1 | 205 bei „innen 20,5" |
@@ -102,7 +102,10 @@ Regelung hängt.
 | CO6 | Warmwasser-Freigabe, **schaltbar** | — | schaltet die Warmwasserbereitung nachweislich |
 | DI31 | Heizkreis 1, invertiert zu CO4 | — | on wenn HK1 aus, off wenn HK1 läuft |
 | **CO3** | **Außeneinheit in Betrieb** | — | rund 20 Flanken decken sich mit dem Verdichtermelder, überwiegend mit 5 s Abfrageversatz. Der Melder hängt an der Wirkleistung eines Shelly, der Beleg ist also nicht zirkulär |
-| **DI07** | **Drei-Minuten-Wiederanlaufsperre** | — | ruht auf `on` und fällt nach jedem Betriebsende ab, dreizehnmal exakt 3:00 min gemessen |
+| **DI07** | **Drei-Minuten-Wiederanlaufsperre** | — | ruht auf `on` und fällt nach jedem Betriebsende ab. 68 Abfallphasen vom 02.–08.08.2026: **61-mal exakt 180 s**, sechsmal 210 s (180 s plus ein Zyklus, Abtastartefakt), einmal 360 s |
+| **IR11 = IR19** | **Außenwärmetauscher** — Kondensator im Kühlen, Verdampfer im Heizen | ×0,1 | Vorzeichen dreht mit der Betriebsrichtung, und der Wert landet beide Male auf der passenden Sättigungstemperatur — siehe unten |
+| **IR18** | **Verdichtergehäuse, Hochdruckseite** | ×0,1, faktisch 1 K | folgt dem Hochdruck (r = +0,959), nicht der Wirkleistung (r = +0,689); hält im Stillstand ein Plateau — siehe unten |
+| **IR20** | **Verdichterdrehzahl** (Einheit offen, Hz naheliegend) | — | IR20 = 20 zieht bei Warmwasser 1690 W, IR20 = 30 im Kühlen nur 1351 W: eine Leistungsskala kann das nicht — siehe unten |
 | **DI09** | **Warmwasserbereitung** | — | deckt zwei Ladungen deckungsgleich ab und blieb in den Kühltakten des 31.07. aus, obwohl die Speichertemperatur genug schwankte, um eine rein temperaturbasierte Erkennung auszulösen |
 
 ### HR26 ist der Betriebsmodus, nicht die Regelungsart
@@ -192,24 +195,176 @@ Die rund 5 % Abweichung nach unten gegenüber der externen Messung bleibt offen.
 nimmt eine externe Wirkleistungsmessung — die interne Energiemessung der
 Therma V ist ohnehin als ungenau bekannt.
 
+### Das Messfenster vom August 2026
+
+Drei der folgenden Zuordnungen und zwei Korrekturen stammen aus einem
+zusammenhängenden Fenster: **02.08.2026 18:24 bis 08.08.2026 18:11, 8622
+Minuten, eine einzige Generation der Registerliste.** Der Anfang ist der Flash
+selbst, erkennbar an der Lücke aller Register-Entitäten.
+
+Zwei Dinge gehören zu diesem Fenster dazu, bevor man seine Zahlen mit den
+älteren vergleicht:
+
+**Die Zyklusdauer steht auf 30,0 s** (min 29,9 / max 30,1 über 17059 Werte),
+gesetzt durch `update_interval: 30s`. Alle Sekundenaussagen weiter oben stammen
+aus dem 19,5-s-Regime; Flankenversätze aus beiden Fenstern sind nicht
+vergleichbar, und eine gemessene Dauer trägt hier ±30 s.
+
+**HR26 stand sechs Tage auf 3 (Auto)**, CO4 durchgehend an, DI31 aus. Das
+Fenster enthält deshalb **keinen einzigen Vorlauf-Sollwert** — HR24 = 19,0 ist
+hier die Kurvenverschiebung 0, keine Temperatur. Die Gegenprobe zur
+Kurvenverschiebung (oben) bleibt damit offen.
+
+Der Bus war in diesen sechs Tagen sauber: kein verpasster Zyklus, kein Punkt
+ohne Antwort, keine Buswarnung.
+
+> **Zwei abgebrochene Verdichterstarts, je genau ein Zyklus lang** — am 03.08.
+> 01:52:11 (912 W) und am 08.08. 10:27:14 (574 W). Das ist kein Melderflackern:
+> die Wirkleistung des Shelly, CO3 und IR20 (Sprung auf 30, im nächsten Zyklus
+> zurück auf 0) zeigen es unabhängig voneinander. Sie gehen als 0,5-min-Takte in
+> `Kürzester Takt heute` ein und ziehen die Taktstatistik nach unten. Bei 30 s
+> Zyklus ist ein Takt dieser Länge nicht weiter auflösbar.
+
+### Der Vorlauf liegt bei Warmwasser rund 1 K über der Kondensation
+
+Der Beleg für IR21 = Hochdruck ist die Deckung von Kondensationstemperatur und
+Vorlauf über eine Warmwasserladung. Sie hält — aber sie ist einseitig
+verschoben. Über die 622 Warmwasserminuten des Augustfensters liegt die
+gerechnete Kondensation im Median 0,6 K **unter** dem Vorlauf, in 71,4 % der
+Minuten. Wasser kann den Kondensator nicht wärmer verlassen, als das
+Kältemittel kondensiert.
+
+**Ein Ablesversatz ist es nicht.** Der wäre dort am größten, wo der Vorlauf
+schnell steigt. Es ist umgekehrt:
+
+| Vorlauf | n | Median | Anteil negativ |
+|---|---|---|---|
+| steht (< 0,2 K/min) | 157 | **−0,98 K** | **98,1 %** |
+| steigt (> 0,3 K/min) | 438 | −0,15 K | 61,4 % |
+
+Gerade im ruhigen Zustand ist der Effekt am deutlichsten. Größenordnung
+Fühlertoleranz — aber weil an dieser Deckung ein Beleg hängt, lohnt der Blick
+auf die Umrechnung in `therma-v.yaml`: eine Propan-Dampfdrucktabelle mit
+**5-K-Stützstellen, linear interpoliert**. Zwei Kandidaten liegen in der
+richtigen Größenordnung: die lineare Sehne unter einer gekrümmten Kurve, und
+die Stützstellen selbst (21,30 / 23,60 / 26,00 bar bei 60/65/70 °C), die im
+Ladebereich gegen Propan-Referenzdaten zu prüfen wären — 0,5 bar zu hoch
+angesetzt ergibt bei 2,3 K/bar rund 1 K zu niedrige Kondensationstemperatur.
+Der Absolutdruck-Aufschlag ist unverdächtig: +1,0 statt 1,013 bar macht 0,03 K.
+
+Im Kühlbetrieb tritt das nicht auf; dort liegt die Kondensation 14,8 K über dem
+Rücklauf.
+
+### IR11 und IR19 sind der Außenwärmetauscher
+
+Die frühere Einordnung — „folgt der Außenluft mit Nachlauf" — stammt aus einem
+Fenster ohne Richtungswechsel. Der Trenner ist das Vorzeichen gegen die
+Sättigungstemperaturen aus IR21 und IR22. Die werden aus den Drücken gerechnet,
+nicht aus IR11: der Beleg ist nicht zirkulär.
+
+| Zustand | IR11 − Gerätefühler | IR11 − Kondensation | IR11 − Verdampfung |
+|---|---|---|---|
+| Kühlen, Verdichter läuft (1672 min) | +5,2 K | **+0,7 K** (p10 −0,0 / p90 +1,9) | +22,0 K |
+| Warmwasserladung (622 min) | −7,8 K | −39,2 K | **+5,2 K** (p10 +1,9 / p90 +11,0) |
+| Stillstand (6326 min) | +1,7 K | — | — |
+
+Im Kühlen ist der Außenwärmetauscher der Kondensator, bei der Warmwasserladung
+der Verdampfer. IR11 liegt beide Male auf der jeweils richtigen
+Sättigungstemperatur, und das Vorzeichen gegen die Außenluft dreht mit der
+Richtung mit. So verhält sich ein Fühler am Lamellenblock, nicht einer in der
+Luft.
+
+**Die Spiegelung hält.** Die 99,7 % byte-identisch von damals sind hier 85,8 %
+exakt gleich — der Grund ist nicht Drift, sondern Tempo: IR11 ändert sich im
+Kühlbetrieb um 0,5 K je Zyklus (90. Perzentil 1,5 K), und 95 % aller
+IR19-Werte finden im Fenster ±35 s einen IR11-Wert innerhalb von 0,5 K. Die
+Abweichung ist genau ein Abtastschritt.
+
+### IR18 ist das Verdichtergehäuse, nicht der Kühlkörper
+
+Von den beiden Kandidaten der alten Zeile trägt nur einer. Über 2294 Minuten
+Verdichterbetrieb:
+
+```
+r(IR18, Hochdruck)              = +0,959
+r(IR18, Kondensationstemperatur)= +0,958
+r(IR18, Verdichtungsverhältnis) = +0,910
+r(IR18, Wirkleistung)           = +0,689     <- deutlich schwächer
+r(IR18, Verdampfungstemperatur) = −0,122
+```
+
+Der Trenner ist derselbe Leistungsbereich in zwei Betriebsarten:
+
+| Betriebsart | Wirkleistung | IR18 | Kondensation | IR18 − Kondensation |
+|---|---|---|---|---|
+| Kühlen | 1500–2000 W | 51 °C | 37,4 °C | +12,2 K |
+| Warmwasser | 1500–2000 W | **72 °C** | 60,3 °C | +11,5 K |
+| Kühlen | 2600–3200 W | **58 °C** | 41,6 °C | +16,5 K |
+
+Bei doppelter elektrischer Leistung ist IR18 **14 K kälter** als während der
+Warmwasserladung. Ein Leistungsmodul-Kühlkörper kann das nicht — der folgt dem
+Strom. **Damit ist der Kühlkörper ausgeschlossen.**
+
+**Das Heißgas selbst ist es aber auch nicht.** Über 60 Verdichterstopps fällt
+IR18 aus dem Kühlbetrieb in 30 Minuten nur 2–5 K und bleibt dann auf einem
+Plateau 10–18 K über dem — selbst schon zu warmen — Gerätefühler stehen. Gas am
+Verdichteraustritt klingt auf Umgebung ab; eine warme Masse tut das nicht. Aus
+der Warmwasserladung fällt IR18 dagegen 20–40 K, weil das Gehäuse dort 30 K
+über seinem Ruheniveau war.
+
+Beide Hälften erklärt dieselbe Stelle: **das Gehäuse der Hochdruckseite.** Im
+Lauf liegt es auf Druckgasbedingungen — konstant 10–16 K über der
+Kondensationstemperatur über alle Betriebspunkte — und im Stillstand hält es
+seine Wärme.
+
+> **Auflösung:** IR18 liefert trotz `multiply: 0.1` nur ganze Kelvin; alle
+> Rohwerte sind Vielfache von 10. Wertebereich im Fenster 33–78 °C.
+
+### IR20 ist eine Drehzahl, keine Leistungsskala
+
+Die alte Zeile hielt 45–54 W Wirkleistung je Einheit für konstant. Das gilt nur
+im Kühlbetrieb:
+
+| Betriebsart | IR20 | Wirkleistung | W je Einheit | Druckverhältnis |
+|---|---|---|---|---|
+| Kühlen | 15 | 660 W | 44,0 | 1,75 |
+| Kühlen | 30 | 1351 W | 45,0 | 1,99 |
+| Kühlen | 42 | 2070 W | 49,3 | 2,28 |
+| Kühlen | 60 | 3013 W | 50,2 | 2,29 |
+| **Warmwasser** | **20** | **1690 W** | **84,5** | 3,07 |
+| Warmwasser | 36 | 2267 W | 63,0 | 2,92 |
+
+Der tragende Vergleich braucht keine Rechnung: **IR20 = 20 zieht bei
+Warmwasser 1690 W, IR20 = 30 im Kühlen nur 1351 W.** Der niedrigere Wert steht
+für die höhere Leistung — eine Leistungs- oder Kapazitätsskala kann das nicht.
+
+Konsistent damit, aber schwächer als es aussieht, der Fit über 1072 stabile
+Minuten: `W / IR20 = 25,5 · Druckverhältnis + 0,6` bei r = 0,932, also
+**Leistung ∝ IR20 × Druckverhältnis** — Massenstrom mal spezifische
+Verdichtungsarbeit, die Signatur einer Drehzahl. Das r ruht allerdings weit
+überwiegend auf zwei Druckverhältnis-Clustern (n = 590 um 1,75, n = 166 über
+3,0); der Achsenabschnitt nahe null ist Beiwerk, kein Beweis.
+
+Der Wertebereich ist 15–60. Dass 15 und 60 typische Eckfrequenzen eines
+Inverterverdichters sind, macht Hertz naheliegend, belegt es aber nicht. Was
+die alte Zeile schon sagte, bleibt: **kein Expansionsventil** — der Wert stand
+26 Minuten konstant, während die Sauggasüberhitzung von 0,6 auf 6,3 K wanderte.
+
 ## Unbelegt, aber eingegrenzt
 
 | Punkt | Stand |
 |---|---|
-| IR11 + IR19 | Zu 99,7 % byte-identisch, ein Register wird also gespiegelt. Folgen der Außenluft mit thermischem Nachlauf. **Nicht** die Heißgastemperatur, siehe Fallstrick unten |
 | IR14 | Eine Wassertemperatur, aber weder Vorlauf noch Rücklauf — siehe unten. Nicht der Heizstab (151 bei Bedienteil 174–181) |
-| IR18 | Liegt über neun Stunden Stillstand konstant 10–15 K über der Außenluft und sinkt mit ihr. Eine Verdichterfrequenz wäre dort 0. Passt zu Verdichtergehäuse (Kurbelwannenheizung) oder Leistungsmodul-Kühlkörper |
 | IR09 | Konstant 19 über 24 h — ein Kennwert, kein Messwert |
 | IR13 | Konstant 12000; das Bedienteil zeigt denselben Rohwert unter „Kältemittel" |
-| IR27 | Antwortet, steht im Stillstand auf 0 |
-| **IR10 = DI32** | Derselbe Zustand auf zwei Registertypen, siehe unten. Bisher nur mit den Werten 0 und 14 aufgetreten |
-| IR20 | **Folgt der Verdichterleistung** — Frequenz oder Kapazitätsanforderung, Einheit offen. Konstant sind 45–54 W Wirkleistung je Einheit über einen wechselnden Druckhub (15↔675 W, 20↔965, 30↔1354, 34↔1734, 42↔2074). Am 01.08.2026 kam **60↔2882 W** dazu: die Skala reicht weiter als 42. Kein Expansionsventil: der Wert stand 26 Minuten konstant, während die Sauggasüberhitzung von 0,6 auf 6,3 K wanderte, und über einen ganzen Takt ist die Überhitzung unkorreliert |
-| HR25, HR27, HR28 | Antworten, konstant 0 über 24 h |
-| DI06 | Bedeutung offen. **Im Kühlbetrieb kommt es nicht vor:** über 3268 Minuten vom 30.07. bis 01.08.2026 keine einzige Flanke, durchgehend `off`. Die frühere Notiz „wechselt" stammt aus dem Heizbetrieb |
-| DI08 | **Volllastanforderung des Verdichters** — siehe unten. Nicht das Anlaufen, und nicht belegbar die *höchste* Stufe. Deshalb hier und nicht in der Tabelle oben, und deshalb heißt der Datenpunkt seit dem 31.07.2026 „Verdichter hohe Stufe" statt „Verdichter Volllast" |
+| IR27 | Antwortet, konstant 0. Nicht mehr nur im Stillstand: über die 8622 Minuten vom 02.–08.08.2026 einschließlich Volllast (3013 W) und 19 Warmwasserladungen keine einzige Änderung |
+| **IR10 = DI32** | Derselbe Zustand auf zwei Registertypen, siehe unten. Bisher nur mit den Werten 0 und 14 aufgetreten. Im Fenster 02.–08.08.2026 **gar nicht** aufgetreten — passend zur Eingrenzung „nur bei HR26 = 0", denn HR26 stand dort durchgehend auf 3 |
+| HR25, HR27, HR28 | Antworten, konstant 0 — wie IR27 auch über die 8622 Minuten unter Last |
+| DI06 | Bedeutung offen, aber weiter eingegrenzt. **Im Kühlbetrieb kommt es nicht vor:** über 3268 Minuten vom 30.07. bis 01.08.2026 keine Flanke. **In der Warmwasserladung auch nicht:** 682 Minuten vom 02.–08.08.2026, kältemittelseitig Heizbetrieb, ebenfalls keine Flanke. Damit sind Kreisrichtung, Umschaltventil und Warmwasser ausgeschlossen; was bleibt, kommt nur im Raumheizbetrieb vor — die frühere Notiz „wechselt" stammt von dort |
+| DI08 | **Hohe Stufe des Verdichters**, an eine IR20-Schwelle gebunden — siehe unten. Nicht das Anlaufen, nicht das Takt-Maximum, und nicht belegbar die *höchste* Stufe. Deshalb hier und nicht in der Tabelle oben, und deshalb heißt der Datenpunkt seit dem 31.07.2026 „Verdichter hohe Stufe" statt „Verdichter Volllast" |
 | CO5 | Antwortet. Bedeutung offen, siehe Warnung unten |
 | DI32 | Antwortet, erst durch Einzelabfrage gefunden. Bedeutung offen — und identisch mit IR10, siehe die Zeile dort |
-| CO29, CO30 | Antworten, liegen weit außerhalb des gescannten Bereichs. Über 3268 Minuten konstant `off`, Bedeutung offen. **Nur lesend eingebunden**, aus demselben Grund wie CO5 |
+| CO29, CO30 | Antworten, liegen weit außerhalb des gescannten Bereichs. Über 3268 Minuten der ersten Messreihe und weitere 8622 Minuten im August konstant `off`, Bedeutung offen. **Nur lesend eingebunden**, aus demselben Grund wie CO5 |
 | CO4 | Antwortet, erst durch Einzelabfrage gefunden. **Nur lesend eingebunden** — in LGs offizieller Karte liegt hier Notaus/Notbetrieb |
 
 ### IR14 ist Wasser, aber weder Vorlauf noch Rücklauf
@@ -250,6 +405,20 @@ Perzentil: IR14 **6,2 K**, Vorlauf 1,4 K, Rücklauf 0,6 K. So verhält sich ein
 Fühler an einer Stelle mit wechselnder Durchströmung, nicht einer im
 durchströmten Hauptkreis.
 
+Das Fenster vom August bestätigt beides auf der fünffachen Datenmenge, mit
+einer Abschwächung im Kühlbetrieb:
+
+| Lage | IR14 − Vorlauf | IR14 − Rücklauf |
+|---|---|---|
+| Kühlen, Verdichter (1672 min) | +0,4 K *(statt +2,4)* | −2,8 K |
+| Warmwasserladung (622 min) | −1,7 K | +3,6 K |
+| Stillstand (6326 min) | +0,4 K | +0,4 K |
+
+Die Richtung stimmt weiter — IR14 liegt in beiden Betriebsarten zwischen den
+Fühlern und rückt zum Rücklauf hin —, im Kühlen aber deutlich näher am Vorlauf
+als in der ersten Messreihe. Unruhe und Bereich bestätigen sich: 5,0 K je
+Minute gegen 1,3 K am Vorlauf und 0,4 K am Rücklauf, Wertebereich 8,1–68,3 °C.
+
 ### IR10 und DI32 sind derselbe Zustand
 
 Beide standen getrennt als unbelegt in der Liste. Über 3264 gemeinsame Minuten
@@ -283,7 +452,7 @@ Verdichterbetrieb abgeschaltet (1215 W in der Minute davor), in den beiden
 anderen Fällen aus dem reinen Pumpenbetrieb (96 W). Zwei Fälle gegen einen tragen
 das nicht.
 
-### DI08 ist die Volllastanforderung, nicht das Anlaufen
+### DI08 ist eine hohe Stufe, nicht das Anlaufen
 
 Naheliegend war, DI08 als Anlauf mit voller Leistung zu lesen — der Verdichter
 fährt zu Taktbeginn hoch und regelt zurück. Über die 23 Takte vom 31.07. 11:50
@@ -301,18 +470,46 @@ bis 01.08. 15:50 hält das nicht:
 In drei von sechs Fällen kommt DI08 in den ersten drei Minuten — daher der
 Eindruck. In den anderen dreien nach 9, 14 und 60 Minuten.
 
-Was in allen sechs Fällen gilt: **DI08 zieht in der Minute an, in der IR20 seinen
-Höchstwert des Takts erreicht, und fällt, wenn IR20 zurückgeht.** In diesem
-Fenster gibt es keinen Takt mit IR20 ≥ 42 und DI08 aus, bis auf eine Minute
-Abtastversatz am 31.07. 22:39.
-
 Die Wirkleistung trennt schlechter als die Anforderung: DI08 an hat ein Minimum
 von 1779 W, DI08 aus erreicht im selben Fenster 2535 W. Die Stufe hängt an dem,
 was angefordert wird, nicht an dem, was ankommt.
 
-Dass es die *höchste* Stufe ist, bleibt unbelegt — und der neue IR20-Höchstwert
-schwächt es weiter ab: DI08 war bei IR20 = 60 an, fiel aber schon beim Rückgang
-auf 52 wieder ab.
+#### Es ist nicht das Takt-Maximum, sondern eine feste Schwelle
+
+Aus demselben Fenster stammte die Regel „DI08 zieht in der Minute an, in der
+IR20 seinen Höchstwert des Takts erreicht". Die 63 Takte vom 02.–08.08.2026
+tragen sie nicht:
+
+| IR20-Höchstwert des Takts | Takte | davon mit DI08 |
+|---|---|---|
+| ≤ 34 | 15 | **0** |
+| 35–41 | 17 | **0** |
+| 42–49 | 11 | 6 |
+| 50–60 | 20 | 19 |
+
+**32 Takte erreichen ihren Höchstwert, ohne dass DI08 ein einziges Mal
+anzieht** — alle unter 42. Im alten Fenster fiel „Höchstwert des Takts" mit
+„≥ 42" zusammen, weil es dort nur Takte mit 42 und 60 gab; erst die niedrigen
+Takte trennen die beiden Regeln.
+
+Hinreichend ist die Schwelle nicht: vier Takte mit einem Höchstwert von 42
+bzw. 52 bleiben stumm. **Notwendig ist sie auf Taktebene ausnahmslos.**
+
+Auf Zyklusebene gilt sie nicht — und das ist die eigentliche Spur. Von den 30
+Anziehvorgängen kommen vier bei gleichzeitigem IR20 = 35…37, darunter die
+beiden längsten Phasen (600 s und 1320 s). Am 03.08. 19:33:43 zieht DI08 bei
+IR20 = 35 an, **und IR20 erreicht 42 erst danach.** DI08 läuft der Anforderung
+dort voraus. Der Versuch, DI08 als nachlaufenden Melder zu lesen, scheitert
+entsprechend: weder die Wirkleistung noch die aus W/Druckverhältnis geschätzte
+Ist-Frequenz erkennt mehr als ein Drittel der Impulse.
+
+Dass es die *höchste* Stufe ist, bleibt unbelegt. Was die zweite Bedingung
+neben der Schwelle ist, ebenfalls.
+
+> **Auf 30-s-Zyklen achten, wer das nachrechnet.** Die Hälfte der 30
+> Anziehvorgänge dauert genau einen Zyklus. Eine Auswertung auf Minutenraster
+> verschluckt sie und zählt die betroffenen Takte fälschlich als „DI08 nie an" —
+> die Tabelle oben entstand deshalb aus den Rohwerten, nicht aus dem Raster.
 
 > **CO3 und DI08 haben ein kürzeres Fenster als der Rest.** Beide wurden am
 > 31.07.2026 umbenannt, ihre Historie davor liegt in Home Assistant unter den
@@ -350,6 +547,12 @@ dieser Auswertung ein: Monate schöner Kurven, die verschiedene Regime mischen.
 
 Wer einen Punkt deutet, gibt ihm dabei seine Zustandsklasse — und hat dann
 bewusst entschieden, ab wann die Historie gilt.
+
+IR11, IR19, IR18 und IR20 tragen ihre Zustandsklasse seit jeher, weil sie als
+Messwerte eingebunden waren, bevor ihre Bedeutung feststand. Mit den Belegen
+oben ist das nachträglich richtig geworden — ihre Historie mischt aber
+Generationen, und für IR11 ist genau das dokumentiert (Fallstrick 1).
+Auswertbar ist sie ab dem Flash vom 02.08.2026 18:24.
 
 ## Zwei Fallstricke, die echte Fehldeutungen erzeugt haben
 

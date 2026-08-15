@@ -392,7 +392,7 @@ sections:
     name: Startbereit
   - type: tile
     entity: binary_sensor.heizungskeller_warmepumpe_modbus_verdichter_hohe_stufe
-    name: Hohe Stufe
+    name: Hohe Stufe (DI08, ab IR20 42)
   - type: tile
     entity: sensor.heizungskeller_warmepumpe_modbus_verdichterstarts_heute
     name: Starts heute
@@ -431,8 +431,9 @@ sections:
 
 
       **Startbereit** ist die Drei-Minuten-Wiedereinschaltsperre: nach jedem Betriebsende fällt sie für
-      exakt 3:00 min ab. Steht sie auf aus, verpufft ein Startbefehl. **Hohe Stufe** meldet eine hohe Laststufe,
-      gemessen 2035 bis 2519 W; der Verdichter arbeitet auch darunter. Ob es die höchste ist, ist nicht belegt.'
+      exakt 3:00 min ab (61 von 68 Phasen exakt so). Steht sie auf aus, verpufft ein Startbefehl. **Hohe Stufe**
+      folgt einer Schwelle bei IR20 = 42: von 63 Takten erreichten 32 ihren Höchstwert darunter, ohne dass sie
+      auch nur einmal anzog. Ob es die höchste Stufe ist, ist nicht belegt.'
 - type: grid
   cards:
   - type: heading
@@ -608,7 +609,9 @@ sections:
 
 
       *Rohwert ist Überdruck in Hundertstel bar; für die Sättigungstemperatur wird 1 bar addiert und die
-      Propan-Dampfdruckkurve interpoliert.*'
+      Propan-Dampfdruckkurve über 5-K-Stützstellen interpoliert. Die gerechnete Kondensation liegt dadurch bei
+      Warmwasserladung rund 1 K zu niedrig — in 98 % der Minuten mit ruhendem Vorlauf unter dem Vorlauf, was
+      physikalisch nicht geht.*'
 - type: grid
   cards:
   - type: heading
@@ -950,36 +953,40 @@ sections:
     title: Ohne bekannte Bedeutung
     entities:
     - entity: sensor.heizungskeller_warmepumpe_modbus_ir10_unbestimmt
+      name: IR10 — offen, identisch mit DI32
     - entity: sensor.heizungskeller_warmepumpe_modbus_ir27_unbestimmt
     - entity: sensor.heizungskeller_warmepumpe_modbus_hr25_unbestimmt
     - entity: sensor.heizungskeller_warmepumpe_modbus_hr27_unbestimmt
     - entity: sensor.heizungskeller_warmepumpe_modbus_hr28_unbestimmt
   - type: entities
-    title: Eingegrenzt, aber unbestätigt
+    title: Seit 08.08.2026 belegt
     entities:
     - entity: sensor.heizungskeller_warmepumpe_modbus_verdichterleistung_anforderung
-      name: Verdichterleistung, Anforderung (IR20)
+      name: Verdichterdrehzahl (IR20)
+    - entity: sensor.heizungskeller_warmepumpe_modbus_verdichtertemperatur
+      name: Verdichtergehäuse (IR18)
+    - entity: sensor.heizungskeller_warmepumpe_modbus_warmetauscher_aussen
+      name: Außenwärmetauscher (IR11)
+    - entity: sensor.heizungskeller_warmepumpe_modbus_warmetauscher_aussen_spiegelregister
+      name: Außenwärmetauscher, Spiegel (IR19)
+  - type: entities
+    title: Offen oder nur eingegrenzt
+    entities:
     - entity: sensor.heizungskeller_warmepumpe_modbus_wassertemperatur_unbestimmt
       name: Wassertemperatur (IR14)
-    - entity: sensor.heizungskeller_warmepumpe_modbus_verdichtertemperatur
-      name: Verdichtertemperatur (IR18)
-    - entity: sensor.heizungskeller_warmepumpe_modbus_warmetauscher_aussen
-      name: Wärmetauscher außen (IR11)
-    - entity: sensor.heizungskeller_warmepumpe_modbus_warmetauscher_aussen_spiegelregister
-      name: Spiegel (IR19)
     - entity: sensor.heizungskeller_warmepumpe_modbus_ir09_kennwert
       name: Kennwert (IR09, konstant)
     - entity: sensor.heizungskeller_warmepumpe_modbus_kennwert_kaltemittel
       name: Kennwert Kältemittel (IR13, konstant)
   - type: tile
     entity: sensor.heizungskeller_warmepumpe_modbus_verdichterleistung_anforderung
-    name: Verdichterleistung, Anforderung (IR20)
-    icon: mdi:valve
+    name: Verdichterdrehzahl (IR20)
+    icon: mdi:speedometer
     features:
     - type: trend-graph
   - type: tile
     entity: sensor.heizungskeller_warmepumpe_modbus_verdichtertemperatur
-    name: Verdichtertemperatur (IR18)
+    name: Verdichtergehäuse (IR18)
     icon: mdi:thermometer-high
     features:
     - type: trend-graph
@@ -991,10 +998,11 @@ sections:
     - entity: binary_sensor.heizungskeller_warmepumpe_modbus_heizkreis_1_invers
       name: Heizkreis 1 invers (DI31)
     - entity: binary_sensor.heizungskeller_warmepumpe_modbus_di06_unbestimmt
+      name: DI06 — offen, nur im Raumheizbetrieb
     - entity: binary_sensor.heizungskeller_warmepumpe_modbus_di09_warmwasserbereitung
       name: DI09 — Warmwasserbereitung
     - entity: binary_sensor.heizungskeller_warmepumpe_modbus_di32_unbestimmt
-      name: DI32 — Einzelscan-Fund
+      name: DI32 — offen, identisch mit IR10
     - entity: binary_sensor.heizungskeller_warmepumpe_modbus_ausseneinheit_in_betrieb
       name: CO3 — Außeneinheit in Betrieb
     - entity: binary_sensor.heizungskeller_warmepumpe_modbus_co5_unbestimmt_nur_anzeige
