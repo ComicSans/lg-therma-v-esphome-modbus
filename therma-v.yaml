@@ -1402,6 +1402,18 @@ binary_sensor:
     # Die Schwelle ist auf Taktebene notwendig, aber nicht hinreichend, und auf
     # Zyklusebene gilt sie nicht: am 03.08. 19:33:43 kommt DI08 bei IR20 = 35
     # und IR20 erreicht 42 erst danach. Die zweite Bedingung bleibt offen.
+    #
+    # 2026-08-16: es gibt keine zweite Bedingung. DI08 IST IR20 = 60, also die
+    # HOECHSTE Stufe. Ueber 56 Takte vom 07.-16.08. erreichen alle 22 Takte mit
+    # DI08 den Wert 60, alle 34 ohne bleiben bei hoechstens 55. Auf Impulsebene
+    # stehen 27 IR20-60-Phasen gegen 27 DI08-Impulse, keiner ohne Gegenstueck,
+    # und der Versatz betraegt ausschliesslich -14 s oder +16 s: die beiden
+    # Register werden 14 s auseinander im selben 30-s-Zyklus gelesen. Genau
+    # daraus entstand der Eindruck, DI08 laufe der Anforderung voraus.
+    #
+    # Der Name bleibt trotzdem "Verdichter hohe Stufe": eine Umbenennung aendert
+    # die Entity-ID und schneidet die Historie ab, wie schon bei CO3 und DI08
+    # selbst geschehen.
     name: "Verdichter hohe Stufe"
     address: 8
     register_type: discrete_input
@@ -2703,9 +2715,16 @@ interval:
     then:
       - lambda: |-
           static const float T[] = {-20,-10,0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80};
-          static const float P[] = {2.45f,3.45f,4.74f,5.51f,6.35f,7.30f,8.36f,9.52f,10.80f,
-                                    12.20f,13.70f,15.40f,17.20f,19.20f,21.30f,23.60f,26.00f,
-                                    28.60f,31.40f};
+          // Stuetzstellen am 2026-08-16 gegen CoolProp (R290) nachgerechnet und
+          // korrigiert. Die alten Werte lagen ab 45 °C bis zu 0,17 bar zu hoch
+          // und ergaben eine um 0,2..0,4 K ZU NIEDRIGE Kondensationstemperatur —
+          // ein Drittel der Deckungsluecke, wegen der die Kondensation im
+          // Warmwasserbetrieb unter dem Vorlauf lag (siehe registerkarte.md).
+          // Die lineare Interpolation selbst kostet nur 0,01..0,05 K; Propan ist
+          // ueber 5 K so gerade, dass die Sehne nicht ins Gewicht faellt.
+          static const float P[] = {2.45f,3.45f,4.74f,5.51f,6.37f,7.32f,8.36f,9.52f,10.79f,
+                                    12.18f,13.69f,15.34f,17.13f,19.07f,21.17f,23.43f,25.87f,
+                                    28.49f,31.32f};
           static const int N = 19;
 
           // Registerwert ist Ueberdruck in bar; +1 bar ergibt den Absolutdruck.

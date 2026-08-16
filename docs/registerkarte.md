@@ -106,6 +106,7 @@ Regelung hängt.
 | **IR11 = IR19** | **Außenwärmetauscher** — Kondensator im Kühlen, Verdampfer im Heizen | ×0,1 | Vorzeichen dreht mit der Betriebsrichtung, und der Wert landet beide Male auf der passenden Sättigungstemperatur — siehe unten |
 | **IR18** | **Verdichtergehäuse, Hochdruckseite** | ×0,1, faktisch 1 K | folgt dem Hochdruck (r = +0,959), nicht der Wirkleistung (r = +0,689); hält im Stillstand ein Plateau — siehe unten |
 | **IR20** | **Verdichterdrehzahl** (Einheit offen, Hz naheliegend) | — | IR20 = 20 zieht bei Warmwasser 1690 W, IR20 = 30 im Kühlen nur 1351 W: eine Leistungsskala kann das nicht — siehe unten |
+| **DI08** | **Höchste Verdichterstufe** — deckungsgleich mit IR20 = 60 | — | 56 Takte vom 07.–16.08.2026: alle 22 Takte mit DI08 erreichen 60, alle 34 ohne bleiben bei ≤ 55. Auf Impulsebene 27 IR20-60-Phasen gegen 27 DI08-Impulse, keiner ohne Gegenstück, Versatz ausschließlich ±½ Zyklus — siehe unten |
 | **DI09** | **Warmwasserbereitung** | — | deckt zwei Ladungen deckungsgleich ab und blieb in den Kühltakten des 31.07. aus, obwohl die Speichertemperatur genug schwankte, um eine rein temperaturbasierte Erkennung auszulösen |
 
 ### HR26 ist der Betriebsmodus, nicht die Regelungsart
@@ -225,6 +226,58 @@ ohne Antwort, keine Buswarnung.
 > `Kürzester Takt heute` ein und ziehen die Taktstatistik nach unten. Bei 30 s
 > Zyklus ist ein Takt dieser Länge nicht weiter auflösbar.
 
+### Das zweite Messfenster: 07.–16.08.2026
+
+**07.08.2026 00:00 bis 16.08.2026 08:13, 9,34 Tage, 26591 Zyklen.** Dieselbe
+Generation der Registerliste wie das erste Augustfenster: Die Änderung vom
+15.08. an `therma-v.yaml` betraf ausschließlich Kommentare, kein Register kam
+hinzu, keines fiel weg — die Blockbildung von ESPHome ist damit unverändert.
+
+Der Anfang ist keine Wahl, sondern die Wand: **weiter zurück reicht der
+Recorder nicht.** Die Zahlen des ersten Fensters (02.–08.08.) lassen sich
+deshalb nicht nachrechnen, nur fortschreiben.
+
+**Vier Abfragelücken, zusammen 6,5 Minuten** (0,05 % des Fensters): dreimal
+90 s, einmal 120 s, am 08.08. 23:14, 11.08. 21:59, 15.08. 19:18 und 16.08.
+00:01. Das sind zwei bis drei ausgefallene Zyklen je Lücke; alles darunter
+liegt im Rahmen. Der Bus war also nicht ganz so makellos wie im ersten Fenster
+(„kein verpasster Zyklus"), aber ohne erkennbare Häufung.
+
+> **Acht `unavailable`-Marken sind KEINE Lücken.** Alle 106 Entitäten gingen
+> achtmal gemeinsam auf `unavailable` und im selben oder nächsten Sekundenschlag
+> wieder zurück — Home-Assistant-Neustarts, nicht Geräteausfälle. Der Beleg ist
+> die Zyklusreihe der Firmware: an keinem dieser acht Zeitpunkte steht dort eine
+> Lücke, der ESP hat durchgehend weitergefragt. Wer sie trotzdem als Ausfall
+> zählt, zerschneidet Phasen — siehe DI07 unten.
+
+**Die offenen Punkte sind über 9,34 Tage unverändert geblieben.** Keine einzige
+Flanke, kein einziger anderer Wert: IR09 = 19, IR13 = 12000, IR27 = 0,
+HR25/27/28 = 0, IR10 = 0, DI32 `off`, CO5 `off`, CO29 `off`, CO30 `off`,
+**DI06 `off`**. Für IR10/DI32 und DI06 ist das die erwartete Bestätigung —
+HR26 stand die ganze Zeit auf 3 (Auto), CO4 durchgehend an, und geheizt wurde
+im August nicht. Für IR27 und HR25/27/28 ist es die dritte Messreihe in Folge
+ohne Regung.
+
+**Die Gegenprobe zur Kurvenverschiebung bleibt offen und ist es auch weiter.**
+HR26 hat das Fenster nie verlassen, die Number „Heizkurven-Verschiebung" stand
+durchgehend auf 0, HR24 durchgehend auf 19,0. Diese Frage schließt keine
+Wartezeit — sie braucht eine Bedienung am Bedienteil.
+
+**56 Takte, 66 Wiederanlaufsperren, 27 Phasen auf der höchsten Stufe.** Die
+Auswertung von DI08 daraus steht weiter unten.
+
+### DI07: 180 s halten auch über 9 Tage
+
+65 Abfallphasen der Wiederanlaufsperre, Lücken herausgerechnet: **64-mal exakt
+180 s**, einmal 210 s (11.08. 08:43, unmittelbar nach einem abgebrochenen
+Verdichterstart). Zusammen mit den 68 Phasen des ersten Fensters sind das 133
+gemessene Sperrzeiten, davon 125 auf die Sekunde bei 180 s.
+
+> **Eine 66. Phase war keine.** Am 12.08. 08:27:18 begann eine Sperre, die auf
+> 44 s und 135 s aufgeteilt in der Historie steht — dazwischen liegt der
+> Home-Assistant-Neustart um 08:28:02. 44 + 1 + 135 = 180. Wer solche Marken
+> nicht zusammenführt, erfindet kurze Sperrzeiten und Takte, die es nie gab.
+
 ### Der Vorlauf liegt bei Warmwasser rund 1 K über der Kondensation
 
 Der Beleg für IR21 = Hochdruck ist die Deckung von Kondensationstemperatur und
@@ -243,14 +296,52 @@ schnell steigt. Es ist umgekehrt:
 | steigt (> 0,3 K/min) | 438 | −0,15 K | 61,4 % |
 
 Gerade im ruhigen Zustand ist der Effekt am deutlichsten. Größenordnung
-Fühlertoleranz — aber weil an dieser Deckung ein Beleg hängt, lohnt der Blick
+Fühlertoleranz — aber weil an dieser Deckung ein Beleg hängt, lohnte der Blick
 auf die Umrechnung in `therma-v.yaml`: eine Propan-Dampfdrucktabelle mit
-**5-K-Stützstellen, linear interpoliert**. Zwei Kandidaten liegen in der
-richtigen Größenordnung: die lineare Sehne unter einer gekrümmten Kurve, und
-die Stützstellen selbst (21,30 / 23,60 / 26,00 bar bei 60/65/70 °C), die im
-Ladebereich gegen Propan-Referenzdaten zu prüfen wären — 0,5 bar zu hoch
-angesetzt ergibt bei 2,3 K/bar rund 1 K zu niedrige Kondensationstemperatur.
-Der Absolutdruck-Aufschlag ist unverdächtig: +1,0 statt 1,013 bar macht 0,03 K.
+**5-K-Stützstellen, linear interpoliert**. Zwei Kandidaten standen im Raum, die
+lineare Sehne unter einer gekrümmten Kurve und die Stützstellen selbst. Am
+16.08.2026 gegen CoolProp (R290-Zustandsgleichung) nachgerechnet:
+
+| Kandidat | Beitrag zur Kondensationstemperatur |
+|---|---|
+| Sehne unter der Kurve | **−0,01 bis −0,05 K** — vernachlässigbar |
+| Stützstellen zu hoch | **−0,20 bis −0,38 K** im Ladebereich (17–26 bar abs.) |
+| Absolutdruck +1,0 statt 1,013 bar | −0,03 K |
+
+**Die Sehne ist damit ausgeschlossen** — Propan ist über 5 K so gerade, dass
+die Interpolation nichts kostet. Die Stützstellen dagegen liegen ab 45 °C
+systematisch zu hoch, im Maximum 0,17 bar bei 65 °C:
+
+| °C | Tabelle | CoolProp | Fehler in K |
+|---|---|---|---|
+| 45 | 15,40 | 15,34 | −0,17 |
+| 50 | 17,20 | 17,13 | −0,18 |
+| 55 | 19,20 | 19,07 | −0,32 |
+| 60 | 21,30 | 21,17 | −0,30 |
+| 65 | 23,60 | 23,43 | −0,36 |
+| 70 | 26,00 | 25,87 | −0,26 |
+
+Die frühere Schätzung „0,5 bar zu hoch ergäbe rund 1 K" trifft die
+Größenordnung nicht: Die Abweichung ist 0,06 bis 0,17 bar und ergibt 0,2 bis
+0,4 K. **Damit ist rund ein Drittel der gemessenen −0,98 K erklärt**; die
+restlichen gut 0,6 K bleiben offen und liegen im Bereich der Toleranz von
+Vorlauffühler und Druckaufnehmer.
+
+> **Korrigiert im Repo, noch nicht am Gerät.** `therma-v.yaml` trägt die
+> CoolProp-Werte seit dem 16.08.2026; wirksam werden sie mit dem nächsten
+> Flash. Alle Zahlen dieser Karte, die eine Kondensations- oder
+> Verdampfungstemperatur enthalten, stammen aus der Zeit davor.
+>
+> **Und der Flash ist ein Regimewechsel für vier abgeleitete Größen.** Die
+> Registerliste bleibt unberührt, die Blockbildung also auch — aber
+> Kondensation, Verdampfung, Überhitzung und Temperaturhub werden *gerechnet*,
+> tragen eine Zustandsklasse und springen mit dem Flash: **Kondensation und
+> Temperaturhub um +0,2 bis +0,4 K** im Ladebereich, Verdampfung und
+> Überhitzung um höchstens 0,1 K. Wer Zeitreihen über den Flash hinweg
+> auswertet, mischt zwei Umrechnungen — siehe Fallstrick 2. Betroffen sind
+> insbesondere die Näherungszahlen weiter oben: IR11 +0,7 K über der
+> Kondensation im Kühlen, IR18 10–16 K über der Kondensation, Kondensation
+> 14,8 K über dem Rücklauf im Kühlbetrieb.
 
 Im Kühlbetrieb tritt das nicht auf; dort liegt die Kondensation 14,8 K über dem
 Rücklauf.
@@ -361,7 +452,6 @@ die alte Zeile schon sagte, bleibt: **kein Expansionsventil** — der Wert stand
 | **IR10 = DI32** | Derselbe Zustand auf zwei Registertypen, siehe unten. Bisher nur mit den Werten 0 und 14 aufgetreten. Im Fenster 02.–08.08.2026 **gar nicht** aufgetreten — passend zur Eingrenzung „nur bei HR26 = 0", denn HR26 stand dort durchgehend auf 3 |
 | HR25, HR27, HR28 | Antworten, konstant 0 — wie IR27 auch über die 8622 Minuten unter Last |
 | DI06 | Bedeutung offen, aber weiter eingegrenzt. **Im Kühlbetrieb kommt es nicht vor:** über 3268 Minuten vom 30.07. bis 01.08.2026 keine Flanke. **In der Warmwasserladung auch nicht:** 682 Minuten vom 02.–08.08.2026, kältemittelseitig Heizbetrieb, ebenfalls keine Flanke. Damit sind Kreisrichtung, Umschaltventil und Warmwasser ausgeschlossen; was bleibt, kommt nur im Raumheizbetrieb vor — die frühere Notiz „wechselt" stammt von dort |
-| DI08 | **Hohe Stufe des Verdichters**, an eine IR20-Schwelle gebunden — siehe unten. Nicht das Anlaufen, nicht das Takt-Maximum, und nicht belegbar die *höchste* Stufe. Deshalb hier und nicht in der Tabelle oben, und deshalb heißt der Datenpunkt seit dem 31.07.2026 „Verdichter hohe Stufe" statt „Verdichter Volllast" |
 | CO5 | Antwortet. Bedeutung offen, siehe Warnung unten |
 | DI32 | Antwortet, erst durch Einzelabfrage gefunden. Bedeutung offen — und identisch mit IR10, siehe die Zeile dort |
 | CO29, CO30 | Antworten, liegen weit außerhalb des gescannten Bereichs. Über 3268 Minuten der ersten Messreihe und weitere 8622 Minuten im August konstant `off`, Bedeutung offen. **Nur lesend eingebunden**, aus demselben Grund wie CO5 |
@@ -503,8 +593,54 @@ dort voraus. Der Versuch, DI08 als nachlaufenden Melder zu lesen, scheitert
 entsprechend: weder die Wirkleistung noch die aus W/Druckverhältnis geschätzte
 Ist-Frequenz erkennt mehr als ein Drittel der Impulse.
 
-Dass es die *höchste* Stufe ist, bleibt unbelegt. Was die zweite Bedingung
-neben der Schwelle ist, ebenfalls.
+#### Die zweite Bedingung gibt es nicht: DI08 ist IR20 = 60
+
+Das zweite Augustfenster (07.–16.08.2026, siehe unten) löst beides auf. Über
+seine 56 Takte trennt der Höchstwert von IR20 vollständig:
+
+| | Takte | IR20max min | IR20max max |
+|---|---|---|---|
+| mit DI08 | 22 | **60** | **60** |
+| ohne DI08 | 34 | 0 | **55** |
+
+**Jeder Takt mit DI08 erreicht 60, kein Takt ohne DI08 kommt über 55** — und
+darunter liegen Takte mit 55, 55, 52, 51, 49, 47, 47, 45 und 44, also genau die
+Fälle, die die alte Schwelle „≥ 42" hätten auslösen müssen.
+
+Die Gegenprobe auf Impulsebene macht es endgültig. Im Fenster liegen **27
+Phasen mit IR20 ≥ 60 und 27 DI08-Impulse**:
+
+- keine einzige IR20-60-Phase ohne DI08-Impuls,
+- kein einziger DI08-Impuls ohne IR20-60-Phase,
+- der Versatz beträgt **ausschließlich −14 s oder +16 s**, nie etwas dazwischen,
+- in 21 der 27 Paare ist die Dauer beider Phasen gleich (±1 Zyklus).
+
+Die beiden Versatzwerte sind die Erklärung für alles, was vorher wie ein
+Vorlauf aussah: −14 und +16 ergeben zusammen die 30 s des Abfragezyklus. DI08
+und IR20 werden **14 s auseinander im selben Zyklus** gelesen. Fällt die Flanke
+zwischen die beiden Lesungen, meldet DI08 sie 14 s früher; fällt sie davor,
+holt DI08 sie erst im nächsten Zyklus nach, 16 s später. Am 11.08. 11:29:18
+zieht DI08 bei gelesenem IR20 = 41 an, und 14 s später steht IR20 auf 60 — das
+ist derselbe Zyklus, nicht ein Vorlauf. Der Fall vom 03.08. 19:33:43 („DI08 bei
+IR20 = 35, 42 erst danach") ist mit hoher Wahrscheinlichkeit dasselbe Artefakt;
+nachrechnen lässt er sich nicht mehr, seine Rohwerte sind aus dem Recorder
+gefallen.
+
+Damit ist auch die offene Frage aus der Überschrift beantwortet — und die
+Obergrenze ist gemessen, nicht angenommen. Über die 859 IR20-Werte des Fensters
+steht das Maximum auf **exakt 60**, und die Verteilung stapelt sich dort:
+einmal 59, zweimal 58, achtmal 55 — aber **27-mal 60**. So sieht ein Anschlag
+aus, nicht ein Ausläufer. **DI08 ist die höchste Stufe.**
+
+Praktisch folgt daraus, dass **DI08 nichts trägt, was nicht schon in IR20
+steht.** Der Melder ist redundant. Er bleibt eingebunden, weil er als eigener
+Registertyp die Lesart von IR20 unabhängig bestätigt — als Informationsquelle
+ist er verzichtbar.
+
+> **Der Datenpunkt heißt trotzdem weiter „Verdichter hohe Stufe".** Eine
+> Umbenennung ändert die Entity-ID und schneidet die Historie ab — dieselbe
+> Abwägung wie bei IR20, wo der überholte Name „Verdichterleistung
+> Anforderung" aus genau diesem Grund stehen bleibt.
 
 > **Auf 30-s-Zyklen achten, wer das nachrechnet.** Die Hälfte der 30
 > Anziehvorgänge dauert genau einen Zyklus. Eine Auswertung auf Minutenraster

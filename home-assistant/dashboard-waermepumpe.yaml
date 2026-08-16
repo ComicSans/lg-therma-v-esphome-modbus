@@ -392,7 +392,7 @@ sections:
     name: Startbereit
   - type: tile
     entity: binary_sensor.heizungskeller_warmepumpe_modbus_verdichter_hohe_stufe
-    name: Hohe Stufe (DI08, ab IR20 42)
+    name: Höchste Stufe (DI08 = IR20 60)
   - type: tile
     entity: sensor.heizungskeller_warmepumpe_modbus_verdichterstarts_heute
     name: Starts heute
