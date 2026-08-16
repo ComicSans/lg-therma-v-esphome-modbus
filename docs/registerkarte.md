@@ -327,10 +327,15 @@ Größenordnung nicht: Die Abweichung ist 0,06 bis 0,17 bar und ergibt 0,2 bis
 restlichen gut 0,6 K bleiben offen und liegen im Bereich der Toleranz von
 Vorlauffühler und Druckaufnehmer.
 
-> **Korrigiert im Repo, noch nicht am Gerät.** `therma-v.yaml` trägt die
-> CoolProp-Werte seit dem 16.08.2026; wirksam werden sie mit dem nächsten
-> Flash. Alle Zahlen dieser Karte, die eine Kondensations- oder
-> Verdampfungstemperatur enthalten, stammen aus der Zeit davor.
+> **Geflasht am 16.08.2026 um 10:57 Uhr (08:57 UTC).** Die Gegenprobe im
+> ersten Zyklus danach: Hochdruck 16,18 bar Überdruck, gemeldete Kondensation
+> **50,13 °C**. Die alte Tabelle hätte für denselben Druck 49,94 °C ergeben —
+> +0,19 K, in Richtung und Betrag wie gerechnet. Alle Zahlen dieser Karte, die
+> eine Kondensations- oder Verdampfungstemperatur enthalten, stammen aus der
+> Zeit davor.
+>
+> Der Flash fiel in einen laufenden Takt (Verdichter seit 10:41 an); dieser
+> eine Takt trägt beide Umrechnungen.
 >
 > **Und der Flash ist ein Regimewechsel für vier abgeleitete Größen.** Die
 > Registerliste bleibt unberührt, die Blockbildung also auch — aber
