@@ -609,9 +609,10 @@ sections:
 
 
       *Rohwert ist Überdruck in Hundertstel bar; für die Sättigungstemperatur wird 1 bar addiert und die
-      Propan-Dampfdruckkurve über 5-K-Stützstellen interpoliert. Die gerechnete Kondensation liegt dadurch bei
-      Warmwasserladung rund 1 K zu niedrig — in 98 % der Minuten mit ruhendem Vorlauf unter dem Vorlauf, was
-      physikalisch nicht geht.*'
+      Propan-Dampfdruckkurve über 5-K-Stützstellen interpoliert. Die Stützstellen lagen ab 45 °C bis zu 0,17 bar
+      zu hoch und sind seit dem 16.08.2026 gegen CoolProp korrigiert — das waren 0,2 bis 0,4 K. Rund 0,6 K der
+      Lücke bleiben: Bei Warmwasserladung liegt die gerechnete Kondensation weiter unter dem Vorlauf, was
+      physikalisch nicht geht; Größenordnung Toleranz von Vorlauffühler und Druckaufnehmer.*'
 - type: grid
   cards:
   - type: heading
