@@ -20,6 +20,11 @@ Testsuite eine Änderung braucht (wann sie läuft, entscheidet der Koordinator).
 Ob ein Commit, der einen Vertrag ändert, seinen Doku-Hunk im selben Change
 trägt.
 
+Du sagst, welche Suite gebraucht wird. Fahren tust du sie nicht, auch nicht
+eine einzelne Klasse. Ein zweiter Lauf neben dem laufenden färbt die Zeittests
+rot, und dieses Rot bleibt im Zwischenspeicher des Brokers liegen, wo es der
+nächste Lauf in Sekunden ungeprüft wiederholt.
+
 Was der Diff im Einzelnen tut, entscheidet der Reviewer. Zwei Freigaben, die
 nebeneinander erteilt werden, stimmen überein, bis sie es nicht tun.
 

@@ -22,6 +22,13 @@ Gegen Kollisionen im Arbeitsbaum sind sie dagegen nicht immun. Zwei Subagenten,
 die gleichzeitig schreiben, treffen sich dort genauso, und wer misst, während
 ein anderer schreibt, sieht Änderungen ohne Absender.
 
+**Aus einem Subagenten geht nur sein Endergebnis in den Verlauf des
+Koordinators**, in wenigen Stichpunkten, ohne Zwischenstände und ohne
+Wiedergabe seiner Begründung. Die Begründung steht in der Aufgabendatei, dort
+gehört sie hin und dort überlebt sie die Sitzung. Der Verlauf des Koordinators
+ist die knappste Ressource der Sitzung, und jeder nacherzählte Agentenbericht
+kostet Platz, den die Arbeit danach braucht.
+
 ## Rollen und Modelle
 
 | Rolle | Modell | Reasoning | Tut |
@@ -30,6 +37,27 @@ ein anderer schreibt, sieht Änderungen ohne Absender.
 | **Produktmanager** | Fable 5 | high | Entscheidet, ob eine Änderung ins Produkt gehört und unter welchen Auflagen. Hält die Domain-Docs. Sagt, welche Suite eine Änderung braucht. |
 | **Coder** | Sonnet 5 | siehe unten | Setzt einen geschnittenen Subtask um. |
 | **Reviewer** | Sonnet 5 | high | Gate vor dem Commit. Sieht Spezifikation und `git diff`, nie einen Gesprächsverlauf. |
+| **Architekt** | Fable 5 | high | Sieht das Muster statt des Falls. Wird vor dem Schnitt gerufen, nicht danach. Blockiert nichts. |
+
+**Architekt und Reviewer sehen denselben Code und beantworten verschiedene
+Fragen.** Der Reviewer bekommt einen Diff und eine Spezifikation und fragt, ob
+dieser Diff tut, was er soll, und sonst nichts; er steht nach dem Bauen und vor
+dem Commit, und sein Wort ist ein Gate. Der Architekt bekommt keinen Diff,
+sondern eine Frage, und steht vor dem Bauen; er fragt, ob die Form richtig ist
+und wo dasselbe noch steht, und sein Wort ist eine Empfehlung.
+
+Gerufen wird er beim zweiten Fund derselben Ursache, vor einem Umbau an einem
+zentralen Pfad, vor einer Migration mit Nutzerdaten, bei einem Widerspruch
+zwischen zwei verbindlichen Dokumenten, und vor dem Schnitt einer Aufgabe, die
+niemand in einem Zug baut. Nicht für jede Aufgabe: eine Rolle, die immer
+mitläuft, wird zur Zeremonie.
+
+Der Anlass ist gemessen. Am 25.08.2026 wurde dieselbe Ableitung dreimal
+einzeln gefunden und zweimal einzeln behoben, dieselbe Testverschmutzung zum
+vierten Mal, und ein Widerspruch zwischen zwei verbindlichen Dateien fiel erst
+auf, als ein Agent daran die Arbeit verweigerte. Keiner dieser Fälle ist ein
+Diff-Fehler, keinen davon kann ein Reviewer sehen, der immer nur einen Diff vor
+sich hat.
 
 **Die Reasoning-Stufe des Coders setzt der Koordinator beim Start, nie der Coder
 selbst.** `medium` ist der Normalfall für mechanische Arbeit. `high` ist Pflicht,
@@ -110,6 +138,13 @@ Wert.
 **Ein grüner Lauf wird mit seinem Umfang gemeldet**: welches Schema, wie viele
 Fälle tatsächlich liefen, und welche Suiten nicht. `ok: true` mit null
 ausgeführten Fällen sieht aus wie ein bestandener Lauf.
+
+**Die volle Suite fährt nur der Koordinator.** Ein Subagent testet
+ausschließlich, was sein Diff berührt, auf Klassenebene. Ein voller Lauf hält
+den Build-Slot eine Viertelstunde, und zwei Suiten gleichzeitig färben
+Zeittests rot, deren Rot anschließend im Zwischenspeicher klebt: der nächste
+Lauf meldet dasselbe Rot in Sekunden, ohne getestet zu haben. Wer die Zahlen
+der Vollsuite braucht, bekommt sie vom Koordinator, nachdem der Diff steht.
 
 **Ein sorgfältiger Kommentar kann eine Lücke decken statt sie aufzudecken.** Wo
 eine Stelle auffällig ausführlich begründet ist, genauer hinsehen, nicht

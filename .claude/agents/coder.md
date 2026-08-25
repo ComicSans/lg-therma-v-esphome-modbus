@@ -51,6 +51,18 @@ Builds und Läufe gehen über den `simulator-broker`, nie über `xcodebuild`,
 Ziel: ein Methodenname statt eines Klassennamens oder mehrere Ziele mit Komma
 melden `ok: true` mit null gelaufenen Fällen.
 
+**Du fährst nie die volle Suite.** Du testest ausschließlich die Klassen, die
+dein Diff berührt, eine Klasse je Aufruf. Ein voller Lauf hält den Build-Slot
+für die Dauer der ganzen Suite, und zwei Suiten gleichzeitig färben die
+Zeittests rot; dieses Rot bleibt anschließend im Zwischenspeicher des Brokers
+liegen, und der nächste Lauf meldet es in Sekunden wieder, ohne getestet zu
+haben. Die Zahlen der Vollsuite holt der Koordinator, nachdem dein Diff steht.
+
+Hast du entgegen dieser Regel doch eine volle Suite gestartet, melde es dem
+Koordinator und starte keine zweite daneben. Beendet wird ein Lauf über
+`sim_run_cancel`, nie über einen Prozesskill und nie dadurch, dass du den
+Werkzeugaufruf abbrichst.
+
 **Melde mit Zahlen und mit dem, was nicht lief.** Die Zahl der ausgeführten
 Fälle, das Schema, und welche Suiten du nicht gefahren hast. Ein grüner Lauf
 ohne seinen Umfang liest sich wie einer über alles.

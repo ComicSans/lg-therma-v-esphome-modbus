@@ -84,6 +84,7 @@ echo "Arbeitsmodell und Rollen:"
 kopiere ".claude/workflow.md"
 kopiere ".claude/agents/produktmanager.md"
 kopiere ".claude/agents/reviewer.md"
+kopiere ".claude/agents/architect.md"
 kopiere ".claude/agents/coder.md"
 kopiere ".claude/commands/start.md"
 kopiere "scripts/mirror-setup.sh"
@@ -118,8 +119,8 @@ fi
 # genau einer Platte und sind nach einem Neuaufbau weg.
 echo
 echo "Versionierung von .claude:"
-# Gefragt ist, ob git die Datei tatsaechlich ignoriert, nicht ob ein bestimmtes
-# Muster in der .gitignore steht. Die Musterpruefung kannte nur `.claude/*` und
+# Gefragt ist, ob git die Datei tatsächlich ignoriert, nicht ob ein bestimmtes
+# Muster in der .gitignore steht. Die Musterprüfung kannte nur `.claude/*` und
 # ging am 25.08.2026 an `.claude` ohne Anhang vorbei: in sudoku-app und
 # logic-squares-app lagen Arbeitsmodell und Rollen danach kopiert, aber
 # ungetrackt, und die Meldung sagte "nicht ignoriert". Genau der Zustand, den
@@ -129,8 +130,8 @@ if [ -f "$ZIEL/.gitignore" ] \
   if grep -q '^!\.claude/agents/' "$ZIEL/.gitignore" 2>/dev/null; then
     echo "  vorhanden     Ausnahmen stehen schon in .gitignore"
   else
-    # Ein ignoriertes VERZEICHNIS laesst sich nicht per Ausnahme wieder
-    # oeffnen: git steigt gar nicht erst hinein, `!.claude/workflow.md` bliebe
+    # Ein ignoriertes VERZEICHNIS lässt sich nicht per Ausnahme wieder
+    # öffnen: git steigt gar nicht erst hinein, `!.claude/workflow.md` bliebe
     # wirkungslos. Deshalb muss ein blankes `.claude` erst zu `.claude/*`
     # werden, das den Inhalt ignoriert statt das Verzeichnis. Gemessen am
     # 25.08.2026 an sudoku-app und logic-squares-app.

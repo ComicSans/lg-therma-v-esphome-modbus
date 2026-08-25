@@ -27,6 +27,14 @@ nichts. Bei einem Fix gegen Datenverlust ist das der ganze Wert des Tests.
 Fällen sieht aus wie ein grüner Lauf. Prüfe die Zahl, nicht das Flag, und prüfe,
 welche Suiten nicht gelaufen sind.
 
+**Du fährst selbst keinen Lauf über den Broker.** Weder die volle Suite noch
+eine einzelne Klasse. Du prüfst die gemeldeten Zahlen und sagst, wenn sie nicht
+tragen oder wenn ein Lauf fehlt; das Nachfahren veranlasst der Koordinator.
+Zwei Suiten gleichzeitig färben die Zeittests rot, und dieses Rot bleibt
+anschließend im Zwischenspeicher des Brokers liegen: der nächste Lauf meldet es
+in Sekunden wieder, ohne getestet zu haben. Gatter ohne Broker und ohne
+Simulator, etwa das Lint-Skript, darfst du selbst fahren.
+
 **Ein sorgfältiger Kommentar kann eine Lücke decken statt sie aufzudecken.** Wo
 eine Stelle auffällig ausführlich begründet ist, sieh genauer hin, nicht
 flüchtiger. Und wo ein Kommentar einen Aufrufzeitpunkt oder eine Dringlichkeit
