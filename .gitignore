@@ -8,3 +8,21 @@ secrets.yaml
 
 # macOS
 .DS_Store
+
+# Local tool state
+# Verzeichnisinhalt statt Verzeichnis: sonst steigt Git nicht hinein und die
+# Ausnahme darunter bliebe wirkungslos.
+.claude/*
+# Die Broker-Absicherung gehört ins Repo, nicht auf eine einzelne Maschine.
+!.claude/settings.json
+# Das Arbeitsmodell ebenso: Rollen und Startbefehl definieren, wie hier
+# gearbeitet wird. Ungetrackt lägen sie auf genau einer Platte.
+!.claude/workflow.md
+!.claude/agents/
+!.claude/agents/*.md
+!.claude/commands/
+!.claude/commands/*.md
+!.claude/skills/
+!.claude/skills/**
+# Nicht umdrehen: .claude/worktrees trägt zeitweise zweistellige Gigabyte, und
+# settings.local.json ist maschinenspezifisch.
