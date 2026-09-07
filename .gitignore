@@ -17,7 +17,6 @@ secrets.yaml
 !.claude/settings.json
 # Das Arbeitsmodell ebenso: Rollen und Startbefehl definieren, wie hier
 # gearbeitet wird. Ungetrackt lägen sie auf genau einer Platte.
-!.claude/workflow.md
 !.claude/agents/
 !.claude/agents/*.md
 !.claude/commands/
