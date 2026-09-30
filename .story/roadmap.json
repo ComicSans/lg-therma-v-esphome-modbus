@@ -1,0 +1,13 @@
+{
+  "blockers": [],
+  "date": "2026-09-30",
+  "phases": [
+    {
+      "description": "Initial project setup.",
+      "id": "p0",
+      "label": "PHASE 0",
+      "name": "Setup"
+    }
+  ],
+  "title": "lg-therma-v-esphome-modbus"
+}
