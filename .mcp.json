@@ -19,16 +19,6 @@
       "env": {
         "MSC_PROJECTS_ROOT": "/Users/tobias/GitHub:/Users/tobias/website"
       }
-    },
-    "msc-sourcemap": {
-      "type": "stdio",
-      "command": "node",
-      "args": [
-        "/Users/tobias/GitHub/mcp-server/sourcemap/src/server.mjs"
-      ],
-      "env": {
-        "MSC_PROJECTS_ROOT": "/Users/tobias/GitHub:/Users/tobias/website"
-      }
     }
   }
 }
