@@ -25,3 +25,5 @@ secrets.yaml
 !.claude/skills/**
 # Nicht umdrehen: .claude/worktrees trägt zeitweise zweistellige Gigabyte, und
 # settings.local.json ist maschinenspezifisch.
+
+.tokensave
