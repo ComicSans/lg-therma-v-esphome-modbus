@@ -24,8 +24,10 @@ echo "ESPHome-Konfiguration gültig"
 
 # 2. Kompilieren. `esphome config` prüft nur das YAML, nicht die C++-Lambdas;
 #    der Bruch aus Issue #1 (geänderte Modbus-API) fällt erst hier auf.
-#    Veraltete C++-API in den eigenen Lambdas (src/main.cpp) gilt ebenfalls
-#    als Fehler. Der erste Lauf lädt die Toolchain und dauert Minuten, danach
+#    Veraltete C++-API in den eigenen Lambdas gilt ebenfalls als Fehler. Der
+#    Compiler meldet sie unter der YAML-Zeile (therma-v.yaml:NNN), nicht unter
+#    main.cpp, weil ESPHome #line-Marken setzt; eingebundene Header (include/)
+#    zaehlen mit. Der erste Lauf lädt die Toolchain und dauert Minuten, danach
 #    baut ESPHome inkrementell. Überspringen: TEST_OHNE_COMPILE=1.
 if [ -n "${TEST_OHNE_COMPILE:-}" ]; then
   echo "Kompilieren übersprungen (TEST_OHNE_COMPILE)"
@@ -34,7 +36,7 @@ fi
 if ! esphome compile therma-v.yaml >"$log" 2>&1; then
   grep -E 'error|Error|ERROR' "$log" | tail -40; exit 1
 fi
-if grep -E 'src/main\.cpp:.*\[-Wdeprecated' "$log"; then
+if grep -E '(therma-v\.yaml|src/main\.cpp|include/[^:]*\.h):[0-9]+:[0-9]+: warning: .*\[-Wdeprecated' "$log"; then
   echo "FEHLER: veraltete ESPHome-API in den Lambdas (siehe oben)" >&2; exit 1
 fi
 echo "Firmware kompiliert ohne veraltete API"
