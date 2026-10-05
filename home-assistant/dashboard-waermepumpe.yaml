@@ -882,7 +882,7 @@ sections:
     grid_options:
       columns: 12
   - type: heading
-    heading: Referenzzustand
+    heading: Referenzzustand und Adress-Scan
     heading_style: subtitle
     icon: mdi:crosshairs-gps
   - type: tile
@@ -907,6 +907,39 @@ sections:
     entity: sensor.heizungskeller_warmepumpe_modbus_abweichung_zum_referenzzustand
     name: Abweichung
     icon: mdi:delta
+    grid_options:
+      columns: 12
+  - type: tile
+    entity: number.heizungskeller_warmepumpe_modbus_scan_startadresse
+    name: Scan-Startadresse
+    icon: mdi:map-marker-outline
+    grid_options:
+      columns: 12
+    features:
+    - type: numeric-input
+      style: buttons
+  - type: tile
+    entity: button.heizungskeller_warmepumpe_modbus_randbereiche_prufen
+    name: Randbereiche prüfen (~30 s)
+    icon: mdi:border-outside
+    grid_options:
+      columns: 12
+    features_position: inline
+    features:
+    - type: button
+  - type: tile
+    entity: button.heizungskeller_warmepumpe_modbus_breiter_registerscan
+    name: Breiter Scan (256 Adressen, ~8 min)
+    icon: mdi:radar
+    grid_options:
+      columns: 12
+    features_position: inline
+    features:
+    - type: button
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_ergebnis_randbereichsprufung
+    name: Scan-Ergebnis
+    icon: mdi:clipboard-text-outline
     grid_options:
       columns: 12
 - type: grid

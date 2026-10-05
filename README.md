@@ -220,17 +220,11 @@ Frage ist, ob die hier gefundene Registerbelegung an Modell, an Firmware oder
 an beidem hängt.
 
 Was eine Meldung brauchbar macht: Modellnummer der Hydro Unit, Firmwarestand
-vom Bedienteil, eine Liste der antwortenden Register, und zu jedem
+vom Bedienteil, die Ausgabe des Buttons **Breiter Registerscan**, und zu jedem
 gedeuteten Register der Beleg — ein abgelesener Wert am Bedienteil zur selben
 Minute, oder eine Flanke, die mit einem beobachtbaren Ereignis zusammenfällt.
 Eine Zuordnung ohne Beleg ist eine Vermutung, und davon gibt es im Netz
 bereits genug.
-
-Die Scan-Knöpfe (**Randbereiche prüfen**, **Breiter Registerscan**) sind seit
-der Umstellung auf ESPHome 2026.9 entfernt: Sie hingen an
-`ModbusCommandItem`, das ESPHome 2027.3 streicht. Wer sie für ein anderes
-Gerät braucht, findet sie in der Git-Historie (Stand vor der Umstellung,
-kompiliert nur mit ESPHome vor 2026.9).
 
 ## Haftungsausschluss
 
