@@ -7,9 +7,7 @@
 # Coil 2..6, 29, 30. Belege, Messfenster und Fallstricke: docs/registerkarte.md.
 # Hardware und Sackgassen: docs/hardware.md.
 #
-# Offen und bewusst unveraendert:
-#   - HR29 laesst 30..80 °C zu.
-#   - api ohne encryption, ota ohne password.
+# Offen und bewusst unveraendert: HR29 laesst 30..80 °C zu.
 
 # Zugangsdaten: secrets.yaml (Vorlage secrets.yaml.example).
 # Installationsspezifisch: Stromzaehler (sensor.l1_power usw.) und die
@@ -44,9 +42,12 @@ logger:
   baud_rate: 0
 
 api:
+  encryption:
+    key: !secret api_schluessel
 
 ota:
   - platform: esphome
+    password: !secret ota_passwort
 
 # Zeitquelle fuer den Tageswechsel der Tageszaehler.
 time:

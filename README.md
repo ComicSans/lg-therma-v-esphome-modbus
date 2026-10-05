@@ -123,7 +123,7 @@ Konfiguration ab (`min_version`).
 git clone https://github.com/ComicSans/lg-therma-v-esphome-modbus
 cd lg-therma-v-esphome-modbus
 cp secrets.yaml.example secrets.yaml
-# secrets.yaml ausfüllen, dann:
+# secrets.yaml ausfüllen (API-Schlüssel: openssl rand -base64 32), dann:
 esphome run therma-v.yaml
 ```
 
