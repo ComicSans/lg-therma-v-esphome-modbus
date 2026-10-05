@@ -1,0 +1,13 @@
+{
+  "blockedBy": [],
+  "completedDate": "2026-10-05",
+  "createdDate": "2026-10-05",
+  "description": "Schritte 1–2 des Migrationsauftrags (PR #9 i18n/englisch): HA-Vollbackup anlegen und bestätigen; Inventar aller Stellen mit alten entity ids (Präfix heizungskeller_warmepumpe_modbus_) oder alten Optionstexten (Aus / nur Warmwasser, Kühlen, Heizen, Preset Anlage): Dashboards (inkl. waermepumpe), Automationen, Skripte, Templates, Helfer, Energie-Dashboard, HEMS-Config-Entries. Bericht an Tobias.",
+  "displayId": "T-001",
+  "id": "T-001",
+  "order": 10,
+  "phase": "p0",
+  "status": "complete",
+  "title": "HA-Backup und Inventar aller Verweise auf alte Wärmepumpen-Entitäten",
+  "type": "task"
+}

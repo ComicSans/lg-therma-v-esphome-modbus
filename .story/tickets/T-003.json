@@ -1,0 +1,13 @@
+{
+  "blockedBy": [],
+  "completedDate": "2026-10-05",
+  "createdDate": "2026-10-05",
+  "description": "Schritte 4–8: Zeitfenster vorschlagen (HEMS pausieren?), History-Verfahren an ir09_kennwert→ir09_constant testen (Flash nur nach Tobias' OK), dann restliche Entitäten über Entity-Registry-API, Verweise (HEMS, Automationen, Skripte, Templates, Dashboards, Preset) umstellen, prüfen (keine unavailable, Betriebsart aus HEMS setzbar, History stetig).",
+  "displayId": "T-003",
+  "id": "T-003",
+  "order": 30,
+  "phase": "p0",
+  "status": "complete",
+  "title": "Entity-Migration in HA: Verfahren an IR09 testen, dann 103 weitere, Verweise und HEMS umstellen",
+  "type": "task"
+}

@@ -1,0 +1,13 @@
+{
+  "blockedBy": [],
+  "completedDate": "2026-10-05",
+  "createdDate": "2026-10-05",
+  "description": "Schritt 9: laufendes Dashboard nach home-assistant/ exportieren (Header behalten, Texte englisch, ggf. Umbenennung dashboard-heat-pump.yaml + README-Links), Punkte aus PR #8 (Warnungen nutzen entfernte HEMS-Analyse-Entitäten, fehlende Frost Risk/Diagnosis, veraltete Texte). PR auf Englisch.",
+  "displayId": "T-004",
+  "id": "T-004",
+  "order": 40,
+  "phase": "p0",
+  "status": "complete",
+  "title": "Dashboard exportieren, übersetzen, PR-#8-Punkte beheben, PR öffnen",
+  "type": "task"
+}

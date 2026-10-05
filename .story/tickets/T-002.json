@@ -1,0 +1,13 @@
+{
+  "blockedBy": [],
+  "completedDate": "2026-10-05",
+  "createdDate": "2026-10-05",
+  "description": "Schritt 3: Branch i18n/englisch auschecken, fünf Keys in lokaler secrets.yaml umbenennen (Werte unverändert), scripts/test.sh mit vollem Compile über die Lauf-Warteschlange. Bei Fehler stoppen.",
+  "displayId": "T-002",
+  "id": "T-002",
+  "order": 20,
+  "phase": "p0",
+  "status": "complete",
+  "title": "Lokaler Build von i18n/englisch inkl. vollem ESP32-Compile",
+  "type": "task"
+}

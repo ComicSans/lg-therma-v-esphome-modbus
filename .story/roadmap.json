@@ -3,7 +3,7 @@
   "date": "2026-09-30",
   "phases": [
     {
-      "description": "Initial project setup.",
+      "description": "Firmware-Übersetzung (PR #9) auf das Gerät bringen und alle 104 HA-Entitäten mit erhaltener History auf englische IDs migrieren, inkl. HEMS, Dashboard-PR und Tags.",
       "id": "p0",
       "label": "PHASE 0",
       "name": "Setup"

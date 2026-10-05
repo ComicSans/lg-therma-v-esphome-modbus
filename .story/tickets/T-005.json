@@ -1,0 +1,13 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-10-05",
+  "description": "Schritt 10: v2026.10 auf 784961e anlegen und pushen, falls nicht vorhanden. v2026.11 nach Merge von PR #9 und erfolgreicher Migration auf den Merge-Commit.",
+  "displayId": "T-005",
+  "id": "T-005",
+  "order": 50,
+  "phase": "p0",
+  "status": "inprogress",
+  "title": "Tags v2026.10 (784961e) und v2026.11 (Merge von PR #9) setzen",
+  "type": "chore"
+}
