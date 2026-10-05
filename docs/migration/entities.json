@@ -1,0 +1,784 @@
+{
+ "release": "v2026.11",
+ "note": "Home Assistant entity_id = <domain>.<device prefix>_<object_id>. The device prefix is the device name in Home Assistant (default lg_therma_v_heatpump; the original installation uses heizungskeller_warmepumpe_modbus). text_sensor entities appear in the sensor domain.",
+ "entities": [
+  {
+   "domain": "sensor",
+   "old_name": "Außentemperatur Gerätefühler",
+   "new_name": "Outdoor Temperature Unit Sensor",
+   "old_object_id": "aussentemperatur_geratefuhler",
+   "new_object_id": "outdoor_temperature_unit_sensor"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Raumtemperatur",
+   "new_name": "Room Temperature",
+   "old_object_id": "raumtemperatur",
+   "new_object_id": "room_temperature"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Wasser Rücklauftemperatur",
+   "new_name": "Water Return Temperature",
+   "old_object_id": "wasser_rucklauftemperatur",
+   "new_object_id": "water_return_temperature"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Wasser Vorlauftemperatur",
+   "new_name": "Water Flow Temperature",
+   "old_object_id": "wasser_vorlauftemperatur",
+   "new_object_id": "water_flow_temperature"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Warmwassertemperatur",
+   "new_name": "Hot Water Temperature",
+   "old_object_id": "warmwassertemperatur",
+   "new_object_id": "hot_water_temperature"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Hochdruck",
+   "new_name": "High Pressure",
+   "old_object_id": "hochdruck",
+   "new_object_id": "high_pressure"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Niederdruck",
+   "new_name": "Low Pressure",
+   "old_object_id": "niederdruck",
+   "new_object_id": "low_pressure"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Sauggastemperatur",
+   "new_name": "Suction Gas Temperature",
+   "old_object_id": "sauggastemperatur",
+   "new_object_id": "suction_gas_temperature"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Scheinleistung Anlage",
+   "new_name": "Unit Apparent Power",
+   "old_object_id": "scheinleistung_anlage",
+   "new_object_id": "unit_apparent_power"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Verdichtertemperatur",
+   "new_name": "Compressor Shell Temperature",
+   "old_object_id": "verdichtertemperatur",
+   "new_object_id": "compressor_shell_temperature"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Wärmetauscher außen",
+   "new_name": "Outdoor Heat Exchanger",
+   "old_object_id": "warmetauscher_aussen",
+   "new_object_id": "outdoor_heat_exchanger"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Wärmetauscher außen (Spiegelregister)",
+   "new_name": "Outdoor Heat Exchanger (Mirror Register)",
+   "old_object_id": "warmetauscher_aussen_spiegelregister",
+   "new_object_id": "outdoor_heat_exchanger_mirror_register"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Wassertemperatur unbestimmt",
+   "new_name": "IR14 Water Temperature Unassigned",
+   "old_object_id": "wassertemperatur_unbestimmt",
+   "new_object_id": "ir14_water_temperature_unassigned"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "IR09 Kennwert",
+   "new_name": "IR09 Constant",
+   "old_object_id": "ir09_kennwert",
+   "new_object_id": "ir09_constant"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Kennwert Kältemittel",
+   "new_name": "IR13 Refrigerant Constant",
+   "old_object_id": "kennwert_kaltemittel",
+   "new_object_id": "ir13_refrigerant_constant"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "IR10 unbestimmt",
+   "new_name": "IR10 Unassigned",
+   "old_object_id": "ir10_unbestimmt",
+   "new_object_id": "ir10_unassigned"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Verdichterleistung Anforderung",
+   "new_name": "Compressor Speed",
+   "old_object_id": "verdichterleistung_anforderung",
+   "new_object_id": "compressor_speed"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "IR27 unbestimmt",
+   "new_name": "IR27 Unassigned",
+   "old_object_id": "ir27_unbestimmt",
+   "new_object_id": "ir27_unassigned"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Betriebsmodus Rohwert",
+   "new_name": "Operating Mode Raw",
+   "old_object_id": "betriebsmodus_rohwert",
+   "new_object_id": "operating_mode_raw"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "HR25 unbestimmt",
+   "new_name": "HR25 Unassigned",
+   "old_object_id": "hr25_unbestimmt",
+   "new_object_id": "hr25_unassigned"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "HR27 unbestimmt",
+   "new_name": "HR27 Unassigned",
+   "old_object_id": "hr27_unbestimmt",
+   "new_object_id": "hr27_unassigned"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "HR28 unbestimmt",
+   "new_name": "HR28 Unassigned",
+   "old_object_id": "hr28_unbestimmt",
+   "new_object_id": "hr28_unassigned"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Verdampfungstemperatur",
+   "new_name": "Evaporating Temperature",
+   "old_object_id": "verdampfungstemperatur",
+   "new_object_id": "evaporating_temperature"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Kondensationstemperatur",
+   "new_name": "Condensing Temperature",
+   "old_object_id": "kondensationstemperatur",
+   "new_object_id": "condensing_temperature"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Sauggasüberhitzung",
+   "new_name": "Suction Superheat",
+   "old_object_id": "sauggasuberhitzung",
+   "new_object_id": "suction_superheat"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Temperaturhub",
+   "new_name": "Temperature Lift",
+   "old_object_id": "temperaturhub",
+   "new_object_id": "temperature_lift"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Verdichtungsverhältnis",
+   "new_name": "Compression Ratio",
+   "old_object_id": "verdichtungsverhaltnis",
+   "new_object_id": "compression_ratio"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Carnot-Obergrenze",
+   "new_name": "Carnot Limit",
+   "old_object_id": "carnot_obergrenze",
+   "new_object_id": "carnot_limit"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Annäherung Kondensation Vorlauf",
+   "new_name": "Condenser Approach",
+   "old_object_id": "annaherung_kondensation_vorlauf",
+   "new_object_id": "condenser_approach"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Annäherung Außenluft Verdampfung",
+   "new_name": "Evaporator Approach",
+   "old_object_id": "annaherung_aussenluft_verdampfung",
+   "new_object_id": "evaporator_approach"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Spreizung Vorlauf Rücklauf",
+   "new_name": "Flow Return Delta",
+   "old_object_id": "spreizung_vorlauf_rucklauf",
+   "new_object_id": "flow_return_delta"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Druckdifferenz",
+   "new_name": "Pressure Difference",
+   "old_object_id": "druckdifferenz",
+   "new_object_id": "pressure_difference"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Wirkleistung gemessen",
+   "new_name": "Active Power Measured",
+   "old_object_id": "wirkleistung_gemessen",
+   "new_object_id": "active_power_measured"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Scheinleistung gemessen",
+   "new_name": "Apparent Power Measured",
+   "old_object_id": "scheinleistung_gemessen",
+   "new_object_id": "apparent_power_measured"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Leistungsfaktor",
+   "new_name": "Power Factor",
+   "old_object_id": "leistungsfaktor",
+   "new_object_id": "power_factor"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Abgleich IR23 zu Messung",
+   "new_name": "IR23 to Meter Ratio",
+   "old_object_id": "abgleich_ir23_zu_messung",
+   "new_object_id": "ir23_to_meter_ratio"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Phasenschieflast",
+   "new_name": "Phase Imbalance",
+   "old_object_id": "phasenschieflast",
+   "new_object_id": "phase_imbalance"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Standby-Verbrauch",
+   "new_name": "Standby Power",
+   "old_object_id": "standby_verbrauch",
+   "new_object_id": "standby_power"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Verbrauch je Kelvin Speicherhub",
+   "new_name": "Energy per Kelvin Tank Lift",
+   "old_object_id": "verbrauch_je_kelvin_speicherhub",
+   "new_object_id": "energy_per_kelvin_tank_lift"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Verdichterstarts heute",
+   "new_name": "Compressor Starts Today",
+   "old_object_id": "verdichterstarts_heute",
+   "new_object_id": "compressor_starts_today"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Verdichterstarts gestern",
+   "new_name": "Compressor Starts Yesterday",
+   "old_object_id": "verdichterstarts_gestern",
+   "new_object_id": "compressor_starts_yesterday"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Mittlere Laufzeit pro Takt",
+   "new_name": "Mean Cycle Runtime",
+   "old_object_id": "mittlere_laufzeit_pro_takt",
+   "new_object_id": "mean_cycle_runtime"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Kürzester Takt heute",
+   "new_name": "Shortest Cycle Today",
+   "old_object_id": "kurzester_takt_heute",
+   "new_object_id": "shortest_cycle_today"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Betriebsstunden Verdichter",
+   "new_name": "Compressor Operating Hours",
+   "old_object_id": "betriebsstunden_verdichter",
+   "new_object_id": "compressor_operating_hours"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Warmwasserladungen heute",
+   "new_name": "Hot Water Charges Today",
+   "old_object_id": "warmwasserladungen_heute",
+   "new_object_id": "hot_water_charges_today"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Verdichterstarts je Stunde",
+   "new_name": "Compressor Starts Last Hour",
+   "old_object_id": "verdichterstarts_je_stunde",
+   "new_object_id": "compressor_starts_last_hour"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Spreizung Tagesmittel",
+   "new_name": "Flow Return Delta Daily Mean",
+   "old_object_id": "spreizung_tagesmittel",
+   "new_object_id": "flow_return_delta_daily_mean"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Laufzeitanteil heute",
+   "new_name": "Runtime Share Today",
+   "old_object_id": "laufzeitanteil_heute",
+   "new_object_id": "runtime_share_today"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Starts je Betriebsstunde",
+   "new_name": "Starts per Operating Hour",
+   "old_object_id": "starts_je_betriebsstunde",
+   "new_object_id": "starts_per_operating_hour"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Stillstandsdauer",
+   "new_name": "Standstill Duration",
+   "old_object_id": "stillstandsdauer",
+   "new_object_id": "standstill_duration"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Zeit seit letzter Antwort",
+   "new_name": "Time Since Last Response",
+   "old_object_id": "zeit_seit_letzter_antwort",
+   "new_object_id": "time_since_last_response"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Zyklusdauer",
+   "new_name": "Poll Cycle Duration",
+   "old_object_id": "zyklusdauer",
+   "new_object_id": "poll_cycle_duration"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Verpasste Abfragezyklen",
+   "new_name": "Bus Silence Minutes",
+   "old_object_id": "verpasste_abfragezyklen",
+   "new_object_id": "bus_silence_minutes"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Punkte ohne Antwort",
+   "new_name": "Registers Without Response",
+   "old_object_id": "punkte_ohne_antwort",
+   "new_object_id": "registers_without_response"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Beobachtung Änderungen",
+   "new_name": "Observation Changes",
+   "old_object_id": "beobachtung_anderungen",
+   "new_object_id": "observation_changes"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Beobachtung Restlaufzeit",
+   "new_name": "Observation Time Left",
+   "old_object_id": "beobachtung_restlaufzeit",
+   "new_object_id": "observation_time_left"
+  },
+  {
+   "domain": "binary_sensor",
+   "old_name": "DI06 unbestimmt",
+   "new_name": "DI06 Unassigned",
+   "old_object_id": "di06_unbestimmt",
+   "new_object_id": "di06_unassigned"
+  },
+  {
+   "domain": "binary_sensor",
+   "old_name": "Verdichter startbereit",
+   "new_name": "Compressor Ready",
+   "old_object_id": "verdichter_startbereit",
+   "new_object_id": "compressor_ready"
+  },
+  {
+   "domain": "binary_sensor",
+   "old_name": "Verdichter hohe Stufe",
+   "new_name": "Compressor Top Stage",
+   "old_object_id": "verdichter_hohe_stufe",
+   "new_object_id": "compressor_top_stage"
+  },
+  {
+   "domain": "binary_sensor",
+   "old_name": "DI09 Warmwasserbereitung",
+   "new_name": "DI09 Hot Water Mode",
+   "old_object_id": "di09_warmwasserbereitung",
+   "new_object_id": "di09_hot_water_mode"
+  },
+  {
+   "domain": "binary_sensor",
+   "old_name": "CO5 unbestimmt (nur Anzeige)",
+   "new_name": "CO5 Unassigned (Read Only)",
+   "old_object_id": "co5_unbestimmt_nur_anzeige",
+   "new_object_id": "co5_unassigned_read_only"
+  },
+  {
+   "domain": "binary_sensor",
+   "old_name": "Heizkreis 1 invers",
+   "new_name": "Heating Circuit 1 Inverted",
+   "old_object_id": "heizkreis_1_invers",
+   "new_object_id": "heating_circuit_1_inverted"
+  },
+  {
+   "domain": "binary_sensor",
+   "old_name": "DI32 unbestimmt",
+   "new_name": "DI32 Unassigned",
+   "old_object_id": "di32_unbestimmt",
+   "new_object_id": "di32_unassigned"
+  },
+  {
+   "domain": "binary_sensor",
+   "old_name": "Heizkreis 1",
+   "new_name": "Heating Circuit 1",
+   "old_object_id": "heizkreis_1",
+   "new_object_id": "heating_circuit_1"
+  },
+  {
+   "domain": "binary_sensor",
+   "old_name": "Außeneinheit in Betrieb",
+   "new_name": "Outdoor Unit Running",
+   "old_object_id": "ausseneinheit_in_betrieb",
+   "new_object_id": "outdoor_unit_running"
+  },
+  {
+   "domain": "binary_sensor",
+   "old_name": "CO29 unbestimmt",
+   "new_name": "CO29 Unassigned",
+   "old_object_id": "co29_unbestimmt",
+   "new_object_id": "co29_unassigned"
+  },
+  {
+   "domain": "binary_sensor",
+   "old_name": "CO30 unbestimmt",
+   "new_name": "CO30 Unassigned",
+   "old_object_id": "co30_unbestimmt",
+   "new_object_id": "co30_unassigned"
+  },
+  {
+   "domain": "binary_sensor",
+   "old_name": "Verdichter läuft",
+   "new_name": "Compressor Running",
+   "old_object_id": "verdichter_lauft",
+   "new_object_id": "compressor_running"
+  },
+  {
+   "domain": "binary_sensor",
+   "old_name": "Umwälzpumpe läuft",
+   "new_name": "Circulation Pump Running",
+   "old_object_id": "umwalzpumpe_lauft",
+   "new_object_id": "circulation_pump_running"
+  },
+  {
+   "domain": "binary_sensor",
+   "old_name": "Kältekreis Status",
+   "new_name": "Refrigerant Circuit Status",
+   "old_object_id": "kaltekreis_status",
+   "new_object_id": "refrigerant_circuit_status"
+  },
+  {
+   "domain": "binary_sensor",
+   "old_name": "Wärmeübergang Status",
+   "new_name": "Heat Transfer Status",
+   "old_object_id": "warmeubergang_status",
+   "new_object_id": "heat_transfer_status"
+  },
+  {
+   "domain": "binary_sensor",
+   "old_name": "Bus-Lücke zu lang",
+   "new_name": "Bus Gap Too Long",
+   "old_object_id": "bus_lucke_zu_lang",
+   "new_object_id": "bus_gap_too_long"
+  },
+  {
+   "domain": "binary_sensor",
+   "old_name": "Frostgefahr",
+   "new_name": "Frost Risk",
+   "old_object_id": "frostgefahr",
+   "new_object_id": "frost_risk"
+  },
+  {
+   "domain": "binary_sensor",
+   "old_name": "Stillstand Status",
+   "new_name": "Standstill Status",
+   "old_object_id": "stillstand_status",
+   "new_object_id": "standstill_status"
+  },
+  {
+   "domain": "binary_sensor",
+   "old_name": "Taktung Status",
+   "new_name": "Short Cycling Status",
+   "old_object_id": "taktung_status",
+   "new_object_id": "short_cycling_status"
+  },
+  {
+   "domain": "binary_sensor",
+   "old_name": "Druck Status",
+   "new_name": "Pressure Status",
+   "old_object_id": "druck_status",
+   "new_object_id": "pressure_status"
+  },
+  {
+   "domain": "binary_sensor",
+   "old_name": "Temperaturen identisch",
+   "new_name": "Temperatures Identical",
+   "old_object_id": "temperaturen_identisch",
+   "new_object_id": "temperatures_identical"
+  },
+  {
+   "domain": "binary_sensor",
+   "old_name": "Spreizung Status",
+   "new_name": "Flow Return Delta Status",
+   "old_object_id": "spreizung_status",
+   "new_object_id": "flow_return_delta_status"
+  },
+  {
+   "domain": "binary_sensor",
+   "old_name": "Verschleiß Status",
+   "new_name": "Wear Status",
+   "old_object_id": "verschleiss_status",
+   "new_object_id": "wear_status"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Wärmeanforderung",
+   "new_name": "Heat Demand",
+   "old_object_id": "warmeanforderung",
+   "new_object_id": "heat_demand"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Beobachtung letzte Änderung",
+   "new_name": "Observation Last Change",
+   "old_object_id": "beobachtung_letzte_anderung",
+   "new_object_id": "observation_last_change"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Beobachtung geänderte Punkte",
+   "new_name": "Observation Changed Registers",
+   "old_object_id": "beobachtung_geanderte_punkte",
+   "new_object_id": "observation_changed_registers"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Abweichung zum Referenzzustand",
+   "new_name": "Reference Comparison",
+   "old_object_id": "abweichung_zum_referenzzustand",
+   "new_object_id": "reference_comparison"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Ergebnis Randbereichsprüfung",
+   "new_name": "Edge Scan Result",
+   "old_object_id": "ergebnis_randbereichsprufung",
+   "new_object_id": "edge_scan_result"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Druckbewertung",
+   "new_name": "Pressure Assessment",
+   "old_object_id": "druckbewertung",
+   "new_object_id": "pressure_assessment"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Busgesundheit",
+   "new_name": "Bus Health",
+   "old_object_id": "busgesundheit",
+   "new_object_id": "bus_health"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Effizienzhinweis",
+   "new_name": "Efficiency Hint",
+   "old_object_id": "effizienzhinweis",
+   "new_object_id": "efficiency_hint"
+  },
+  {
+   "domain": "sensor",
+   "old_name": "Diagnose",
+   "new_name": "Diagnosis",
+   "old_object_id": "diagnose",
+   "new_object_id": "diagnosis"
+  },
+  {
+   "domain": "number",
+   "old_name": "Soll-Temperatur Heizkreis 1",
+   "new_name": "Heating Circuit 1 Setpoint",
+   "old_object_id": "soll_temperatur_heizkreis_1",
+   "new_object_id": "heating_circuit_1_setpoint"
+  },
+  {
+   "domain": "number",
+   "old_name": "Heizkurven-Verschiebung",
+   "new_name": "Heating Curve Shift",
+   "old_object_id": "heizkurven_verschiebung",
+   "new_object_id": "heating_curve_shift"
+  },
+  {
+   "domain": "number",
+   "old_name": "Soll-Temperatur Warmwasser",
+   "new_name": "Hot Water Setpoint",
+   "old_object_id": "soll_temperatur_warmwasser",
+   "new_object_id": "hot_water_setpoint"
+  },
+  {
+   "domain": "number",
+   "old_name": "Beobachtung Meldeschwelle",
+   "new_name": "Observation Threshold",
+   "old_object_id": "beobachtung_meldeschwelle",
+   "new_object_id": "observation_threshold"
+  },
+  {
+   "domain": "number",
+   "old_name": "Scan-Startadresse",
+   "new_name": "Scan Start Address",
+   "old_object_id": "scan_startadresse",
+   "new_object_id": "scan_start_address"
+  },
+  {
+   "domain": "number",
+   "old_name": "Stillstandsgrenze",
+   "new_name": "Standstill Limit",
+   "old_object_id": "stillstandsgrenze",
+   "new_object_id": "standstill_limit"
+  },
+  {
+   "domain": "number",
+   "old_name": "Maximale Bus-Lücke",
+   "new_name": "Max Bus Gap",
+   "old_object_id": "maximale_bus_lucke",
+   "new_object_id": "max_bus_gap"
+  },
+  {
+   "domain": "select",
+   "old_name": "Betriebsmodus (stellbar)",
+   "new_name": "Operating Mode",
+   "old_object_id": "betriebsmodus_stellbar",
+   "new_object_id": "operating_mode"
+  },
+  {
+   "domain": "switch",
+   "old_name": "Flüstermodus",
+   "new_name": "Silent Mode",
+   "old_object_id": "flustermodus",
+   "new_object_id": "silent_mode"
+  },
+  {
+   "domain": "switch",
+   "old_name": "Warmwasser Freigabe",
+   "new_name": "Hot Water Enable",
+   "old_object_id": "warmwasser_freigabe",
+   "new_object_id": "hot_water_enable"
+  },
+  {
+   "domain": "switch",
+   "old_name": "Registerbeobachtung",
+   "new_name": "Register Observation",
+   "old_object_id": "registerbeobachtung",
+   "new_object_id": "register_observation"
+  },
+  {
+   "domain": "button",
+   "old_name": "Referenzzustand festhalten",
+   "new_name": "Capture Reference",
+   "old_object_id": "referenzzustand_festhalten",
+   "new_object_id": "capture_reference"
+  },
+  {
+   "domain": "button",
+   "old_name": "Abweichung zum Referenzzustand",
+   "new_name": "Compare with Reference",
+   "old_object_id": "abweichung_zum_referenzzustand",
+   "new_object_id": "compare_with_reference"
+  },
+  {
+   "domain": "button",
+   "old_name": "Randbereiche prüfen",
+   "new_name": "Check Edge Registers",
+   "old_object_id": "randbereiche_prufen",
+   "new_object_id": "check_edge_registers"
+  },
+  {
+   "domain": "button",
+   "old_name": "Breiter Registerscan",
+   "new_name": "Wide Register Scan",
+   "old_object_id": "breiter_registerscan",
+   "new_object_id": "wide_register_scan"
+  },
+  {
+   "domain": "climate",
+   "old_name": "Wärmepumpe",
+   "new_name": "Heat Pump",
+   "old_object_id": "warmepumpe",
+   "new_object_id": "heat_pump"
+  }
+ ],
+ "select_options": [
+  {
+   "entity_new_name": "Operating Mode",
+   "old": "Aus / nur Warmwasser",
+   "new": "Off / Hot Water Only"
+  },
+  {
+   "entity_new_name": "Operating Mode",
+   "old": "Kühlen",
+   "new": "Cool"
+  },
+  {
+   "entity_new_name": "Operating Mode",
+   "old": "Heizen",
+   "new": "Heat"
+  },
+  {
+   "entity_new_name": "Operating Mode",
+   "old": "Auto",
+   "new": "Auto"
+  }
+ ],
+ "climate_presets": [
+  {
+   "old": "Anlage",
+   "new": "Unit"
+  }
+ ],
+ "secrets": [
+  {
+   "old": "wlan_ssid",
+   "new": "wifi_ssid"
+  },
+  {
+   "old": "wlan_passwort",
+   "new": "wifi_password"
+  },
+  {
+   "old": "ap_passwort",
+   "new": "ap_password"
+  },
+  {
+   "old": "api_schluessel",
+   "new": "api_key"
+  },
+  {
+   "old": "ota_passwort",
+   "new": "ota_password"
+  }
+ ]
+}
