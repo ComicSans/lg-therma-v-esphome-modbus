@@ -915,7 +915,7 @@ text_sensor:
 
   - platform: template
     id: ref_text
-    name: "Compare with Reference"
+    name: "Reference Comparison"
     entity_category: diagnostic
     icon: "mdi:compare-horizontal"
     update_interval: never
