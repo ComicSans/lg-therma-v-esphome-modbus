@@ -23,7 +23,8 @@
 # -------------------------------------------------------------------------
 # Stand 2026-07-30 — was sich gegenueber der Fassung vom 29.07. geaendert hat
 # -------------------------------------------------------------------------
-# 1. force_new_range: true steht jetzt an JEDEM Register.
+# 1. force_new_range: true steht jetzt an JEDEM Register (seit ESPHome
+#    2026.9 als reuse_previous_range: false, siehe Abschnitt Messwerte).
 #    Grund: Die 24-h-Historie in Home Assistant besteht aus acht
 #    Firmware-Generationen (erstes Auftreten von Entitaeten um 03:27, 11:53,
 #    13:12, 13:28, 14:37, 14:53, 14:56 und 18:35 UTC). IR11 lieferte in drei
@@ -31,7 +32,7 @@
 #    liegen exakt auf den Generationsgrenzen, nicht auf Betriebszustaenden.
 #    Ursache ist die Blockbildung: ESPHome fasst benachbarte Register zu einer
 #    Anfrage zusammen, und die Gruppierung aendert sich mit jeder Aenderung der
-#    Registerliste. Mit force_new_range wird jedes Register einzeln angefragt —
+#    Registerliste. Mit der Option wird jedes Register einzeln angefragt —
 #    32 Anfragen je Zyklus, bei 9600 Baud rund 1,5 s, unkritisch bei 30 s.
 #
 # 2. Vier Register sind ueber die R290-Dampfdruckkurve aufgeloest.
@@ -131,6 +132,9 @@
 
 esphome:
   name: therma-v-gateway
+  # reuse_previous_range (Ersatz fuer force_new_range) gibt es erst ab
+  # dieser Version; aeltere Versionen wuerden die Option ablehnen.
+  min_version: 2026.9.0
   friendly_name: "LG Therma V Heatpump"
 
 esp32:
@@ -219,9 +223,12 @@ modbus_controller:
 # =============================================================
 # Messwerte — Input-Register 9..27
 #
-# force_new_range: true an jedem Eintrag: jedes Register wird einzeln
+# reuse_previous_range: false an jedem Eintrag: jedes Register wird einzeln
 # angefragt. Das kostet Buslast und schuetzt davor, dass die Blockbildung
 # Werte zwischen Nachbarregistern verschiebt (siehe Kopf, Punkt 1).
+# Die Option trennt nur vom VORHERIGEN Eintrag; isoliert ist ein Register
+# erst, weil auch der folgende sie traegt. Sie ersetzt force_new_range, das
+# ESPHome 2027.3 entfernt. Neue Eintraege brauchen sie deshalb ebenfalls.
 # =============================================================
 sensor:
   - platform: modbus_controller
@@ -246,7 +253,7 @@ sensor:
     address: 12
     register_type: read
     value_type: S_WORD
-    force_new_range: true
+    reuse_previous_range: false
     unit_of_measurement: "°C"
     device_class: temperature
     state_class: measurement
@@ -273,7 +280,7 @@ sensor:
     address: 24
     register_type: read
     value_type: S_WORD
-    force_new_range: true
+    reuse_previous_range: false
     unit_of_measurement: "°C"
     device_class: temperature
     state_class: measurement
@@ -288,7 +295,7 @@ sensor:
     address: 15
     register_type: read
     value_type: S_WORD
-    force_new_range: true
+    reuse_previous_range: false
     unit_of_measurement: "°C"
     device_class: temperature
     state_class: measurement
@@ -303,7 +310,7 @@ sensor:
     address: 16
     register_type: read
     value_type: S_WORD
-    force_new_range: true
+    reuse_previous_range: false
     unit_of_measurement: "°C"
     device_class: temperature
     state_class: measurement
@@ -318,7 +325,7 @@ sensor:
     address: 25
     register_type: read
     value_type: S_WORD
-    force_new_range: true
+    reuse_previous_range: false
     unit_of_measurement: "°C"
     device_class: temperature
     state_class: measurement
@@ -337,7 +344,7 @@ sensor:
     address: 21
     register_type: read
     value_type: S_WORD
-    force_new_range: true
+    reuse_previous_range: false
     unit_of_measurement: "bar"
     device_class: pressure
     state_class: measurement
@@ -354,7 +361,7 @@ sensor:
     address: 22
     register_type: read
     value_type: S_WORD
-    force_new_range: true
+    reuse_previous_range: false
     unit_of_measurement: "bar"
     device_class: pressure
     state_class: measurement
@@ -380,7 +387,7 @@ sensor:
     address: 17
     register_type: read
     value_type: S_WORD
-    force_new_range: true
+    reuse_previous_range: false
     unit_of_measurement: "°C"
     device_class: temperature
     state_class: measurement
@@ -415,7 +422,7 @@ sensor:
     address: 23
     register_type: read
     value_type: S_WORD
-    force_new_range: true
+    reuse_previous_range: false
     unit_of_measurement: "VA"
     device_class: apparent_power
     state_class: measurement
@@ -438,7 +445,7 @@ sensor:
     address: 18
     register_type: read
     value_type: S_WORD
-    force_new_range: true
+    reuse_previous_range: false
     unit_of_measurement: "°C"
     device_class: temperature
     state_class: measurement
@@ -461,7 +468,7 @@ sensor:
     address: 11
     register_type: read
     value_type: S_WORD
-    force_new_range: true
+    reuse_previous_range: false
     unit_of_measurement: "°C"
     device_class: temperature
     state_class: measurement
@@ -481,7 +488,7 @@ sensor:
     address: 19
     register_type: read
     value_type: S_WORD
-    force_new_range: true
+    reuse_previous_range: false
     unit_of_measurement: "°C"
     device_class: temperature
     accuracy_decimals: 1
@@ -498,7 +505,7 @@ sensor:
     address: 14
     register_type: read
     value_type: S_WORD
-    force_new_range: true
+    reuse_previous_range: false
     unit_of_measurement: "°C"
     device_class: temperature
     state_class: measurement
@@ -515,7 +522,7 @@ sensor:
     address: 9
     register_type: read
     value_type: S_WORD
-    force_new_range: true
+    reuse_previous_range: false
     accuracy_decimals: 0
     entity_category: diagnostic
 
@@ -528,21 +535,21 @@ sensor:
     address: 13
     register_type: read
     value_type: S_WORD
-    force_new_range: true
+    reuse_previous_range: false
     accuracy_decimals: 0
     entity_category: diagnostic
 
   # --- Erstmals gelesen 2026-07-30. Der Scan belegt Input 9..27 lueckenlos;
   #     diese drei fehlten. Rohwerte ohne Einheit und ohne state_class, bis
   #     die Bedeutung feststeht. Antwortet eines doch nicht, bleibt es dank
-  #     force_new_range ohne Wert, ohne die Nachbarn mitzureissen.
+  #     reuse_previous_range: false ohne Wert, ohne die Nachbarn mitzureissen.
   - platform: modbus_controller
     modbus_controller_id: therma_v
     name: "IR10 unbestimmt"
     address: 10
     register_type: read
     value_type: S_WORD
-    force_new_range: true
+    reuse_previous_range: false
     accuracy_decimals: 0
     entity_category: diagnostic
 
@@ -584,7 +591,7 @@ sensor:
     address: 20
     register_type: read
     value_type: S_WORD
-    force_new_range: true
+    reuse_previous_range: false
     accuracy_decimals: 0
     entity_category: diagnostic
 
@@ -594,7 +601,7 @@ sensor:
     address: 27
     register_type: read
     value_type: S_WORD
-    force_new_range: true
+    reuse_previous_range: false
     accuracy_decimals: 0
     entity_category: diagnostic
 
@@ -637,7 +644,7 @@ sensor:
     address: 26
     register_type: read
     value_type: S_WORD
-    force_new_range: true
+    reuse_previous_range: false
     accuracy_decimals: 0
     on_value:
       then:
@@ -678,7 +685,7 @@ sensor:
     address: 26
     register_type: holding
     value_type: U_WORD   # vereinheitlicht mit dem select unten (war S_WORD)
-    force_new_range: true
+    reuse_previous_range: false
     accuracy_decimals: 0
     entity_category: diagnostic
 
@@ -688,7 +695,7 @@ sensor:
     address: 25
     register_type: holding
     value_type: S_WORD
-    force_new_range: true
+    reuse_previous_range: false
     accuracy_decimals: 0
     entity_category: diagnostic
 
@@ -698,7 +705,7 @@ sensor:
     address: 27
     register_type: holding
     value_type: S_WORD
-    force_new_range: true
+    reuse_previous_range: false
     accuracy_decimals: 0
     entity_category: diagnostic
 
@@ -708,7 +715,7 @@ sensor:
     address: 28
     register_type: holding
     value_type: S_WORD
-    force_new_range: true
+    reuse_previous_range: false
     accuracy_decimals: 0
     entity_category: diagnostic
 
@@ -1294,13 +1301,6 @@ text_sensor:
     icon: "mdi:compare-horizontal"
     update_interval: never
 
-  - platform: template
-    id: rand_text
-    name: "Ergebnis Randbereichsprüfung"
-    entity_category: diagnostic
-    icon: "mdi:radar"
-    update_interval: never
-
   # -----------------------------------------------------------
   # Diagnose in Klartext. Warum in der Firmware und nicht als
   # Template-Sensor in Home Assistant: Die Bewertung muss auch dann
@@ -1359,7 +1359,7 @@ binary_sensor:
     name: "DI06 unbestimmt"
     address: 6
     register_type: discrete_input
-    force_new_range: true
+    reuse_previous_range: false
     entity_category: diagnostic
 
   - platform: modbus_controller
@@ -1380,7 +1380,7 @@ binary_sensor:
     name: "Verdichter startbereit"
     address: 7
     register_type: discrete_input
-    force_new_range: true
+    reuse_previous_range: false
     entity_category: diagnostic
 
   - platform: modbus_controller
@@ -1417,7 +1417,7 @@ binary_sensor:
     name: "Verdichter hohe Stufe"
     address: 8
     register_type: discrete_input
-    force_new_range: true
+    reuse_previous_range: false
     entity_category: diagnostic
 
   - platform: modbus_controller
@@ -1435,7 +1435,7 @@ binary_sensor:
     id: di09_ww
     address: 9
     register_type: discrete_input
-    force_new_range: true
+    reuse_previous_range: false
     entity_category: diagnostic
 
   # Coil 5 bewusst nur LESEND. Er antwortet; ein Schreibversuch blieb ohne
@@ -1453,7 +1453,7 @@ binary_sensor:
     name: "CO5 unbestimmt (nur Anzeige)"
     address: 5
     register_type: coil
-    force_new_range: true
+    reuse_previous_range: false
     entity_category: diagnostic
 
   # HEIZKREIS 1, INVERTIERT. Zwei Wechsel am 2026-07-30, jeweils gegenlaeufig
@@ -1465,21 +1465,22 @@ binary_sensor:
     name: "Heizkreis 1 invers"
     address: 31
     register_type: discrete_input
-    force_new_range: true
+    reuse_previous_range: false
     entity_category: diagnostic
 
-  # --- Am 2026-07-30 mit "Randbereiche pruefen" NEU gefunden. Der Tiefenscan
+  # --- Am 2026-07-30 mit "Randbereiche pruefen" NEU gefunden (der Knopf ist
+  #     seit Oktober 2026 entfernt, siehe docs/registerkarte.md). Der Tiefenscan
   #     vom Vortag hatte sie uebersehen, weil er in Vierergruppen abfragte:
   #     enthaelt eine Gruppe ein nicht existierendes Register, lehnt das Geraet
   #     die ganze Gruppe mit Exception 2 ab — und die existierenden Nachbarn
-  #     verschwinden mit. Dasselbe Blockproblem wie bei force_new_range, nur in
+  #     verschwinden mit. Dasselbe Blockproblem wie im Kopf unter Punkt 1, nur in
   #     der Suchrichtung: Einzelabfragen finden, was Gruppenabfragen verstecken.
   - platform: modbus_controller
     modbus_controller_id: therma_v
     name: "DI32 unbestimmt"
     address: 32
     register_type: discrete_input
-    force_new_range: true
+    reuse_previous_range: false
     entity_category: diagnostic
 
   # HEIZKREIS 1 AKTIV. Am 2026-07-30 am Bedienteil belegt, zwei Wechsel:
@@ -1497,7 +1498,7 @@ binary_sensor:
     name: "Heizkreis 1"
     address: 4
     register_type: coil
-    force_new_range: true
+    reuse_previous_range: false
     entity_category: diagnostic
 
   # =============================================================
@@ -1553,7 +1554,7 @@ binary_sensor:
     name: "Außeneinheit in Betrieb"
     address: 3
     register_type: coil
-    force_new_range: true
+    reuse_previous_range: false
     entity_category: diagnostic
 
   - platform: modbus_controller
@@ -1561,7 +1562,7 @@ binary_sensor:
     name: "CO29 unbestimmt"
     address: 29
     register_type: coil
-    force_new_range: true
+    reuse_previous_range: false
     entity_category: diagnostic
 
   - platform: modbus_controller
@@ -1569,7 +1570,7 @@ binary_sensor:
     name: "CO30 unbestimmt"
     address: 30
     register_type: coil
-    force_new_range: true
+    reuse_previous_range: false
     entity_category: diagnostic
 
   # =============================================================
@@ -1954,7 +1955,7 @@ number:
     id: hk1_soll
     address: 24
     value_type: S_WORD
-    force_new_range: true
+    reuse_previous_range: false
     unit_of_measurement: "°C"
     min_value: 5
     max_value: 65
@@ -2017,7 +2018,7 @@ number:
     id: ww_soll
     address: 29
     value_type: S_WORD
-    force_new_range: true
+    reuse_previous_range: false
     unit_of_measurement: "°C"
     min_value: 30
     max_value: 80
@@ -2049,29 +2050,6 @@ number:
     entity_category: config
     icon: "mdi:tune"
 
-  # Schutzschwelle: die laengste Zeit, die der Bus stumm bleiben darf, bevor
-  # der Waechter anschlaegt und laufende Werkzeuge abbricht. Hintergrund ist die
-  # Sorge, die Anlage koenne bei zu langer Funkstille in einen Fehlerzustand
-  # gehen. Belegt ist der Fehlerzustand nicht — bei den Scans am 2026-07-29
-  # lag der Normalbetrieb minutenlang still, ohne dass etwas passierte.
-  # Deshalb ein Stellwert und keine feste Zahl: 60 s ist reichlich vorsichtig
-  # bei einer gemessenen Zyklusdauer von 20 s.
-  - platform: template
-    # Startadresse des breiten Scans; er prueft von hier aus 64 Adressen je
-    # Registertyp. Der Durchlauf ab 0 fand CO29 und CO30 — es lohnt also, auch
-    # 64, 128 und 192 durchzugehen.
-    name: "Scan-Startadresse"
-    id: scan_start
-    optimistic: true
-    restore_value: true
-    initial_value: 0
-    min_value: 0
-    max_value: 960
-    step: 64
-    mode: box
-    entity_category: config
-    icon: "mdi:ray-start-arrow"
-
   - platform: template
     # Ab wann ein Stillstand als Stoerung gilt. Zwei Stunden sind der
     # Kompromiss: HEMS' Taktpausen dauern Minuten, eine sommerliche
@@ -2091,6 +2069,13 @@ number:
     entity_category: config
     icon: "mdi:timer-alert-outline"
 
+  # Schutzschwelle: die laengste Zeit, die der Bus stumm bleiben darf, bevor
+  # der Waechter anschlaegt und laufende Werkzeuge abbricht. Hintergrund ist die
+  # Sorge, die Anlage koenne bei zu langer Funkstille in einen Fehlerzustand
+  # gehen. Belegt ist der Fehlerzustand nicht — bei den Scans am 2026-07-29
+  # lag der Normalbetrieb minutenlang still, ohne dass etwas passierte.
+  # Deshalb ein Stellwert und keine feste Zahl: 60 s ist reichlich vorsichtig
+  # bei einer gemessenen Zyklusdauer von 20 s.
   - platform: template
     name: "Maximale Bus-Lücke"
     id: max_luecke
@@ -2115,9 +2100,10 @@ select:
     # genau dieses Umstellen die Regelung von Wasser- auf Raumfuehler
     # verstellt. Solange das nicht entschieden ist: nicht anfassen.
     name: "Betriebsmodus (stellbar)"         # HR26 — siehe Rohwert-Sensor oben
+    id: betriebsmodus_select
     address: 26
     value_type: U_WORD
-    force_new_range: true
+    reuse_previous_range: false
     optionsmap:
       "Aus / nur Warmwasser": 0
       "Kühlen": 1
@@ -2148,7 +2134,7 @@ switch:
     name: "Flüstermodus"
     address: 2
     register_type: coil
-    force_new_range: true
+    reuse_previous_range: false
     icon: "mdi:volume-low"
 
   - platform: modbus_controller
@@ -2156,7 +2142,7 @@ switch:
     name: "Warmwasser Freigabe"          # verifiziert 2026-07-29: schaltet die
     address: 6                           # Warmwasserbereitung ein und aus.
     register_type: coil                  # Erster bestaetigter SCHREIBzugriff.
-    force_new_range: true
+    reuse_previous_range: false
 
   # -----------------------------------------------------------
   # Registerbeobachtung
@@ -2316,100 +2302,6 @@ button:
           id(ref_text).publish_state(n == 0 ? std::string("keine Abweichung")
                                             : str_sprintf("%d Punkte: ", n) + erg);
 
-  - platform: template
-    # Fragt einmalig die Register direkt neben den bekannten Inseln ab. Findet
-    # heraus, ob eine Einstellungsaenderung neue Register freigeschaltet hat.
-    #
-    # Bewusst ein Knopf und kein Dauerbetrieb: ein nicht antwortendes Register
-    # kostet jeden Zyklus eine Wartezeit, und bei 20 s Zyklusdauer ist dafuer
-    # kein Platz. Die Kommandos gehen in dieselbe Warteschlange wie der
-    # Normalbetrieb, laufen also nicht an ihm vorbei — und der Waechter unten
-    # schlaegt an, falls die Bus-Luecke dennoch zu lang wird.
-    name: "Randbereiche prüfen"
-    id: rand_pruefen
-    entity_category: config
-    icon: "mdi:magnify-scan"
-    on_press:
-      - lambda: |-
-          id(rand_ergebnis).clear();
-          id(rand_text).publish_state("Prüfung läuft …");
-
-          struct Kandidat { modbus_controller::ModbusRegisterType typ; uint16_t adr; const char *bez; };
-          static const Kandidat liste[] = {
-            {modbus_controller::ModbusRegisterType::READ, 8, "IR08"},
-            {modbus_controller::ModbusRegisterType::READ, 28, "IR28"},
-            {modbus_controller::ModbusRegisterType::READ, 29, "IR29"},
-            {modbus_controller::ModbusRegisterType::HOLDING, 23, "HR23"},
-            {modbus_controller::ModbusRegisterType::HOLDING, 30, "HR30"},
-            {modbus_controller::ModbusRegisterType::HOLDING, 31, "HR31"},
-            {modbus_controller::ModbusRegisterType::DISCRETE_INPUT, 5, "DI05"},
-            {modbus_controller::ModbusRegisterType::DISCRETE_INPUT, 10, "DI10"},
-            {modbus_controller::ModbusRegisterType::DISCRETE_INPUT, 30, "DI30"},
-            {modbus_controller::ModbusRegisterType::DISCRETE_INPUT, 32, "DI32"},
-            {modbus_controller::ModbusRegisterType::COIL, 4, "CO04"},
-            {modbus_controller::ModbusRegisterType::COIL, 7, "CO07"},
-          };
-          for (auto &k : liste) {
-            std::string bez = k.bez;
-            id(therma_v)->queue_command(
-              modbus_controller::ModbusCommandItem::create_read_command(
-                id(therma_v), k.typ, k.adr, 1,
-                [bez](modbus_controller::ModbusRegisterType, uint16_t,
-                      const std::vector<uint8_t> &daten) {
-                  uint16_t v = daten.size() >= 2
-                      ? (uint16_t)(((uint16_t) daten[0] << 8) | daten[1])
-                      : (daten.empty() ? 0 : (uint16_t) daten[0]);
-                  id(rand_ergebnis).push_back(bez + str_sprintf("=%u", v));
-                  ESP_LOGW("randbereich", "%s antwortet: %u", bez.c_str(), v);
-                }));
-          }
-      # Nach 30 s ist die Warteschlange durch: was geantwortet hat, steht in
-      # der Liste, alles andere hat geschwiegen.
-      - delay: 30s
-      - text_sensor.template.publish:
-          id: rand_text
-          state: !lambda |-
-            if (id(rand_ergebnis).empty())
-              return std::string("keines der 12 Randregister antwortet");
-            std::string s = str_sprintf("%d von 12 antworten: ", (int) id(rand_ergebnis).size());
-            for (size_t i = 0; i < id(rand_ergebnis).size(); i++) {
-              if (s.size() > 200) { s += " …"; break; }
-              if (i) s += ", ";
-              s += id(rand_ergebnis)[i];
-            }
-            return s;
-
-
-  - platform: template
-    # BREITER SCAN. Prueft die Adressen 0..63 in allen vier Registertypen
-    # EINZELN, 256 Anfragen. Hintergrund: der Tiefenscan vom 2026-07-29 fragte
-    # in Vierergruppen ab und hat dadurch existierende Register uebersehen —
-    # DI32 und CO4 wurden erst durch Einzelabfrage sichtbar. Enthaelt eine
-    # Gruppe ein fehlendes Register, lehnt das Geraet die ganze Gruppe mit
-    # Exception 2 ab, und die vorhandenen Nachbarn verschwinden mit.
-    #
-    # Selbstdrosselung: 8 Anfragen je 15 s, damit die Warteschlange kurz bleibt
-    # und der Normalbetrieb dazwischen durchkommt. Dauer rund acht Minuten.
-    # Ohne die Drosselung wuerde der Waechter den Scan abbrechen — und genau
-    # das waere richtig, denn 256 Anfragen am Stueck legen den Bus lahm.
-    name: "Breiter Registerscan"
-    id: breit_scan
-    entity_category: config
-    icon: "mdi:radar"
-    on_press:
-      - lambda: |-
-          if (id(breit_aktiv)) {
-            id(breit_aktiv) = false;
-            id(rand_text).publish_state("breiter Scan abgebrochen");
-            ESP_LOGW("breitscan", "abgebrochen");
-            return;
-          }
-          id(breit_aktiv) = true;
-          id(breit_zeiger) = 0;
-          id(breit_treffer).clear();
-          id(rand_text).publish_state("breiter Scan läuft — 0 von 256");
-          ESP_LOGW("breitscan", "gestartet");
-
 # =============================================================
 # Climate-Entitaet — EIN Sollwert, der der Anlage folgt
 #
@@ -2515,9 +2407,9 @@ climate:
           if (m == letzter) return;
           letzter = m;
           if (m == climate::CLIMATE_MODE_OFF && id(hr26_modus).state != 0) {
-            id(therma_v)->queue_command(
-              modbus_controller::ModbusCommandItem::create_write_single_command(
-                id(therma_v), 26, 0));
+            // Schreibt ueber das Auswahlfeld (Funktion 06, HR26 = 0) statt ueber
+            // ModbusCommandItem, das ESPHome 2027.3 entfernt.
+            id(betriebsmodus_select).make_call().set_option("Aus / nur Warmwasser").perform();
             ESP_LOGI("climate", "Betriebsmodus -> Aus");
           }
 
@@ -2681,30 +2573,12 @@ globals:
     initial_value: "false"
 
   # --- Kartierungswerkzeuge
-  - id: breit_aktiv
-    type: bool
-    restore_value: false
-    initial_value: "false"
-  - id: breit_zeiger
-    type: int
-    restore_value: false
-    initial_value: "0"
-  - id: breit_treffer
-    type: std::vector<std::string>
-    restore_value: false
   - id: ref_namen
     type: std::vector<std::string>
     restore_value: false
   - id: ref_werte
     type: std::vector<float>
     restore_value: false
-  - id: rand_ergebnis
-    type: std::vector<std::string>
-    restore_value: false
-  - id: rand_offen
-    type: int
-    restore_value: false
-    initial_value: "0"
 
 interval:
   # Abgeleitete Kaeltekreis-Werte. Die Sattdampftabelle von Propan (R290),
@@ -3106,7 +2980,6 @@ interval:
               ESP_LOGE("schutz", "Bus %.0f s stumm (Grenze %.0f s), Werkzeuge werden beendet",
                        luecke, grenze);
               if (id(scan_switch).state) id(scan_switch).turn_off();
-              id(rand_text).publish_state("abgebrochen: Bus-Lücke zu lang");
             }
           } else {
             id(luecke_gemeldet) = false;
@@ -3191,58 +3064,6 @@ interval:
             id(mittlere_laufzeit).publish_state(
                 id(starts_heute) > 0
                     ? (id(laufsekunden_heute) / 60.0f / (float) id(starts_heute)) : NAN);
-          }
-
-  # Haeppchenweise Abarbeitung des breiten Scans.
-  - interval: 15s
-    then:
-      - lambda: |-
-          if (!id(breit_aktiv)) return;
-          // Schutz: bei zu langer Bus-Luecke abbrechen statt draufzusatteln.
-          float luecke = id(zeit_seit_antwort).state;
-          float grenze = id(max_luecke).state;
-          if (!std::isnan(luecke) && !std::isnan(grenze) && luecke > grenze * 0.7f) {
-            ESP_LOGW("breitscan", "pausiert, Bus-Luecke %.0f s", luecke);
-            return;
-          }
-          static const modbus_controller::ModbusRegisterType typen[4] = {
-            modbus_controller::ModbusRegisterType::READ,
-            modbus_controller::ModbusRegisterType::HOLDING,
-            modbus_controller::ModbusRegisterType::DISCRETE_INPUT,
-            modbus_controller::ModbusRegisterType::COIL};
-          static const char *kuerzel[4] = {"IR", "HR", "DI", "CO"};
-          for (int n = 0; n < 8 && id(breit_zeiger) < 256; n++, id(breit_zeiger)++) {
-            int i = id(breit_zeiger);
-            int t = i / 64;
-            uint16_t basis = (uint16_t) id(scan_start).state;
-            uint16_t adr = (uint16_t)(basis + (i % 64));
-            std::string bez = str_sprintf("%s%u", kuerzel[t], adr);
-            id(therma_v)->queue_command(
-              modbus_controller::ModbusCommandItem::create_read_command(
-                id(therma_v), typen[t], adr, 1,
-                [bez](modbus_controller::ModbusRegisterType, uint16_t,
-                      const std::vector<uint8_t> &d) {
-                  uint16_t v = d.size() >= 2
-                      ? (uint16_t)(((uint16_t) d[0] << 8) | d[1])
-                      : (d.empty() ? 0 : (uint16_t) d[0]);
-                  id(breit_treffer).push_back(bez + str_sprintf("=%u", v));
-                  ESP_LOGW("breitscan", "%s antwortet: %u", bez.c_str(), v);
-                }));
-          }
-          if (id(breit_zeiger) >= 256) {
-            id(breit_aktiv) = false;
-            std::string s = str_sprintf("breiter Scan fertig, %d Treffer: ",
-                                        (int) id(breit_treffer).size());
-            for (size_t i = 0; i < id(breit_treffer).size(); i++) {
-              if (s.size() > 200) { s += " …"; break; }
-              if (i) s += ", ";
-              s += id(breit_treffer)[i];
-            }
-            id(rand_text).publish_state(s);
-            ESP_LOGW("breitscan", "fertig, %d Treffer", (int) id(breit_treffer).size());
-          } else {
-            id(rand_text).publish_state(str_sprintf("breiter Scan läuft — %d von 256, %d Treffer",
-                id(breit_zeiger), (int) id(breit_treffer).size()));
           }
 
   # Zieltemperatur und Betriebsart zwischen Climate-Entitaet und Anlage
