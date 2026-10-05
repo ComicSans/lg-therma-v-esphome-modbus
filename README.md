@@ -173,18 +173,23 @@ A fresh installation produces `lg_therma_v_heatpump_` (from
 name of the original installation. Replace it with:
 
 ```bash
-sed -i 's/heizungskeller_warmepumpe_modbus_/lg_therma_v_heatpump_/g' home-assistant/dashboard-waermepumpe.yaml
+sed -i 's/heizungskeller_warmepumpe_modbus_/lg_therma_v_heatpump_/g' home-assistant/dashboard-heat-pump.yaml
 ```
 
 ### Dashboard
 
-[home-assistant/dashboard-waermepumpe.yaml](home-assistant/dashboard-waermepumpe.yaml)
-is the Lovelace view of the original installation: operation, refrigerant circuit, power,
-wear, bus health, mapping and control. Add it via the dashboard's
-raw configuration editor. Some cards use entities that do
-not come from this firmware (HEMS metrics `sensor.wp_*`, an
-efficiency device `*generisch_luft_wasser_*`); elsewhere they show "unavailable"
-and can be deleted.
+[home-assistant/dashboard-heat-pump.yaml](home-assistant/dashboard-heat-pump.yaml)
+is the Lovelace view of the original installation: controls, warnings, energy
+split, wear, refrigerant circuit, pressures, heat transfer, electrical, history,
+bus health and raw register values. It is exported from the running dashboard
+and not maintained by hand. Add it via the dashboard's raw configuration editor.
+Some cards use Home Assistant helpers of the original installation that do not
+come from this firmware (`sensor.wp_*`, `select.wp_energie_geteilt`,
+`input_select.wp_saison_richtung`); elsewhere they show "unavailable" and can
+be deleted.
+The control tiles (operating mode, heating circuit 1 setpoint or curve shift,
+hot water, silent mode) write the same registers a controller such as HEMS
+drives; while it controls the heat pump, it overwrites manual changes.
 
 ## As the heat pump role in HEMS
 
