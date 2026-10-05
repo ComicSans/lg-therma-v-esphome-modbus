@@ -18,6 +18,7 @@ esphome:
   # Einzelabfrage fuer die Scan-Knoepfe (ersetzt ModbusCommandItem).
   includes:
     - include/einzelleser.h
+    - include/register_liste.h
   friendly_name: "LG Therma V Heatpump"
   # Die Heizkurven-Verschiebung startet als Template-Number auf min_value (-3);
   # bis HR24 im Auto-Modus gelesen ist, gilt sie als unbekannt.
@@ -48,37 +49,22 @@ logger:
 api:
   encryption:
     key: !secret api_schluessel
+  # Kein Neustart, wenn Home Assistant laenger weg ist (Standard 15 min): ein
+  # Neustart setzt Stillstandsdauer und Taktzustand zurueck, und die
+  # Firmware-Diagnose soll gerade ohne HA weiterlaufen.
+  reboot_timeout: 0s
 
 ota:
   - platform: esphome
     password: !secret ota_passwort
 
-# Zeitquelle fuer den Tageswechsel der Tageszaehler.
+# Zeitquellen fuer den Tageswechsel (Intervall "Tageswechsel" unten): Home
+# Assistant, ersatzweise NTP, damit Tageszaehler auch ohne HA umlegen.
 time:
   - platform: homeassistant
     id: ha_zeit
-    on_time:
-      # Mitternacht: Tageszaehler sichern und zuruecksetzen.
-      - seconds: 0
-        minutes: 0
-        hours: 0
-        then:
-          - lambda: |-
-              id(starts_vortag) = id(starts_heute);
-              id(starts_heute) = 0;
-              id(ladungen_vortag) = id(ladungen_heute);
-              id(ladungen_heute) = 0;
-              id(kuerzester_takt_24h) = 0;
-              // Nenner der mittleren Laufzeit ist starts_heute; beide zuruecksetzen.
-              id(laufsekunden_heute) = 0;
-              // Ein Takt ueber Mitternacht ist angeschnitten und zaehlt nicht als
-              // kuerzester.
-              if (id(verdichter_laeuft)) id(takt_angeschnitten) = true;
-              // Spreizungsmittel ist ein Tageswert.
-              id(spreiz_summe) = 0.0f;
-              id(spreiz_punkte) = 0.0f;
-              id(spreiz_null) = 0.0f;
-              id(stat_dirty) = true;
+  - platform: sntp
+    id: sntp_zeit
 
 uart:
   id: modbus_uart
@@ -860,7 +846,8 @@ sensor:
 
   - platform: template
     name: "Verpasste Abfragezyklen"
-    # Laeuft bis zum Neustart; zeigt schleichende Verschlechterung.
+    # Minuten mit mehr als 60 s Busstille. Laeuft ueber Neustarts weiter
+    # (restore_value) und zeigt schleichende Verschlechterung.
     state_class: total_increasing
     id: verpasste_zyklen
     accuracy_decimals: 0
@@ -1103,7 +1090,9 @@ binary_sensor:
     device_class: running
     icon: "mdi:engine"
     lambda: |-
-      float w = id(wirkleistung).state;
+      // Direkt aus den drei Phasen, nicht aus "Wirkleistung" (nur alle 30 s
+      // gerechnet): sonst liegen Start und Stopp bis zu 30 s daneben.
+      float w = id(l1_wirk).state + id(l2_wirk).state + id(l3_wirk).state;
       if (!std::isnan(w)) {
         if (id(verdichter_laeuft)) return w > 350.0f;
         return w > 500.0f;
@@ -1122,7 +1111,7 @@ binary_sensor:
     entity_category: diagnostic
     icon: "mdi:pump"
     lambda: |-
-      float w = id(wirkleistung).state;
+      float w = id(l1_wirk).state + id(l2_wirk).state + id(l3_wirk).state;
       if (std::isnan(w)) return id(pumpe_melder).state;
       if (id(pumpe_melder).state) return w > 15.0f;
       return w > 25.0f;
@@ -1178,9 +1167,9 @@ binary_sensor:
     entity_category: diagnostic
     icon: "mdi:lan-disconnect"
     lambda: |-
-      float s = id(zeit_seit_antwort).state;
+      float s = id(luecke_s);
       float grenze = id(max_luecke).state;
-      if (std::isnan(s) || std::isnan(grenze)) return false;
+      if (std::isnan(grenze)) return false;
       if (id(bus_warnung).state) return s > grenze * 0.6f;
       return s > grenze;
 
@@ -1207,6 +1196,14 @@ binary_sensor:
       if (!std::isnan(vor) && !std::isnan(ruck)) wasser = std::min(vor, ruck);
       else if (!std::isnan(vor)) wasser = vor;
       else if (!std::isnan(ruck)) wasser = ruck;
+      // Bus ausgefallen: Wassertemperatur unbekannt. Bei Frostwetter melden,
+      // denn ob jemand heizt, ist dann nicht mehr zu sehen. Nur mit dem
+      // unabhaengigen Aussensensor; der Geraetefuehler kommt ueber den Bus.
+      float aussen_ref = id(aussentemp_ref).state;
+      if (id(bus_ausfall) && !std::isnan(aussen_ref)) {
+        if (id(frost_warnung).state) return aussen_ref < 5.0f;
+        return aussen_ref < 3.0f;
+      }
       // Ohne Werte keine Meldung.
       if (std::isnan(aussen) || std::isnan(wasser)) return false;
       if (id(frost_warnung).state) return (aussen < 5.0f && wasser < 10.0f);
@@ -1573,16 +1570,20 @@ button:
       - lambda: |-
           id(ref_namen).clear();
           id(ref_werte).clear();
-          for (auto *s : App.get_sensors()) {
-            if (s->is_internal() || std::isnan(s->state)) continue;
-            id(ref_namen).push_back(std::string(s->get_name().c_str()));
-            id(ref_werte).push_back(s->state);
-          }
-          for (auto *b : App.get_binary_sensors()) {
-            if (b->is_internal() || !b->has_state()) continue;
-            id(ref_namen).push_back(std::string(b->get_name().c_str()));
-            id(ref_werte).push_back(b->state ? 1.0f : 0.0f);
-          }
+          // Nur Registerpunkte, inklusive Sollwerte (number) und Schalter (switch).
+          auto merken = [](const char *nam, float wert) {
+            if (!register_liste::ist_register(nam)) return;
+            id(ref_namen).push_back(std::string(nam));
+            id(ref_werte).push_back(wert);
+          };
+          for (auto *s : App.get_sensors())
+            if (!s->is_internal() && !std::isnan(s->state)) merken(s->get_name().c_str(), s->state);
+          for (auto *b : App.get_binary_sensors())
+            if (!b->is_internal() && b->has_state()) merken(b->get_name().c_str(), b->state ? 1.0f : 0.0f);
+          for (auto *n : App.get_numbers())
+            if (!n->is_internal() && !std::isnan(n->state)) merken(n->get_name().c_str(), n->state);
+          for (auto *w : App.get_switches())
+            if (!w->is_internal()) merken(w->get_name().c_str(), w->state ? 1.0f : 0.0f);
           ESP_LOGI("referenz", "%d Punkte festgehalten", (int) id(ref_namen).size());
       - text_sensor.template.publish:
           id: ref_text
@@ -1625,6 +1626,7 @@ button:
 
           for (auto *s : App.get_sensors()) {
             if (s->is_internal() || std::isnan(s->state)) continue;
+            if (!register_liste::ist_register(s->get_name().c_str())) continue;
             int8_t dec = s->get_accuracy_decimals();
             if (dec < 0) dec = 0;
             vergleiche(std::string(s->get_name().c_str()), s->state, false,
@@ -1632,7 +1634,17 @@ button:
           }
           for (auto *b : App.get_binary_sensors()) {
             if (b->is_internal() || !b->has_state()) continue;
+            if (!register_liste::ist_register(b->get_name().c_str())) continue;
             vergleiche(std::string(b->get_name().c_str()), b->state ? 1.0f : 0.0f, true, 0.0f);
+          }
+          for (auto *nu : App.get_numbers()) {
+            if (nu->is_internal() || std::isnan(nu->state)) continue;
+            if (!register_liste::ist_register(nu->get_name().c_str())) continue;
+            vergleiche(std::string(nu->get_name().c_str()), nu->state, false, 0.05f);
+          }
+          for (auto *w : App.get_switches()) {
+            if (w->is_internal() || !register_liste::ist_register(w->get_name().c_str())) continue;
+            vergleiche(std::string(w->get_name().c_str()), w->state ? 1.0f : 0.0f, true, 0.0f);
           }
 
           id(ref_text).publish_state(n == 0 ? std::string("keine Abweichung")
@@ -1964,6 +1976,24 @@ globals:
     type: bool
     restore_value: false
     initial_value: "false"
+  # Sekunden seit der letzten Antwort (ab Start, solange keine kam). Logik
+  # liest diesen Wert; der Sensor wird nur alle 15 s veroeffentlicht.
+  - id: luecke_s
+    type: float
+    restore_value: false
+    initial_value: "0.0f"
+  # Bus laenger als max_luecke stumm: Registerwerte sind ungueltig gesetzt.
+  - id: bus_ausfall
+    type: bool
+    restore_value: false
+    initial_value: "false"
+  # Datum (JJJJMMTT), zu dem die Tageszaehler gehoeren. Gespeichert, damit ein
+  # verpasster Tageswechsel (Neustart um Mitternacht, Geraet aus) nachgeholt
+  # wird. 0 = noch nie gesetzt.
+  - id: tag_stempel
+    type: int
+    restore_value: true
+    initial_value: "0"
 
   # --- Kartierungswerkzeuge
   - id: breit_aktiv
@@ -1988,6 +2018,50 @@ globals:
     restore_value: false
 
 interval:
+  # Tageswechsel. Ersetzt den Zeit-Trigger um 00:00, der nach einem Neustart
+  # um Mitternacht oder ohne Zeitquelle ausfiel und die Zaehler in den
+  # naechsten Tag mitnahm. Fehlt mehr als ein Tag, ist "gestern" 0.
+  - interval: 10s
+    then:
+      - lambda: |-
+          auto zeit = id(ha_zeit).now();
+          if (!zeit.is_valid()) zeit = id(sntp_zeit).now();
+          if (!zeit.is_valid()) return;
+          int heute = zeit.year * 10000 + zeit.month * 100 + zeit.day_of_month;
+          int stempel = id(tag_stempel);
+          if (stempel == heute) return;
+          id(tag_stempel) = heute;
+          // Erster Lauf: die Zaehler gehoeren zu heute.
+          if (stempel == 0) return;
+          if (heute < stempel) {
+            ESP_LOGW("tageswechsel", "Datum rueckwaerts (%d -> %d), Zaehler bleiben", stempel, heute);
+            return;
+          }
+          // Gestern ueber die lokale Mitternacht bestimmen (sommerzeitfest).
+          ESPTime mitternacht = zeit;
+          mitternacht.hour = 0;
+          mitternacht.minute = 0;
+          mitternacht.second = 0;
+          mitternacht.recalc_timestamp_local();
+          ESPTime g = ESPTime::from_epoch_local(mitternacht.timestamp - 3600);
+          bool ein_tag = (stempel == g.year * 10000 + g.month * 100 + g.day_of_month);
+          id(starts_vortag) = ein_tag ? id(starts_heute) : 0;
+          id(starts_heute) = 0;
+          id(ladungen_vortag) = ein_tag ? id(ladungen_heute) : 0;
+          id(ladungen_heute) = 0;
+          id(kuerzester_takt_24h) = 0;
+          // Nenner der mittleren Laufzeit ist starts_heute; beide zuruecksetzen.
+          id(laufsekunden_heute) = 0;
+          // Ein Takt ueber Mitternacht ist angeschnitten und zaehlt nicht als
+          // kuerzester.
+          if (id(verdichter_laeuft)) id(takt_angeschnitten) = true;
+          // Spreizungsmittel ist ein Tageswert.
+          id(spreiz_summe) = 0.0f;
+          id(spreiz_punkte) = 0.0f;
+          id(spreiz_null) = 0.0f;
+          id(stat_dirty) = true;
+          ESP_LOGI("tageswechsel", "%d -> %d%s", stempel, heute, ein_tag ? "" : " (Tage fehlen, gestern = 0)");
+
   # Abgeleitete Kaeltekreis-Werte. Propan-Sattdampftabelle, linear
   # interpoliert. Ausserhalb der Tabelle NaN statt erfundener Zahl.
   - interval: 30s
@@ -2120,19 +2194,19 @@ interval:
           // Aus den Leistungswerten, nicht aus dem Melder (der ist beim ersten Tick
           // noch nicht nachgezogen). Wartet auf eine Quelle, hoechstens 60 s.
           if (id(start_sync)) {
-            float w0 = id(wirkleistung).state;
+            float w0 = id(l1_wirk).state + id(l2_wirk).state + id(l3_wirk).state;
             float va0 = id(ir23_scheinleistung).state;
             bool quelle_ok = !std::isnan(w0) || !std::isnan(va0);
             if (quelle_ok || jetzt > 60000UL) {
               id(start_sync) = false;
-              bool laeuft_ist = !std::isnan(w0) ? (w0 > 300.0f)
+              bool laeuft_ist = !std::isnan(w0) ? (w0 > 500.0f)
                               : (!std::isnan(va0) ? (va0 > 700.0f) : false);
               id(verdichter_laeuft) = laeuft_ist;
               // Lokal gleichziehen, sonst Flanke gegen den alten Melderwert.
               laeuft = laeuft_ist;
               if (laeuft_ist) {
                 // Karenz ab jetzt; die Taktdauer ist ein Teilstueck.
-                id(aktueller_takt_start) = jetzt;
+                id(aktueller_takt_start) = jetzt > 0 ? jetzt : 1;
                 id(takt_angeschnitten) = true;
                 id(stillstand_seit) = 0;
               } else {
@@ -2165,17 +2239,22 @@ interval:
           // --- Verdichter: Starts, Takte, Laufzeit ---
           if (laeuft && !id(verdichter_laeuft)) {
             id(verdichter_laeuft) = true;
-            id(aktueller_takt_start) = jetzt;
+            // 0 ist die Marke fuer "kein Takt" bzw. "kein Stillstand", deshalb
+            // mindestens 1.
+            id(aktueller_takt_start) = jetzt > 0 ? jetzt : 1;
             id(takt_angeschnitten) = false;   // Anfang bekannt
             id(starts_heute)++;
-            // 0 ist die Marke fuer "kein Stillstand", deshalb mindestens 1.
             id(start_zeiten).push_back(jetzt > 0 ? jetzt : 1);
             id(stillstand_seit) = 0;
+            // Sofort, nicht erst zur naechsten Minute: sonst haelt der
+            // Stillstandsmelder nach einem kurzen Takt den alten Wert.
+            id(stillstandsdauer).publish_state(0.0f);
             id(stat_dirty) = true;
             ESP_LOGI("statistik", "Verdichter an, %d. Start heute", id(starts_heute));
           } else if (!laeuft && id(verdichter_laeuft)) {
             id(verdichter_laeuft) = false;
             id(stillstand_seit) = jetzt > 0 ? jetzt : 1;
+            id(stillstandsdauer).publish_state(0.0f);
             if (id(aktueller_takt_start) > 0) {
               float takt = (jetzt - id(aktueller_takt_start)) / 60000.0f;
               // Angeschnittener Takt zaehlt nicht als kuerzester.
@@ -2194,10 +2273,22 @@ interval:
             id(aktueller_takt_start) = 0;
             id(stat_dirty) = true;
           }
+          // Laufzeit aus der tatsaechlich vergangenen Zeit: das Intervall laeuft
+          // nicht exakt im Sekundentakt und verliert bei langen Blockaden Ticks.
+          static uint32_t letzter_tick = jetzt;
+          static uint32_t rest_ms = 0;
+          uint32_t dt = jetzt - letzter_tick;
+          letzter_tick = jetzt;
           if (id(verdichter_laeuft)) {
-            id(laufsekunden_gesamt)++;
-            id(laufsekunden_heute)++;
-            if (id(laufsekunden_gesamt) % 60 == 0) id(stat_dirty) = true;
+            rest_ms += dt;
+            while (rest_ms >= 1000) {
+              rest_ms -= 1000;
+              id(laufsekunden_gesamt)++;
+              id(laufsekunden_heute)++;
+              if (id(laufsekunden_gesamt) % 60 == 0) id(stat_dirty) = true;
+            }
+          } else {
+            rest_ms = 0;
           }
 
           // --- Warmwasserladung: Energie je Kelvin Speicherhub. Grenzen: DI09
@@ -2207,12 +2298,23 @@ interval:
           bool ww_bereitung = id(di09_ww).has_state() && id(di09_ww).state;
           float wt = id(ww_temp).state;
           float wirk = id(wirkleistung).state;
+          // Energie zaehlt ab dem tiefsten Punkt bei DI09 und laufendem Verdichter,
+          // nicht erst ab der Bestaetigung (+0,5 K); sonst fehlt im Zaehler die
+          // Energie, deren Hub im Nenner steht. Eine Verdichterpause unter 5 min
+          // (Wiederanlaufsperre 3 min) bei weiter aktivem DI09 beendet die
+          // Ladung nicht.
+          static float wh_vor = 0.0f;
+          static uint32_t pause_seit = 0;
           if (!std::isnan(wt)) {
             if (!id(ladung_aktiv)) {
+              if (laeuft && ww_bereitung && !std::isnan(wirk)) wh_vor += wirk / 3600.0f;
+              if (!(laeuft && ww_bereitung)) wh_vor = 0.0f;
               if (laeuft && ww_bereitung && id(ladung_start_temp) > 0.0f && wt > id(ladung_start_temp) + 0.5f) {
                 id(ladung_aktiv) = true;
                 id(ladung_teil) = false;
-                id(ladung_wh) = 0.0f;
+                id(ladung_wh) = wh_vor;
+                wh_vor = 0.0f;
+                pause_seit = 0;
                 id(ladungen_heute)++;
                 id(stat_dirty) = true;
                 ESP_LOGI("ladung", "Ladung erkannt ab %.1f °C", id(ladung_start_temp));
@@ -2220,14 +2322,24 @@ interval:
                 id(ladung_start_temp) = wt;
               } else if (id(ladung_start_temp) <= 0.0f || wt < id(ladung_start_temp)) {
                 // Minimum mitfuehren, solange keine Ladung laeuft: eine Zapfung im Takt
-                // verschiebt sonst den Startwert ueber das Ladungsende. Der Hub zaehlt ab
-                // dem tiefsten Punkt.
+                // verschiebt sonst den Startwert ueber das Ladungsende. Hub und Energie
+                // zaehlen ab dem tiefsten Punkt.
                 id(ladung_start_temp) = wt;
+                wh_vor = 0.0f;
               }
             } else {
               if (!std::isnan(wirk)) id(ladung_wh) += wirk / 3600.0f;
-              // Ende bei Verdichterstopp oder Wechsel weg von Warmwasser.
-              if (!laeuft || !ww_bereitung) {
+              bool ende;
+              if (!ww_bereitung) {
+                ende = true;
+              } else if (!laeuft) {
+                if (pause_seit == 0) pause_seit = jetzt > 0 ? jetzt : 1;
+                ende = (jetzt - pause_seit) > 300000UL;
+              } else {
+                pause_seit = 0;
+                ende = false;
+              }
+              if (ende) {
                 float hub = wt - id(ladung_start_temp);
                 // Ladung mit Neustart: zaehlt, aber ohne Kennzahl.
                 if (id(ladung_teil)) {
@@ -2240,6 +2352,7 @@ interval:
                 id(ladung_aktiv) = false;
                 id(ladung_teil) = false;
                 id(ladung_start_temp) = wt;
+                pause_seit = 0;
               }
             }
           }
@@ -2247,70 +2360,67 @@ interval:
           if (!laeuft && !std::isnan(wirk)) id(standby_verbrauch).publish_state(wirk);
 
           // --- Bus-Gesundheit ---
+          // Ohne jede Antwort seit dem Start zaehlt die Luecke ab dem Start,
+          // sonst blieben Waechter und Melder bei totem Bus stumm.
+          float s = (id(letzte_antwort_ms) > 0 ? (jetzt - id(letzte_antwort_ms)) : jetzt) / 1000.0f;
+          id(luecke_s) = s;
+          // Sensor nur alle 15 s (sonst 86 400 Zeilen am Tag in der HA-Datenbank).
+          static uint32_t letzte_luecke_pub = 0;
+          if (letzte_luecke_pub == 0 || (jetzt - letzte_luecke_pub) >= 15000UL) {
+            letzte_luecke_pub = jetzt > 0 ? jetzt : 1;
+            id(zeit_seit_antwort).publish_state(roundf(s));
+          }
           static uint32_t letzte_zaehlung = 0;
-          if (id(letzte_antwort_ms) > 0) {
-            float s = (jetzt - id(letzte_antwort_ms)) / 1000.0f;
-            id(zeit_seit_antwort).publish_state(s);
-            // Ein Durchlauf dauert ~20 s; dreimal so lange stumm = Zyklus ausgefallen.
-            if (s > 60.0f && (jetzt - letzte_zaehlung) > 60000) {
-              id(verpasste)++;
-              letzte_zaehlung = jetzt;
-              id(verpasste_zyklen).publish_state((float) id(verpasste));
-            }
+          // Ein Durchlauf dauert ~20 s; dreimal so lange stumm = Zyklus ausgefallen.
+          if (s > 60.0f && (jetzt - letzte_zaehlung) > 60000) {
+            id(verpasste)++;
+            letzte_zaehlung = jetzt;
+            id(verpasste_zyklen).publish_state((float) id(verpasste));
           }
 
-          // Nur Registerpunkte zaehlen (Registerkuerzel oder sprechender Name), keine
-          // abgeleiteten Groessen, die im Stillstand leer sind.
-          auto ist_register = [](const std::string &n) {
-            if (n.rfind("IR", 0) == 0 || n.rfind("HR", 0) == 0 ||
-                n.rfind("DI", 0) == 0 || n.rfind("CO", 0) == 0) return true;
-            return n == "Außentemperatur Gerätefühler" ||
-                   n == "Verdichterleistung Anforderung" ||
-                   n == "Raumtemperatur" ||
-                   n == "Wasser Vorlauftemperatur" ||
-                   n == "Wasser Rücklauftemperatur" ||
-                   n == "Warmwassertemperatur" ||
-                   n == "Heizkreis 1" ||
-                   n == "Heizkreis 1 invers" ||
-                   n == "Betriebsmodus Rohwert" ||
-                   n == "Hochdruck" ||
-                   n == "Niederdruck" ||
-                   n == "Sauggastemperatur" ||
-                   n == "Scheinleistung Anlage" ||
-                   n == "Verdichtertemperatur" ||
-                   n == "Wärmetauscher außen" ||
-                   n == "Wärmetauscher außen (Spiegelregister)" ||
-                   n == "Wassertemperatur unbestimmt" ||
-                   n == "Kennwert Kältemittel" ||
-                   n == "Flüstermodus" ||
-                   n == "Warmwasser Freigabe";
-          };
+          // Punkte ohne Antwort: Registerliste aus include/register_liste.h.
           int fehlen = 0;
-          for (auto *s : App.get_sensors()) {
-            if (s->is_internal()) continue;
-            if (!ist_register(std::string(s->get_name().c_str()))) continue;
-            if (std::isnan(s->state)) fehlen++;
+          for (auto *se : App.get_sensors()) {
+            if (se->is_internal() || !register_liste::ist_register(se->get_name().c_str())) continue;
+            if (std::isnan(se->state)) fehlen++;
           }
           for (auto *b : App.get_binary_sensors()) {
-            if (b->is_internal()) continue;
-            if (!ist_register(std::string(b->get_name().c_str()))) continue;
+            if (b->is_internal() || !register_liste::ist_register(b->get_name().c_str())) continue;
             if (!b->has_state()) fehlen++;
+          }
+          for (auto *nu : App.get_numbers()) {
+            if (nu->is_internal() || !register_liste::ist_register(nu->get_name().c_str())) continue;
+            if (std::isnan(nu->state)) fehlen++;
           }
           id(punkte_ohne_antwort).publish_state((float) fehlen);
 
-          // --- Schutzlogik: Bus-Luecke ueber der Grenze beendet laufende Werkzeuge.
+          // --- Schutzlogik: Bus-Luecke ueber der Grenze. Laufende Werkzeuge
+          //     beenden und alle Registerwerte ungueltig setzen: ESPHome behaelt
+          //     sonst den letzten Wert, und Frost- und Kreismelder bewerteten
+          //     eingefrorene Zahlen. Die naechste Antwort setzt sie neu.
           float grenze = id(max_luecke).state;
-          float luecke = id(zeit_seit_antwort).state;
-          if (!std::isnan(grenze) && !std::isnan(luecke) && luecke > grenze) {
+          if (!std::isnan(grenze) && s > grenze) {
             if (!id(luecke_gemeldet)) {
               id(luecke_gemeldet) = true;
-              ESP_LOGE("schutz", "Bus %.0f s stumm (Grenze %.0f s), Werkzeuge werden beendet",
-                       luecke, grenze);
+              id(bus_ausfall) = true;
+              ESP_LOGE("schutz", "Bus %.0f s stumm (Grenze %.0f s): Werkzeuge beendet, Registerwerte ungueltig",
+                       s, grenze);
               if (id(scan_switch).state) id(scan_switch).turn_off();
-              id(rand_text).publish_state("abgebrochen: Bus-Lücke zu lang");
+              if (id(breit_aktiv)) {
+                id(breit_aktiv) = false;
+                id(rand_text).publish_state(str_sprintf("breiter Scan abgebrochen: Bus-Lücke zu lang (%d von 256)",
+                                                        id(breit_zeiger)));
+              }
+              for (auto *se : App.get_sensors())
+                if (register_liste::ist_register(se->get_name().c_str())) se->publish_state(NAN);
+              for (auto *b : App.get_binary_sensors())
+                if (register_liste::ist_register(b->get_name().c_str())) b->invalidate_state();
+              for (auto *nu : App.get_numbers())
+                if (register_liste::ist_register(nu->get_name().c_str())) nu->publish_state(NAN);
             }
           } else {
             id(luecke_gemeldet) = false;
+            id(bus_ausfall) = false;
           }
 
           if (id(scan_switch).state)
@@ -2344,9 +2454,16 @@ interval:
                       ? id(spreiz_summe) / id(spreiz_punkte) : NAN);
               // Anteil an der seit Mitternacht vergangenen Zeit, nicht an 24 h.
               auto zeit = id(ha_zeit).now();
+              if (!zeit.is_valid()) zeit = id(sntp_zeit).now();
               if (zeit.is_valid()) {
-                float sek_heute =
-                    zeit.hour * 3600.0f + zeit.minute * 60.0f + zeit.second;
+                // Ab lokaler Mitternacht ueber Zeitstempel: an Tagen der
+                // Zeitumstellung hat der Tag 23 oder 25 Stunden.
+                ESPTime mitternacht = zeit;
+                mitternacht.hour = 0;
+                mitternacht.minute = 0;
+                mitternacht.second = 0;
+                mitternacht.recalc_timestamp_local();
+                float sek_heute = (float) (zeit.timestamp - mitternacht.timestamp);
                 id(laufzeitanteil).publish_state(
                     sek_heute > 60.0f
                         ? 100.0f * id(laufsekunden_heute) / sek_heute : NAN);
@@ -2384,9 +2501,9 @@ interval:
       - lambda: |-
           if (!id(breit_aktiv)) return;
           // Schutz: bei zu langer Bus-Luecke abbrechen statt draufzusatteln.
-          float luecke = id(zeit_seit_antwort).state;
+          float luecke = id(luecke_s);
           float grenze = id(max_luecke).state;
-          if (!std::isnan(luecke) && !std::isnan(grenze) && luecke > grenze * 0.7f) {
+          if (!std::isnan(grenze) && luecke > grenze * 0.7f) {
             ESP_LOGW("breitscan", "pausiert, Bus-Luecke %.0f s", luecke);
             return;
           }
@@ -2606,11 +2723,8 @@ interval:
 
                 for (auto *s : App.get_sensors()) {
                   if (s->is_internal()) continue;
-                  // Abgeleitete Werte sind keine Register.
-                  if (s == id(scan_zaehler_sensor)) continue;
-                  if (s == id(verdampfung)) continue;
-                  if (s == id(kondensation)) continue;
-                  if (s == id(ueberhitzung)) continue;
+                  // Nur Register; abgeleitete Werte fuellten die Liste.
+                  if (!register_liste::ist_register(s->get_name().c_str())) continue;
                   if (std::isnan(s->state)) continue;
                   int8_t dec = s->get_accuracy_decimals();
                   if (dec < 0) dec = 0;
@@ -2619,8 +2733,18 @@ interval:
                 }
                 for (auto *b : App.get_binary_sensors()) {
                   if (b->is_internal()) continue;
+                  if (!register_liste::ist_register(b->get_name().c_str())) continue;
                   if (!b->has_state()) continue;
                   pruefen(std::string(b->get_name().c_str()), b->state ? 1.0f : 0.0f, true, 0.0f);
+                }
+                for (auto *nu : App.get_numbers()) {
+                  if (nu->is_internal() || std::isnan(nu->state)) continue;
+                  if (!register_liste::ist_register(nu->get_name().c_str())) continue;
+                  pruefen(std::string(nu->get_name().c_str()), nu->state, false, 0.05f);
+                }
+                for (auto *w : App.get_switches()) {
+                  if (w->is_internal() || !register_liste::ist_register(w->get_name().c_str())) continue;
+                  pruefen(std::string(w->get_name().c_str()), w->state ? 1.0f : 0.0f, true, 0.0f);
                 }
 
                 if (neu > 0) {
@@ -2671,11 +2795,10 @@ interval:
           // --- Busgesundheit -------------------------------------------
           float fehlen = id(punkte_ohne_antwort).state;
           float zyklus = id(zyklusdauer).state;
-          float luecke = id(zeit_seit_antwort).state;
+          float luecke = id(luecke_s);
           std::string bg;
           if (id(bus_warnung).state) {
-            bg = str_sprintf("gestört — %.0f s ohne Antwort",
-                             std::isnan(luecke) ? 0.0f : luecke);
+            bg = str_sprintf("gestört — %.0f s ohne Antwort", luecke);
           } else if (!std::isnan(fehlen) && fehlen > 0.0f) {
             bg = str_sprintf("gestört — %.0f Punkte ohne Antwort", fehlen);
           } else if (!std::isnan(zyklus) && zyklus > 45.0f) {
@@ -2684,7 +2807,7 @@ interval:
             bg = str_sprintf("gut — Zyklus %.0f s", std::isnan(zyklus) ? 0.0f : zyklus);
           }
           if (id(verpasste) > 0)
-            bg += str_sprintf(", %d verpasste seit Neustart", id(verpasste));
+            bg += str_sprintf(", %d Minuten Busstille insgesamt", id(verpasste));
           static std::string bg_alt;
           if (bg != bg_alt) { bg_alt = bg; id(bus_text).publish_state(bg); }
 
@@ -2723,7 +2846,13 @@ interval:
                 "Temperaturhub %.0f K — jedes Kelvin weniger Vorlauf bringt "
                 "rund 2 %% Leistungszahl", k - v));
           if (eff.empty()) eff = "kein Hinweis";
-          if (eff.size() > 250) { eff.resize(247); eff += "…"; }
+          if (eff.size() > 250) {
+            // Nicht mitten in einem UTF-8-Zeichen abschneiden.
+            size_t n = 247;
+            while (n > 0 && (eff[n] & 0xC0) == 0x80) n--;
+            eff.resize(n);
+            eff += "…";
+          }
           static std::string eff_alt;
           if (eff != eff_alt) { eff_alt = eff; id(effizienz_text).publish_state(eff); }
 
@@ -2770,6 +2899,12 @@ interval:
           if (id(bus_warnung).state || (!std::isnan(fehlen) && fehlen > 0.0f))
             dazu("Bus: " + bg);
           if (d.empty()) d = "keine Auffälligkeit";
-          if (d.size() > 250) { d.resize(247); d += "…"; }
+          if (d.size() > 250) {
+            // Nicht mitten in einem UTF-8-Zeichen abschneiden.
+            size_t n = 247;
+            while (n > 0 && (d[n] & 0xC0) == 0x80) n--;
+            d.resize(n);
+            d += "…";
+          }
           static std::string d_alt;
           if (d != d_alt) { d_alt = d; id(diagnose_text).publish_state(d); }
