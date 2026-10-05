@@ -140,7 +140,8 @@ Wer von einem Stand vor `v2026.10` kommt, ergänzt `api_schluessel` und
 `ota_passwort`. Nach dem ersten Flash trennt Home Assistant die Verbindung und
 verlangt den Schlüssel; dieser Flash geht noch ohne OTA-Passwort durch.
 
-Ein voller Abfragezyklus dauert rund 20 Sekunden. Wer weitere Register aufnimmt,
+Ein voller Abfragezyklus dauert rund 22 Sekunden (38 Einzelanfragen zu je
+etwa 590 ms). Wer weitere Register aufnimmt,
 muss das `update_interval` mit anheben.
 
 `scripts/test.sh` prüft die Konfiguration und kompiliert die Firmware, ohne zu
@@ -153,21 +154,33 @@ Zwei Stellen in `therma-v.yaml` sind installationsspezifisch.
 
 **1. Der Stromzähler.** Die Firmware liest drei Phasen eines Shelly 3EM aus Home
 Assistant (`sensor.l1_power`, `sensor.l1_voltage`, `sensor.l1_current`, analog
-für L2 und L3). Ohne dreiphasigen Zähler die `homeassistant`-Sensoren entfernen
-— dann fallen Wirkleistung, Leistungsfaktor, Phasenschieflast, Heizstab-Verdacht
-und die Betriebsstatistik aus. Kältekreis und Registerkarte funktionieren
-weiter.
+für L2 und L3), in W, V und A. Eigene Entity-IDs dort eintragen. Ohne
+dreiphasigen Zähler die Einträge **stehen lassen** — entfernt man sie, baut die
+Firmware nicht mehr. Sie bleiben dann ohne Wert: Wirkleistung, Leistungsfaktor
+und Phasenschieflast fehlen, und Verdichter- und Statistiklogik fallen auf die
+Scheinleistung aus IR23 zurück. Ein Zähler in kW statt W verfälscht die
+Verdichtererkennung (Schwellen 350/500 W). Dasselbe gilt für die unabhängige
+Außentemperatur (`sensor.aussentemperatur`); ohne sie rechnet die Firmware mit
+dem Gerätefühler.
 
 **2. Der Gerätename in Home Assistant** bestimmt das Präfix aller Entity-IDs.
-Das mitgelieferte Dashboard nutzt `heizungskeller_warmepumpe_modbus_` — wer das
-Gerät anders benannt hat, muss das Präfix durchgängig ersetzen.
+Eine frische Installation erzeugt `lg_therma_v_heatpump_` (aus
+`friendly_name`); das Dashboard nutzt `heizungskeller_warmepumpe_modbus_`, den
+Namen der Originalinstallation. Ersetzen mit:
+
+```bash
+sed -i 's/heizungskeller_warmepumpe_modbus_/lg_therma_v_heatpump_/g' home-assistant/dashboard-waermepumpe.yaml
+```
 
 ### Dashboard
 
 [home-assistant/dashboard-waermepumpe.yaml](home-assistant/dashboard-waermepumpe.yaml)
-enthält eine vollständige Lovelace-Ansicht: Betrieb, Kältekreis, Strom,
+ist die Lovelace-Ansicht der Originalinstallation: Betrieb, Kältekreis, Strom,
 Verschleiß, Bus-Gesundheit, Kartierung und Steuerung. Einbauen über den
-Rohkonfigurationseditor des Dashboards.
+Rohkonfigurationseditor des Dashboards. Einige Karten nutzen Entitäten, die
+nicht aus dieser Firmware stammen (HEMS-Kennzahlen `sensor.wp_*`, ein
+Effizienz-Gerät `*generisch_luft_wasser_*`); sie zeigen anderswo „nicht
+verfügbar" und lassen sich löschen.
 
 ## Als Wärmepumpen-Rolle in HEMS
 

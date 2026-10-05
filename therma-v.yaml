@@ -43,6 +43,10 @@ wifi:
     ssid: "therma-v-fallback"
     password: !secret ap_passwort
 
+# Ohne captive_portal ist der Fallback-AP nutzlos: mit falschen WLAN-Daten
+# bliebe nur das Flashen per USB.
+captive_portal:
+
 logger:
   baud_rate: 0
 
@@ -264,7 +268,7 @@ sensor:
     unit_of_measurement: "°C"
     device_class: temperature
     state_class: measurement
-    accuracy_decimals: 1
+    accuracy_decimals: 0
     entity_category: diagnostic
     filters:
       - multiply: 0.1
@@ -1249,9 +1253,11 @@ binary_sensor:
       return (ml_ok && ml < 10.0f) || (sh_ok && sh >= 4.0f);
 
   - platform: template
-    # Ueber die Sattdampftemperaturen, nicht den Rohdruck. R290: Kondensation
-    # > 62 °C droht Hochdruckstoerung, Verdampfung < -20 °C heisst
-    # Unterversorgung. Anlaufkarenz 5 min.
+    # Ueber die Sattdampftemperaturen, nicht den Rohdruck. Kondensation ueber
+    # 75 °C naehert sich der Hochdruckgrenze; normale Warmwasserladungen
+    # erreichen bereits 66,6 °C (29.07.2026), die fruehere Schwelle von 62 °C
+    # meldete also jede Ladung. Verdampfung < -20 °C heisst Unterversorgung.
+    # Anlaufkarenz 5 min.
     name: "Druck Status"
     id: druck_warnung
     device_class: problem
@@ -1264,8 +1270,8 @@ binary_sensor:
       float v = id(verdampfung).state;
       if (std::isnan(k) && std::isnan(v)) return false;
       if (id(druck_warnung).state)
-        return (!std::isnan(k) && k > 58.0f) || (!std::isnan(v) && v < -17.0f);
-      return (!std::isnan(k) && k > 62.0f) || (!std::isnan(v) && v < -20.0f);
+        return (!std::isnan(k) && k > 71.0f) || (!std::isnan(v) && v < -17.0f);
+      return (!std::isnan(k) && k > 75.0f) || (!std::isnan(v) && v < -20.0f);
 
   # =============================================================
   # Verschleiss- und Effizienzmelder (Schwellen aus HEMS, siehe oben).
@@ -1679,8 +1685,10 @@ button:
             {EntityType::INPUT_REGISTER, 29},
             {EntityType::HOLDING, 23}, {EntityType::HOLDING, 30}, {EntityType::HOLDING, 31},
             {EntityType::DISCRETE_INPUT, 5}, {EntityType::DISCRETE_INPUT, 10},
-            {EntityType::DISCRETE_INPUT, 30}, {EntityType::DISCRETE_INPUT, 32},
-            {EntityType::COIL, 4}, {EntityType::COIL, 7},
+            // DI32 und CO4 sind inzwischen bekannt und werden gelesen; dafuer
+            // die naechsten Nachbarn DI33 und CO1.
+            {EntityType::DISCRETE_INPUT, 30}, {EntityType::DISCRETE_INPUT, 33},
+            {EntityType::COIL, 1}, {EntityType::COIL, 7},
           };
           for (auto &k : liste) {
             if (!leser->lesen(k.typ, k.adr))
@@ -2776,7 +2784,7 @@ interval:
           std::string dr;
           if (!im_betrieb) {
             dr = "im Stillstand — keine Aussage";
-          } else if (!std::isnan(k) && k > 62.0f) {
+          } else if (!std::isnan(k) && k > 75.0f) {
             dr = str_sprintf("zu hoch — Kondensation %.0f °C", k);
           } else if (!std::isnan(v) && v < -20.0f) {
             dr = str_sprintf("zu niedrig — Verdampfung %.0f °C", v);

@@ -49,8 +49,8 @@ Nachbarregistern, siehe [registerkarte.md](registerkarte.md#fallstricke-bei-der-
 ## Buslast
 
 Gemessen mit 34 Einzelanfragen: rund **20 s je Zyklus**, etwa 590 ms je Anfrage
-(Leitungszeit ~15 ms). Bei `update_interval: 30s` sind das zwei Drittel
-Dauerlast, ohne Timeout. **Wer Register ergänzt, muss das Intervall anheben.**
+(Leitungszeit ~15 ms). Mit den heutigen 38 Anfragen sind es rund 22 s, bei
+`update_interval: 30s` also drei Viertel Dauerlast, bisher ohne Timeout. **Wer Register ergänzt, muss das Intervall anheben.**
 
 ## Sackgassen
 
