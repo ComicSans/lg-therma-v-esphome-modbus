@@ -6,8 +6,12 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 64
 [ -n "${SIM_LAUF_ID:-}" ] || exec "$HOME/GitHub/local-ci/share/sim-lauf.sh" --projekt lg-therma-v-esphome-modbus \
   --zweck "${SIM_LAUF_ZWECK:-test}" --geraet keins -- "$PWD/scripts/test.sh" "$@"
 set -euo pipefail
-# secrets aus dem Beispiel, falls secrets.yaml fehlt.
-[ -f secrets.yaml ] || cp secrets.yaml.example secrets.yaml
+# secrets aus dem Beispiel, falls secrets.yaml fehlt; der API-Schluessel wird
+# dabei zufaellig erzeugt, weil der Platzhalter absichtlich ungueltig ist.
+if [ ! -f secrets.yaml ]; then
+  schluessel=$(python3 -c 'import base64,os;print(base64.b64encode(os.urandom(32)).decode())')
+  sed "s|hier-schluessel-erzeugen|$schluessel|" secrets.yaml.example > secrets.yaml
+fi
 log=$(mktemp)
 trap 'rm -f "$log"' EXIT
 

@@ -123,9 +123,22 @@ Konfiguration ab (`min_version`).
 git clone https://github.com/ComicSans/lg-therma-v-esphome-modbus
 cd lg-therma-v-esphome-modbus
 cp secrets.yaml.example secrets.yaml
-# secrets.yaml ausfüllen, dann:
+# secrets.yaml ausfüllen (siehe unten), dann:
 esphome run therma-v.yaml
 ```
+
+`secrets.yaml` braucht fünf Einträge (Vorlage: `secrets.yaml.example`):
+
+| Eintrag | Inhalt |
+|---|---|
+| `wlan_ssid`, `wlan_passwort` | WLAN |
+| `ap_passwort` | Fallback-AP, ein eigenes Passwort |
+| `api_schluessel` | API-Verschlüsselung, `openssl rand -base64 32`; Home Assistant fragt beim Einbinden danach |
+| `ota_passwort` | Firmware-Updates über WLAN |
+
+Wer von einem Stand vor `v2026.10` kommt, ergänzt `api_schluessel` und
+`ota_passwort`. Nach dem ersten Flash trennt Home Assistant die Verbindung und
+verlangt den Schlüssel; dieser Flash geht noch ohne OTA-Passwort durch.
 
 Ein voller Abfragezyklus dauert rund 20 Sekunden. Wer weitere Register aufnimmt,
 muss das `update_interval` mit anheben.
@@ -212,9 +225,8 @@ und Referenzzustand-Vergleich da.
 
 ## Dokumentation
 
-- [docs/registerkarte.md](docs/registerkarte.md) — alle 38 Punkte, was belegt ist
-  und woran, was offen bleibt, und die zwei Fallstricke, die echte
-  Fehldeutungen erzeugt haben
+- [docs/registerkarte.md](docs/registerkarte.md) — alle 38 Punkte mit Beleg,
+  offene Punkte, Messfenster und Fallstricke bei der Auswertung
 - [docs/hardware.md](docs/hardware.md) — Anschluss, DIP-Schalter, Buslast,
   Sackgassen
 

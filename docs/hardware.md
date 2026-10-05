@@ -1,113 +1,80 @@
 # Hardware und Anschluss
 
-## Was gebraucht wird
+## Material
 
-- **Waveshare ESP32-S3-RS485-CAN** (ein anderes RS485-Board geht auch, siehe
-  Fallstrick 1)
-- kurzes Adernpaar
-- USB-Netzteil
-- ESPHome auf dem Rechner (`pip install esphome` oder Homebrew)
+- **Waveshare ESP32-S3-RS485-CAN** (andere RS485-Boards gehen, siehe
+  `flow_control_pin`)
+- kurzes Adernpaar, USB-Netzteil
+- ESPHome ≥ 2026.9.0
 
-## Anschluss an der Inneneinheit
+## Anschluss
 
-**Klemme 21 = A, Klemme 22 = B**, Terminal Block 2, beschriftet
-„3rd Party Controller, 5 V DC".
+**Klemme 21 = A, Klemme 22 = B**, Terminal Block 2 („3rd Party Controller,
+5 V DC").
 
-> **Falle:** Klemme 28/29 ist ebenfalls mit A/B beschriftet, führt aber zur
+> **Falle:** Klemme 28/29 ist ebenfalls A/B beschriftet, führt aber zur
 > Außeneinheit. Dort antwortet nichts.
 
 ## DIP-Schalter
 
-**SW1-1 ON, SW1-2 OFF.**
+**SW1-1 ON, SW1-2 OFF.** Der Schalter wird nur beim Booten gelesen; die
+Inneneinheit muss stromlos gemacht werden.
 
-In dieser Stellung läuft der Bus mit der Registerkarte in
-[registerkarte.md](registerkarte.md). Mit SW1-2 auf **ON** schweigt das Gerät
-vollständig — viermal gemessen, entgegen der verbreiteten Empfehlung in Foren.
+- **SW1-2 ON** (laut Handbuch „offenes Protokoll", Stellung der offiziellen
+  LG-Karte): Das Gerät schweigt. 247 Adressen × sechs Baudraten (4800–115200),
+  viermal gemessen, kein Byte.
+- Funktion haben nur SW1-1 (Meister/Sklave), SW1-2 (offenes Protokoll) und
+  SW1-8 (Glykol), Handbuch manualslib 1118948, S. 103. **SW1-3 nicht anfassen.**
+- Ungetestet: SW2-Block (Bit 8 ON für Drittanbieter-Thermostate).
 
-Das ist bemerkenswert, denn ON ist laut Handbuch das „einheitliche offene
-Protokoll" und damit die Stellung, in der LGs offizielle Registerkarte gelten
-sollte. Sie tut es hier nicht: 247 Adressen × sechs Baudraten von 4800 bis
-115200 ergaben kein einziges Byte.
+## Ohne diese drei Punkte schweigt der Bus
 
-Der Schalter wird **nur beim Booten gelesen** — die Inneneinheit muss also
-stromlos gemacht werden.
-
-Nur drei Schalter haben überhaupt eine Funktion (Handbuch manualslib 1118948,
-S. 103): SW1-1 Meister/Sklave, SW1-2 offenes Protokoll, SW1-8 Glykol.
-**SW1-3 hat keine Funktion** — nicht anfassen.
-
-Ungetestet blieb der SW2-Block; für Drittanbieter-Thermostate soll dort Bit 8
-auf ON stehen.
-
-## Drei Fallstricke, ohne die der Bus schweigt
-
-### 1. `flow_control_pin` ist Pflicht
+**1. `flow_control_pin` ist Pflicht.** Der RS485-Treiber des Boards schaltet die
+Richtung nicht selbst um.
 
 ```yaml
 uart:
   tx_pin: GPIO17
   rx_pin: GPIO18
-  flow_control_pin: GPIO21   # ohne diese Zeile sendet das Board nie ein Byte
+  flow_control_pin: GPIO21
 ```
 
-Der RS485-Treiber dieses Boards hat keine automatische
-Richtungsumschaltung. Fehlt die Zeile, bleibt er im Empfangsmodus.
+**2. Slave-Adresse 1.** Das Bedienteil zeigt unter Umständen 33 (0x21) als
+Zentraladresse; an diesem Anschluss funktioniert nur 1.
 
-### 2. Slave-Adresse ist 1, nicht die aus dem Bedienteilmenü
+**3. `reuse_previous_range: false` an jedem Register** (bis ESPHome 2026.8
+`force_new_range: true`). Sonst verschiebt die Blockbildung Werte zwischen
+Nachbarregistern, siehe [registerkarte.md](registerkarte.md#fallstricke-bei-der-auswertung).
 
-Das Bedienteil zeigt unter Umständen 33 (hex 21) als Zentraladresse. An diesem
-Anschluss funktioniert **nur 1**.
+## Buslast
 
-### 3. `reuse_previous_range: false` an jedem Register
+Gemessen mit 34 Einzelanfragen: rund **20 s je Zyklus**, etwa 590 ms je Anfrage
+(Leitungszeit ~15 ms). Bei `update_interval: 30s` sind das zwei Drittel
+Dauerlast, ohne Timeout. **Wer Register ergänzt, muss das Intervall anheben.**
 
-Bis ESPHome 2026.8 hieß die Option `force_new_range: true`. Sonst verschiebt die Blockbildung Werte zwischen Nachbarregistern — der Grund
-für eine handfeste Fehldeutung, dokumentiert in
-[registerkarte.md](registerkarte.md).
+## Sackgassen
 
-## Gemessene Buslast
+- **TCP-Brücke** (`stream_server`): sendet, empfängt nie, weil die
+  Richtungsumschaltung das Frame-Ende nicht kennt. Auch negative Tests damit
+  beweisen nichts.
+- **Leitung des LG-Cloud-Gateways:** kein Modbus. Vollständige Stille statt
+  Exception 2 passt zu LGAP, dem LG-eigenen Protokoll.
+- **Adern vertauscht:** ein `00` je Anfrage, Aktivitäts-LED leuchtet dauerhaft
+  statt zu blinken.
+- **Geräteidentifikation** (FC 17, FC 43 alle Ebenen): keine Antwort, keine
+  Exception.
+- **Installateurmenü → Konnektivität → Energiezustand → ESS-Nutzungstyp
+  „Modbus"**: Registerraum unverändert.
 
-34 Einzelanfragen je Zyklus brauchen rund **20 Sekunden** — etwa 590 ms pro
-Anfrage. Die Anlage antwortet also deutlich träger als die reine Leitungszeit
-von ~15 ms vermuten lässt.
+## Heizkreis 2
 
-Bei `update_interval: 30s` sind das rund zwei Drittel Dauerlast. Es läuft ohne
-einen einzigen Timeout, aber Puffer ist kaum da: **wer weitere Register
-aufnimmt, muss das Intervall mit anheben.**
+Über diesen Anschluss nicht erreichbar. Wege:
 
-## Sackgassen — nicht wiederholen
+- **LG-Gateway PMBUSB00A**: CH1 als Modbus-Slave (9600), CH2 zur Außeneinheit,
+  Therma V in der Kompatibilitätsliste, dreistelliger Betrag.
+- **SG-Ready** über zwei Kontakte, ohne Protokollarbeit.
 
-- **Transparente TCP-Brücke** (`stream_server`, oxan/esphome-stream-server):
-  sendet sauber, empfängt aber nie. Die Richtungsumschaltung fällt nicht
-  rechtzeitig auf Empfang zurück, weil das Frame-Ende unbekannt ist. Als
-  Messmittel wertlos — auch negative Tests *mit* ihr beweisen nichts.
-- **Die Leitung des LG-Cloud-Gateways ist kein Modbus.** Über Minuten keine
-  einzige Antwort, nur Timeouts. Entscheidend ist das *wie*: bei falscher
-  Adresse oder falschem Register käme Exception 2 von einem antwortenden Gerät.
-  Vollständige Stille passt zu LGAP, dem LG-eigenen Protokoll — dort bekommt
-  ein Modbus-Master nie eine Antwort, gleich welche Adresse oder Baudrate.
-- **Adern vertauscht ergibt Nullbytes, nicht Antworten:** ein einzelnes `00` je
-  Anfrage, und die Aktivitäts-LED leuchtet dauerhaft statt zu blinken. Bei
-  richtiger Belegung blinkt sie.
-- **Geräteidentifikation** über FC 17 (Report Slave ID) und FC 43 (Device
-  Identification, alle drei Ebenen) wird ignoriert — keine Antwort, nicht einmal
-  eine Ausnahme.
-- **Installateurmenü → Konnektivität → Energiezustand → ESS-Nutzungstyp auf
-  „Modbus"** umgestellt und neu gestartet: der Registerraum bleibt exakt gleich.
+## Kartieren durch Ablesen
 
-## Der belegte Weg zu Heizkreis 2
-
-Der **Betriebsmodus** (aus / kühlen / heizen / auto) ist über diesen Anschluss
-direkt schaltbar — er liegt schreibbar auf HR26, Beleg in
-[registerkarte.md](registerkarte.md). **Heizkreis 2** dagegen gibt es hier
-nicht. Wer ihn über Modbus braucht, braucht das **LG-Gateway PMBUSB00A** — CH1
-als Modbus-Slave mit 9600, CH2 zur Außeneinheit, Therma V in der
-Kompatibilitätsliste, dreistelliger Betrag.
-
-Die Alternative ohne Protokollarbeit ist **SG-Ready über zwei Kontakte**.
-
-## Kniff für weitere Kartierung
-
-Das Bedienteil zeigt dieselben **Rohwerte** wie der Modbus. „Kältemittel 12000"
-am Display ist wörtlich der Rohwert aus IR13. Damit lässt sich durch bloßes
-Ablesen zuordnen — vorausgesetzt, `reuse_previous_range: false` ist gesetzt, sonst ordnet
-man verschobene Werte zu.
+Das Bedienteil zeigt dieselben Rohwerte wie der Bus („Kältemittel 12000" = IR13).
+Ablesen ordnet zu, sofern jedes Register einzeln abgefragt wird.
