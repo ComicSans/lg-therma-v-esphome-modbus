@@ -26,6 +26,28 @@ if grep -E '^(WARNING|ERROR).*deprecated' "$log"; then
 fi
 echo "ESPHome-Konfiguration gültig"
 
+# 1b. include/register_liste.h muss genau die modbus_controller-Entitaeten aus
+#     therma-v.yaml nennen. Eine umbenannte Entitaet fiele sonst still aus
+#     Busausfall, Beobachtung und "Punkte ohne Antwort" heraus.
+python3 - <<'PY'
+import re, sys
+yaml_txt = open('therma-v.yaml', encoding='utf-8').read()
+namen_yaml = set()
+for block in re.split(r'\n(?=  - platform: )', yaml_txt):
+    if block.startswith('  - platform: modbus_controller') and 'internal: true' not in block:
+        m = re.search(r'^    name: "([^"]+)"', block, re.M)
+        if m:
+            namen_yaml.add(m.group(1))
+h = open('include/register_liste.h', encoding='utf-8').read()
+namen_h = set(re.findall(r'^\s+"([^"]+)",', h, re.M))
+if namen_yaml != namen_h:
+    print("FEHLER: include/register_liste.h passt nicht zu therma-v.yaml", file=sys.stderr)
+    print("  nur in YAML:", sorted(namen_yaml - namen_h), file=sys.stderr)
+    print("  nur im Header:", sorted(namen_h - namen_yaml), file=sys.stderr)
+    sys.exit(1)
+print(f"Registerliste stimmt ({len(namen_h)} Entitaeten)")
+PY
+
 # 2. Kompilieren. `esphome config` prüft nur das YAML, nicht die C++-Lambdas;
 #    der Bruch aus Issue #1 (geänderte Modbus-API) fällt erst hier auf.
 #    Veraltete C++-API in den eigenen Lambdas gilt ebenfalls als Fehler. Der
