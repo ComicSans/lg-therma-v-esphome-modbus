@@ -212,9 +212,8 @@ und Referenzzustand-Vergleich da.
 
 ## Dokumentation
 
-- [docs/registerkarte.md](docs/registerkarte.md) — alle 38 Punkte, was belegt ist
-  und woran, was offen bleibt, und die zwei Fallstricke, die echte
-  Fehldeutungen erzeugt haben
+- [docs/registerkarte.md](docs/registerkarte.md) — alle 38 Punkte mit Beleg,
+  offene Punkte, Messfenster und Fallstricke bei der Auswertung
 - [docs/hardware.md](docs/hardware.md) — Anschluss, DIP-Schalter, Buslast,
   Sackgassen
 
