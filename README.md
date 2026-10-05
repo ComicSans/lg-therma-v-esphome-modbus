@@ -136,7 +136,7 @@ esphome run therma-v.yaml
 | `api_schluessel` | API-Verschlüsselung, `openssl rand -base64 32`; Home Assistant fragt beim Einbinden danach |
 | `ota_passwort` | Firmware-Updates über WLAN |
 
-Wer von einem Stand vor Oktober 2026 kommt, ergänzt `api_schluessel` und
+Wer von einem Stand vor `v2026.10` kommt, ergänzt `api_schluessel` und
 `ota_passwort`. Nach dem ersten Flash trennt Home Assistant die Verbindung und
 verlangt den Schlüssel; dieser Flash geht noch ohne OTA-Passwort durch.
 
