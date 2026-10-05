@@ -6,8 +6,6 @@
 # Punkte: Input 9..27, Holding 24..29, Discrete Input 6..9, 31, 32,
 # Coil 2..6, 29, 30. Belege, Messfenster und Fallstricke: docs/registerkarte.md.
 # Hardware und Sackgassen: docs/hardware.md.
-#
-# Offen und bewusst unveraendert: HR29 laesst 30..80 °C zu.
 
 # Zugangsdaten: secrets.yaml (Vorlage secrets.yaml.example).
 # Installationsspezifisch: Stromzaehler (sensor.l1_power usw.) und die
@@ -1374,8 +1372,7 @@ number:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # Offen: 30 °C liegt unter jeder Legionellenschwelle, 80 °C ueber dem,
-    # was ein R290-Monoblock liefert.
+    # Bereich wie am Bedienteil.
     name: "Soll-Temperatur Warmwasser"       # HR29: 480 bei "Warmwasser 48° eco"
     id: ww_soll
     address: 29
@@ -1383,7 +1380,7 @@ number:
     reuse_previous_range: false
     unit_of_measurement: "°C"
     min_value: 30
-    max_value: 80
+    max_value: 60
     step: 0.5
     lambda: "return x * 0.1;"
     write_lambda: "return x * 10;"
@@ -1455,8 +1452,10 @@ number:
 select:
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # OFFENE ENTSCHEIDUNG: schreibt HR26. In jourdant/esphome-lgap Issue 24
-    # hat ein Moduswechsel die Regelung von Wasser- auf Raumfuehler verstellt.
+    # Schreibt HR26; HEMS und die Climate-Entitaet nutzen es. Bisher blieb
+    # die Regelungsart bei Moduswechseln unveraendert. In jourdant/esphome-lgap
+    # Issue 24 (LGAP) hat ein Moduswechsel sie auf den Raumfuehler verstellt:
+    # nach Wechseln gelegentlich am Bedienteil pruefen.
     name: "Betriebsmodus (stellbar)"         # HR26 — siehe Rohwert-Sensor oben
     id: betriebsmodus_select
     address: 26
@@ -1915,10 +1914,6 @@ globals:
   - id: rand_ergebnis
     type: std::vector<std::string>
     restore_value: false
-  - id: rand_offen
-    type: int
-    restore_value: false
-    initial_value: "0"
 
 interval:
   # Abgeleitete Kaeltekreis-Werte. Propan-Sattdampftabelle, linear

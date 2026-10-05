@@ -62,7 +62,7 @@ kein Punkt ohne Antwort, kein verpasster Zyklus. Eine zusätzliche eigene
 | IR26 | Wärmeanforderung: 0 keine, 1 bereit, 2 angefordert | — | fiel beim Abschalten der Warmwasser-Freigabe von 2 auf 0, HR26 blieb stehen |
 | HR24 | Soll Heizkreis 1, **schreibbar** | ×0,1 | [siehe unten](#hr24-sollwert) |
 | HR26 | **Betriebsmodus, schreibbar** | — | [siehe unten](#hr26-betriebsmodus) |
-| HR29 | Soll Warmwasser, **schreibbar** | ×0,1 | 480 bei „Warmwasser 48° eco", Änderung live gefolgt |
+| HR29 | Soll Warmwasser, **schreibbar**, 30–60 °C wie am Bedienteil | ×0,1 | 480 bei „Warmwasser 48° eco", Änderung live gefolgt |
 | CO2 | **Flüstermodus, schaltbar** | — | vier Wechsel sekundengenau zur Bedienung, kein anderer Punkt ging mit |
 | CO3 | Außeneinheit in Betrieb | — | rund 20 Flanken decken sich mit dem Verdichtermelder (Shelly-Wirkleistung, nicht zirkulär) |
 | CO4 | Heizkreis 1 aktiv | — | zwei Wechsel zeitgleich mit HK1. **Nur lesend**: in der offiziellen LG-Karte liegt hier Notaus/Notbetrieb |
@@ -82,6 +82,11 @@ Am Bedienteil geschaltet, alle vier Werte mit Zeitstempel belegt:
 | 1 | Kühlen | HR24 blieb 21 °C |
 | 2 | Heizen | HR24 sprang gleichzeitig auf 55 °C |
 | 3 | Auto | im Automatikbetrieb |
+
+Geschrieben wird HR26 über das Auswahlfeld (HEMS, Climate-Entität). Die
+Regelungsart blieb bei den Moduswechseln bisher unverändert; in
+jourdant/esphome-lgap Issue 24 (LGAP-Schnittstelle) hat ein Moduswechsel sie
+auf den Raumfühler verstellt. Nach Wechseln gelegentlich am Bedienteil prüfen.
 
 Das Abschalten von HK1 läuft reproduzierbar gestaffelt: **CO4, nach 3 s HR26 = 0,
 nach weiteren 10 s DI31.** Bei 20 s Abfragetakt ist die Reihenfolge echt.
