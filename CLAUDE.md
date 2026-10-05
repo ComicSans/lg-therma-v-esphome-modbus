@@ -1,21 +1,23 @@
 # CLAUDE.md
 
-Regeln für Claude Code in diesem Repo. Aufbau, Verkabelung und Register stehen in
-`README.md` und `docs/`.
+Rules for Claude Code in this repo. Structure, wiring and registers are in
+`README.md` and `docs/`.
 
-## Was das ist
+## What this is
 
-ESPHome-Konfiguration (`therma-v.yaml`) für die LG Therma V über Modbus RTU mit
-einem ESP32, dazu Home-Assistant-Teile (`home-assistant/`). Das Repo ist öffentlich
-(Ausnahme REMOTE in `~/GitHub/local-ci/ausnahmen.tsv`).
+ESPHome configuration (`therma-v.yaml`) for the LG Therma V over Modbus RTU with
+an ESP32, plus Home Assistant parts (`home-assistant/`). The repo is public
+(exception REMOTE in `~/GitHub/local-ci/ausnahmen.tsv`).
 
-## Regeln
+## Rules
 
-- `secrets.yaml` bleibt lokal und ignoriert; Änderungen an Schlüsseln nur in
-  `secrets.yaml.example` mit Platzhaltern. Nie WLAN-, API- oder OTA-Schlüssel
-  einchecken.
-- Tests: `scripts/test.sh` prüft mit `esphome config` und `esphome compile`;
-  veraltete ESPHome-API ist ein Fehler. Legt bei Bedarf `secrets.yaml` aus dem
-  Beispiel an; der pre-push-Hook ruft es auf.
-- Flashen auf das Gerät nur auf Tobias' Auftrag.
-- Global gilt `~/.claude/CLAUDE.md`.
+- `secrets.yaml` stays local and ignored; key changes only in
+  `secrets.yaml.example` with placeholders. Never commit WiFi, API or OTA keys.
+- Tests: `scripts/test.sh` checks with `esphome config` and `esphome compile`;
+  deprecated ESPHome API is an error. It creates `secrets.yaml` from the example
+  when needed and deletes it afterwards; the pre-push hook calls it.
+- Entity names, code, comments, texts and docs are English. Renaming an entity
+  changes its Home Assistant entity ID: update `include/register_list.h` and
+  `docs/migration/entities.json` with it.
+- Flash the device only on Tobias' instruction.
+- `~/.claude/CLAUDE.md` applies globally.

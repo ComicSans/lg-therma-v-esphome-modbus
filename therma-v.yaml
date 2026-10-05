@@ -1,31 +1,31 @@
-# LG Therma V R290 Monobloc, Hydro Unit HN1639HC.NK0, Firmware 3.07.2a
-# Modbus RTU ueber Waveshare ESP32-S3-RS485-CAN, Klemme 21 (A) / 22 (B),
+# LG Therma V R290 Monobloc, Hydro Unit HN1639HC.NK0, firmware 3.07.2a
+# Modbus RTU via Waveshare ESP32-S3-RS485-CAN, terminal 21 (A) / 22 (B),
 # DIP SW1-1 ON, SW1-2 OFF.
 #
-# Eigene Registerbelegung, keine veroeffentlichte Karte passt. 38 antwortende
-# Punkte: Input 9..27, Holding 24..29, Discrete Input 6..9, 31, 32,
-# Coil 2..6, 29, 30. Belege, Messfenster und Fallstricke: docs/registerkarte.md.
-# Hardware und Sackgassen: docs/hardware.md.
+# Own register mapping; no published map fits. 38 responding registers:
+# Input 9..27, Holding 24..29, Discrete Input 6..9, 31, 32, Coil 2..6, 29, 30.
+# Evidence, measurement windows and pitfalls: docs/register-map.md.
+# Hardware and dead ends: docs/hardware.md.
 
-# Zugangsdaten: secrets.yaml (Vorlage secrets.yaml.example).
-# Installationsspezifisch: Stromzaehler (sensor.l1_power usw.) und die
-# unabhaengige Aussentemperatur (sensor.aussentemperatur).
+# Credentials: secrets.yaml (template: secrets.yaml.example).
+# Installation-specific: power meter (sensor.l1_power etc.) and the
+# independent outdoor temperature (sensor.aussentemperatur).
 
 esphome:
   name: therma-v-gateway
-  # reuse_previous_range gibt es erst ab dieser Version.
+  # reuse_previous_range exists only from this version on.
   min_version: 2026.9.0
-  # Einzelabfrage fuer die Scan-Knoepfe (ersetzt ModbusCommandItem).
+  # Individual read for the scan buttons (replaces ModbusCommandItem).
   includes:
-    - include/einzelleser.h
-    - include/register_liste.h
+    - include/single_reader.h
+    - include/register_list.h
   friendly_name: "LG Therma V Heatpump"
-  # Die Heizkurven-Verschiebung startet als Template-Number auf min_value (-3);
-  # bis HR24 im Auto-Modus gelesen ist, gilt sie als unbekannt.
+  # The heating curve shift starts as a template number at min_value (-3);
+  # until HR24 has been read in auto mode, treat it as unknown.
   on_boot:
     priority: -100
     then:
-      - lambda: id(kurve_shift).publish_state(NAN);
+      - lambda: id(curve_shift).publish_state(NAN);
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -34,17 +34,17 @@ esp32:
     type: esp-idf
 
 wifi:
-  ssid: !secret wlan_ssid
-  password: !secret wlan_passwort
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
 
   ap:
-    # SSID ohne Passwort darin (wird im Klartext gefunkt), AP-Passwort
-    # getrennt vom WLAN-Passwort.
+    # No password in the SSID (broadcast in plain text); AP password
+    # separate from the Wi-Fi password.
     ssid: "therma-v-fallback"
-    password: !secret ap_passwort
+    password: !secret ap_password
 
-# Ohne captive_portal ist der Fallback-AP nutzlos: mit falschen WLAN-Daten
-# bliebe nur das Flashen per USB.
+# Without captive_portal the fallback AP is useless: with wrong Wi-Fi
+# credentials only USB flashing would remain.
 captive_portal:
 
 logger:
@@ -52,23 +52,23 @@ logger:
 
 api:
   encryption:
-    key: !secret api_schluessel
-  # Kein Neustart, wenn Home Assistant laenger weg ist (Standard 15 min): ein
-  # Neustart setzt Stillstandsdauer und Taktzustand zurueck, und die
-  # Firmware-Diagnose soll gerade ohne HA weiterlaufen.
+    key: !secret api_key
+  # No reboot when Home Assistant is gone for long (default 15 min): a
+  # reboot resets standstill duration and cycle state, and the on-device
+  # diagnosis is meant to keep running especially without HA.
   reboot_timeout: 0s
 
 ota:
   - platform: esphome
-    password: !secret ota_passwort
+    password: !secret ota_password
 
-# Zeitquellen fuer den Tageswechsel (Intervall "Tageswechsel" unten): Home
-# Assistant, ersatzweise NTP, damit Tageszaehler auch ohne HA umlegen.
+# Time sources for the day change (interval "day change" below): Home
+# Assistant, NTP as fallback, so daily counters roll over even without HA.
 time:
   - platform: homeassistant
-    id: ha_zeit
+    id: ha_time
   - platform: sntp
-    id: sntp_zeit
+    id: sntp_time
 
 uart:
   id: modbus_uart
@@ -76,7 +76,7 @@ uart:
   rx_pin: GPIO18
   baud_rate: 9600
   stop_bits: 1
-  # EN-Pin des RS485-Transceivers. Ohne ihn sendet das Board nie.
+  # EN pin of the RS485 transceiver. Without it the board never transmits.
   flow_control_pin: GPIO21
 
 modbus:
@@ -91,21 +91,21 @@ modbus_controller:
     update_interval: 30s
 
 # =============================================================
-# Messwerte — Input-Register 9..27
+# Readings — input registers 9..27
 #
-# reuse_previous_range: false an jedem Modbus-Eintrag: jedes Register wird
-# einzeln angefragt, sonst verschiebt die Blockbildung Werte zwischen
-# Nachbarn (registerkarte.md, Fallstrick 1). Die Option trennt nur vom
-# vorherigen Eintrag, neue Eintraege brauchen sie deshalb ebenfalls.
+# reuse_previous_range: false on every Modbus entry: each register is
+# requested individually, otherwise block grouping shifts values between
+# neighbours (register-map.md, pitfall 1). The option only separates from
+# the previous entry, so new entries need it as well.
 # =============================================================
 sensor:
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # IR12. Geraetefuehler im besonnten Gehaeuse, kein Wetterwert: im
-    # Stillstand tagsueber bis +12,9 K, mit Ventilator +3,9 K. Abgeleitete
-    # Groessen rechnen mit aussentemp_ref.
-    name: "Außentemperatur Gerätefühler"
-    id: aussentemp
+    # IR12. Unit sensor in a sun-exposed housing, not a weather value: at
+    # standstill up to +12.9 K during the day, with fan running +3.9 K.
+    # Derived values use outdoor_temp_ref.
+    name: "Outdoor Temperature Unit Sensor"
+    id: outdoor_temp_unit
     address: 12
     register_type: read
     value_type: S_WORD
@@ -116,22 +116,22 @@ sensor:
     accuracy_decimals: 1
     filters:
       - multiply: 0.1
-    # Referenzregister der Bus-Gesundheit: jedes Publish ist eine Antwort,
-    # der Abstand zweier Publishes ein voller Zyklus.
+    # Reference register for bus health: every publish is a response,
+    # the interval between two publishes is one full cycle.
     on_value:
       then:
         - lambda: |-
             uint32_t jetzt = millis();
-            if (id(letzte_antwort_ms) > 0) {
-              float dauer = (jetzt - id(letzte_antwort_ms)) / 1000.0f;
-              if (dauer > 1.0f && dauer < 600.0f) id(zyklusdauer).publish_state(dauer);
+            if (id(last_response_ms) > 0) {
+              float duration = (jetzt - id(last_response_ms)) / 1000.0f;
+              if (duration > 1.0f && duration < 600.0f) id(cycle_duration).publish_state(duration);
             }
-            id(vorletzte_antwort_ms) = id(letzte_antwort_ms);
-            id(letzte_antwort_ms) = jetzt;
+            id(prev_response_ms) = id(last_response_ms);
+            id(last_response_ms) = jetzt;
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    name: "Raumtemperatur"                   # IR24: 205 bei "innen 20,5"
+    name: "Room Temperature"                   # IR24: 205 at "indoor 20.5"
     address: 24
     register_type: read
     value_type: S_WORD
@@ -145,8 +145,8 @@ sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    name: "Wasser Rücklauftemperatur"        # IR15: 187 bei "18,7 intern"
-    id: ruecklauf
+    name: "Water Return Temperature"        # IR15: 187 at "18.7 internal"
+    id: water_return
     address: 15
     register_type: read
     value_type: S_WORD
@@ -160,8 +160,8 @@ sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    name: "Wasser Vorlauftemperatur"         # IR16
-    id: vorlauf
+    name: "Water Flow Temperature"         # IR16
+    id: water_flow
     address: 16
     register_type: read
     value_type: S_WORD
@@ -175,8 +175,8 @@ sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    name: "Warmwassertemperatur"             # IR25: 506, Bedienteil 50,6 °C
-    id: ww_temp
+    name: "Hot Water Temperature"             # IR25: 506, control panel 50.6 °C
+    id: hw_temp
     address: 25
     register_type: read
     value_type: S_WORD
@@ -188,13 +188,13 @@ sensor:
     filters:
       - multiply: 0.1
 
-  # --- Kaeltekreis ---
+  # --- Refrigerant circuit ---
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # Sattdampftemperatur deckt sich bei Warmwasser mit dem Vorlauf auf
-    # < 1,5 K.
-    name: "Hochdruck"
-    id: ir21_hochdruck
+    # In hot-water mode the saturation temperature matches the flow
+    # within < 1.5 K.
+    name: "High Pressure"
+    id: ir21_high_pressure
     address: 21
     register_type: read
     value_type: S_WORD
@@ -208,9 +208,9 @@ sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # Im Stillstand ≈ IR21 (Druckausgleich), im Betrieb weit darunter.
-    name: "Niederdruck"
-    id: ir22_niederdruck
+    # At standstill ≈ IR21 (pressure equalisation), far below while running.
+    name: "Low Pressure"
+    id: ir22_low_pressure
     address: 22
     register_type: read
     value_type: S_WORD
@@ -224,10 +224,10 @@ sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # Ueberhitzung gegen IR22: Stillstand 5..8 K, Verdichterlauf 1,2 K im
-    # Median. Wird negativ, normal fuer Sauggas.
-    name: "Sauggastemperatur"
-    id: ir17_sauggas
+    # Superheat vs. IR22: standstill 5..8 K, compressor running 1.2 K
+    # median. Goes negative, normal for suction gas.
+    name: "Suction Gas Temperature"
+    id: ir17_suction_gas
     address: 17
     register_type: read
     value_type: S_WORD
@@ -241,11 +241,11 @@ sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # SCHEINLEISTUNG, nicht Wirkleistung (IR23 / Scheinleistung 0,95
-    # konstant, gegen Shelly 3EM). Im Stillstand keine Messung: parkt auf 417.
-    # Den Verdichterzustand liefert die Wirkleistung.
-    name: "Scheinleistung Anlage"
-    id: ir23_scheinleistung
+    # APPARENT power, not active power (IR23 / apparent power constant at
+    # 0.95, vs. Shelly 3EM). No measurement at standstill: parks at 417.
+    # Compressor state comes from active power.
+    name: "Unit Apparent Power"
+    id: ir23_apparent_power
     address: 23
     register_type: read
     value_type: S_WORD
@@ -255,12 +255,12 @@ sensor:
     state_class: measurement
     accuracy_decimals: 0
 
-  # --- Temperaturen ---
+  # --- Temperatures ---
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # IR18. Gehaeuse der Hochdruckseite (r = +0,959 zum Hochdruck, +0,689 zur
-    # Wirkleistung). Nur ganze Kelvin. Name aus Gruenden der Historie.
-    name: "Verdichtertemperatur"
+    # IR18. High-pressure side shell (r = +0.959 to high pressure, +0.689 to
+    # active power). Whole kelvin only. Name kept for historical reasons.
+    name: "Compressor Shell Temperature"
     address: 18
     register_type: read
     value_type: S_WORD
@@ -275,9 +275,9 @@ sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # IR11. Aussenwaermetauscher: Kondensator im Kuehlen, Verdampfer im
-    # Heizen. Name aus Gruenden der Historie.
-    name: "Wärmetauscher außen"
+    # IR11. Outdoor heat exchanger: condenser when cooling, evaporator when
+    # heating. Name kept for historical reasons.
+    name: "Outdoor Heat Exchanger"
     address: 11
     register_type: read
     value_type: S_WORD
@@ -292,8 +292,8 @@ sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # Spiegelt IR11 (Abweichung ein Abtastschritt).
-    name: "Wärmetauscher außen (Spiegelregister)"
+    # Mirrors IR11 (differs by one sampling step).
+    name: "Outdoor Heat Exchanger (Mirror Register)"
     state_class: measurement
     address: 19
     register_type: read
@@ -308,9 +308,9 @@ sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # IR14. Wassertemperatur zwischen Vorlauf und Ruecklauf, Stelle offen.
-    # Nicht der Heizstab.
-    name: "Wassertemperatur unbestimmt"
+    # IR14. Water temperature between flow and return, location unknown.
+    # Not the backup heater.
+    name: "IR14 Water Temperature Unassigned"
     address: 14
     register_type: read
     value_type: S_WORD
@@ -323,11 +323,11 @@ sensor:
     filters:
       - multiply: 0.1
 
-  # --- Unbelegt: Rohwerte ohne state_class, damit keine Langzeitstatistik
-  #     auf ungedeutete Werte entsteht (registerkarte.md, Fallstrick 2).
+  # --- Unassigned: raw values without state_class, so no long-term statistics
+  #     build up on uninterpreted values (register-map.md, pitfall 2).
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    name: "IR09 Kennwert"                    # konstant 19 ueber 24 h
+    name: "IR09 Constant"                    # constant 19 over 24 h
     address: 9
     register_type: read
     value_type: S_WORD
@@ -337,8 +337,8 @@ sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # Konstant 12000; das Bedienteil zeigt denselben Rohwert.
-    name: "Kennwert Kältemittel"
+    # Constant 12000; the control panel shows the same raw value.
+    name: "IR13 Refrigerant Constant"
     address: 13
     register_type: read
     value_type: S_WORD
@@ -348,7 +348,7 @@ sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    name: "IR10 unbestimmt"
+    name: "IR10 Unassigned"
     address: 10
     register_type: read
     value_type: S_WORD
@@ -358,11 +358,11 @@ sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # IR20. Verdichterdrehzahl (Einheit offen, Hz naheliegend), siehe
-    # registerkarte.md.
-    name: "Verdichterleistung Anforderung"
-    # Name ueberholt, bleibt wegen der Historie (Entity-ID). Das Dashboard
-    # zeigt "Verdichterdrehzahl (IR20)".
+    # IR20. Compressor speed (unit unknown, Hz likely), see
+    # register-map.md.
+    name: "Compressor Speed"
+    # Kept for history (entity ID); the dashboard shows
+    # "Compressor Speed (IR20)".
     state_class: measurement
     address: 20
     register_type: read
@@ -373,7 +373,7 @@ sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    name: "IR27 unbestimmt"
+    name: "IR27 Unassigned"
     address: 27
     register_type: read
     value_type: S_WORD
@@ -381,13 +381,13 @@ sensor:
     accuracy_decimals: 0
     entity_category: diagnostic
 
-  # IR26 Waermeanforderung, nur intern; Klartext ueber den text_sensor.
-  # 0 = keine, 1 = bereit, 2 = angefordert. Kein Aktivitaetszustand: im
-  # Kuehlen steht 1 bei laufendem Verdichter. Den Verdichterzustand liefert die
-  # Wirkleistung. Unbekannte Werte fallen in den Rohwert-Zweig.
+  # IR26 heat demand, internal only; plain text via the text_sensor.
+  # 0 = none, 1 = ready, 2 = requested. Not an activity state: when cooling
+  # it reads 1 with the compressor running. Compressor state comes from
+  # active power. Unknown values fall into the raw-value branch.
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    id: betriebszyklus_raw
+    id: heat_demand_raw
     internal: true
     address: 26
     register_type: read
@@ -397,33 +397,33 @@ sensor:
     on_value:
       then:
         - text_sensor.template.publish:
-            id: betriebszyklus_text
+            id: heat_demand_text
             state: !lambda |-
               int v = (int) lround(x);
-              if (v == 0) return std::string("keine Anforderung");
-              if (v == 1) return std::string("bereit");
-              if (v == 2) return std::string("Wärme angefordert");
-              return str_sprintf("Unbekannt (%d)", v);
+              if (v == 0) return std::string("no demand");
+              if (v == 1) return std::string("ready");
+              if (v == 2) return std::string("heat requested");
+              return str_sprintf("Unknown (%d)", v);
 
-  # HR25, HR27, HR28: konstant 0, nur lesend.
+  # HR25, HR27, HR28: constant 0, read only.
 
-  # HR26 als Rohwert, weil ein select bei unbekanntem Wert stumm den letzten
-  # gueltigen behaelt. 0 = Aus / nur Warmwasser, 1 = Kuehlen, 2 = Heizen,
-  # 3 = Auto.
+  # HR26 as raw value, because a select silently keeps the last valid
+  # option on an unknown value. 0 = Off / hot water only, 1 = Cool,
+  # 2 = Heat, 3 = Auto.
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    name: "Betriebsmodus Rohwert"
-    id: hr26_modus
+    name: "Operating Mode Raw"
+    id: hr26_mode
     address: 26
     register_type: holding
-    value_type: U_WORD   # vereinheitlicht mit dem select unten (war S_WORD)
+    value_type: U_WORD   # aligned with the select below (was S_WORD)
     reuse_previous_range: false
     accuracy_decimals: 0
     entity_category: diagnostic
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    name: "HR25 unbestimmt"
+    name: "HR25 Unassigned"
     address: 25
     register_type: holding
     value_type: S_WORD
@@ -433,7 +433,7 @@ sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    name: "HR27 unbestimmt"
+    name: "HR27 Unassigned"
     address: 27
     register_type: holding
     value_type: S_WORD
@@ -443,7 +443,7 @@ sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    name: "HR28 unbestimmt"
+    name: "HR28 Unassigned"
     address: 28
     register_type: holding
     value_type: S_WORD
@@ -452,15 +452,15 @@ sensor:
     entity_category: diagnostic
 
   # =============================================================
-  # Abgeleitete Kaeltekreis-Werte (Sattdampftemperaturen aus den Druecken)
+  # Derived refrigerant circuit values (saturation temperatures from pressures)
   #
-  # Ueberhitzung: unter 3 K erreicht Fluessigkeit den Verdichter, ueber 12 K
-  # fehlt Leistung (Kaeltemittelmangel, Expansionsventil). Nur im Betrieb
-  # aussagekraeftig. Kein COP: der Durchfluss ist nicht abgebildet.
+  # Superheat: below 3 K liquid reaches the compressor, above 12 K capacity
+  # is lacking (refrigerant shortage, expansion valve). Meaningful only while
+  # running. No COP: water flow rate is not available.
   # =============================================================
   - platform: template
-    name: "Verdampfungstemperatur"
-    id: verdampfung
+    name: "Evaporating Temperature"
+    id: evaporating_temp
     unit_of_measurement: "°C"
     device_class: temperature
     state_class: measurement
@@ -470,8 +470,8 @@ sensor:
     update_interval: never
 
   - platform: template
-    name: "Kondensationstemperatur"
-    id: kondensation
+    name: "Condensing Temperature"
+    id: condensing_temp
     unit_of_measurement: "°C"
     device_class: temperature
     state_class: measurement
@@ -481,12 +481,12 @@ sensor:
     update_interval: never
 
   - platform: template
-    # Median ueber 7 Werte (3,5 min) ist zwingend: Niederdruck und Fuehler
-    # pendeln phasenverschoben, der Momentanwert sprang zwischen -6,7 und
-    # +8,8 K. Ein einzelnes NaN wird ueberbrueckt, erst 7 NaN machen den Sensor
+    # Median over 7 values (3.5 min) is mandatory: low pressure and sensor
+    # oscillate out of phase, the instantaneous value jumped between -6.7 and
+    # +8.8 K. A single NaN is bridged; only 7 NaNs make the sensor
     # unavailable.
-    name: "Sauggasüberhitzung"
-    id: ueberhitzung
+    name: "Suction Superheat"
+    id: superheat
     unit_of_measurement: "K"
     state_class: measurement
     accuracy_decimals: 1
@@ -499,8 +499,8 @@ sensor:
           send_every: 1
 
   - platform: template
-    name: "Temperaturhub"
-    id: temperaturhub
+    name: "Temperature Lift"
+    id: temp_lift
     unit_of_measurement: "K"
     state_class: measurement
     accuracy_decimals: 1
@@ -509,8 +509,8 @@ sensor:
     update_interval: never
 
   - platform: template
-    name: "Verdichtungsverhältnis"
-    id: verdichtungsverhaeltnis
+    name: "Compression Ratio"
+    id: compression_ratio
     state_class: measurement
     accuracy_decimals: 2
     entity_category: diagnostic
@@ -518,7 +518,7 @@ sensor:
     update_interval: never
 
   - platform: template
-    name: "Carnot-Obergrenze"
+    name: "Carnot Limit"
     id: carnot
     state_class: measurement
     accuracy_decimals: 2
@@ -527,8 +527,8 @@ sensor:
     update_interval: never
 
   - platform: template
-    name: "Annäherung Kondensation Vorlauf"
-    id: annaeherung_kond
+    name: "Condenser Approach"
+    id: approach_cond
     unit_of_measurement: "K"
     state_class: measurement
     accuracy_decimals: 1
@@ -537,8 +537,8 @@ sensor:
     update_interval: never
 
   - platform: template
-    name: "Annäherung Außenluft Verdampfung"
-    id: annaeherung_verd
+    name: "Evaporator Approach"
+    id: approach_evap
     unit_of_measurement: "K"
     state_class: measurement
     accuracy_decimals: 1
@@ -547,8 +547,8 @@ sensor:
     update_interval: never
 
   - platform: template
-    name: "Spreizung Vorlauf Rücklauf"
-    id: spreizung
+    name: "Flow Return Delta"
+    id: flow_return_delta
     unit_of_measurement: "K"
     state_class: measurement
     accuracy_decimals: 1
@@ -557,8 +557,8 @@ sensor:
     update_interval: never
 
   - platform: template
-    name: "Druckdifferenz"
-    id: druckdifferenz
+    name: "Pressure Difference"
+    id: pressure_diff
     unit_of_measurement: "bar"
     device_class: pressure
     state_class: measurement
@@ -568,26 +568,26 @@ sensor:
     update_interval: never
 
   # =============================================================
-  # Elektrische Messung: Shelly 3EM der Waermepumpe, Kanaele L1..L3 direkt.
-  # Der Sammelzaehler sensor.verbrauch_warmepumpe hat einen Offset von rund
-  # 16,7 Mio. kWh und taugt nur als Differenz.
+  # Electrical metering: the heat pump's Shelly 3EM, channels L1..L3 directly.
+  # The total meter sensor.verbrauch_warmepumpe has an offset of about
+  # 16.7 million kWh and is only usable as a difference.
   # =============================================================
-  # Unabhaengige Aussentemperatur, Rueckfall auf IR12.
+  # Independent outdoor temperature, falls back to IR12.
   - platform: homeassistant
-    id: aussentemp_ref
+    id: outdoor_temp_ref
     entity_id: sensor.aussentemperatur
     internal: true
 
   - platform: homeassistant
-    id: l1_wirk
+    id: l1_active
     entity_id: sensor.l1_power
     internal: true
   - platform: homeassistant
-    id: l2_wirk
+    id: l2_active
     entity_id: sensor.l2_power
     internal: true
   - platform: homeassistant
-    id: l3_wirk
+    id: l3_active
     entity_id: sensor.l3_power
     internal: true
   - platform: homeassistant
@@ -616,8 +616,8 @@ sensor:
     internal: true
 
   - platform: template
-    name: "Wirkleistung gemessen"
-    id: wirkleistung
+    name: "Active Power Measured"
+    id: active_power_meas
     unit_of_measurement: "W"
     device_class: power
     state_class: measurement
@@ -626,8 +626,8 @@ sensor:
     update_interval: never
 
   - platform: template
-    name: "Scheinleistung gemessen"
-    id: scheinleistung
+    name: "Apparent Power Measured"
+    id: apparent_power_meas
     unit_of_measurement: "VA"
     device_class: apparent_power
     state_class: measurement
@@ -637,10 +637,10 @@ sensor:
     update_interval: never
 
   - platform: template
-    # Wirkleistung / Scheinleistung. Steigt mit der Last (0,71 bei 1,5 kW,
-    # 0,79 bei 2,7 kW).
-    name: "Leistungsfaktor"
-    id: leistungsfaktor
+    # Active power / apparent power. Rises with load (0.71 at 1.5 kW,
+    # 0.79 at 2.7 kW).
+    name: "Power Factor"
+    id: power_factor
     state_class: measurement
     accuracy_decimals: 3
     entity_category: diagnostic
@@ -648,10 +648,10 @@ sensor:
     update_interval: never
 
   - platform: template
-    # IR23 / gemessene Scheinleistung, erwartet ~0,95. Laeuft der Wert weg,
-    # stimmt die Deutung oder der Zaehler nicht mehr.
-    name: "Abgleich IR23 zu Messung"
-    id: ir23_abgleich
+    # IR23 / measured apparent power, expected ~0.95. If the value drifts,
+    # either the interpretation or the meter is no longer right.
+    name: "IR23 to Meter Ratio"
+    id: ir23_ratio
     state_class: measurement
     accuracy_decimals: 3
     entity_category: diagnostic
@@ -659,11 +659,11 @@ sensor:
     update_interval: never
 
   - platform: template
-    # Abstand staerkste zu schwaechster Phase in % der staerksten. Kein
-    # Heizstab verbaut; deutliche Schieflast heisst Messproblem oder
-    # Fremdverbraucher.
-    name: "Phasenschieflast"
-    id: schieflast
+    # Gap between strongest and weakest phase in % of the strongest. No
+    # backup heater installed; a clear imbalance means a metering problem or
+    # a foreign load.
+    name: "Phase Imbalance"
+    id: phase_imbalance
     unit_of_measurement: "%"
     state_class: measurement
     accuracy_decimals: 1
@@ -672,8 +672,8 @@ sensor:
     update_interval: never
 
   - platform: template
-    name: "Standby-Verbrauch"
-    id: standby_verbrauch
+    name: "Standby Power"
+    id: standby_power
     unit_of_measurement: "W"
     device_class: power
     state_class: measurement
@@ -683,11 +683,11 @@ sensor:
     update_interval: never
 
   - platform: template
-    # Energie je Kelvin Speicherhub ueber eine ganze Ladung, Ersatz fuer den
-    # COP. Ladungsgrenzen: DI09 und steigende Speichertemperatur bei laufendem
-    # Verdichter.
-    name: "Verbrauch je Kelvin Speicherhub"
-    id: kwh_pro_kelvin
+    # Energy per kelvin of tank lift over a whole hot-water charge, a proxy for
+    # COP. Charge boundaries: DI09 and rising tank temperature with the
+    # compressor running.
+    name: "Energy per Kelvin Tank Lift"
+    id: kwh_per_kelvin
     unit_of_measurement: "kWh/K"
     state_class: measurement
     accuracy_decimals: 3
@@ -696,31 +696,31 @@ sensor:
     update_interval: never
 
   # =============================================================
-  # Betriebsstatistik. Zaehler mit restore_value, Tageswechsel ueber HA-Zeit.
+  # Operating statistics. Counters with restore_value, day change via HA time.
   # =============================================================
   - platform: template
-    name: "Verdichterstarts heute"
-    # Reset um Mitternacht; HA wertet den Ruecksprung als neuen Zyklus.
+    name: "Compressor Starts Today"
+    # Reset at midnight; HA treats the drop as a new cycle.
     state_class: total_increasing
-    id: starts_heute_sensor
+    id: starts_today_sensor
     accuracy_decimals: 0
     entity_category: diagnostic
     icon: "mdi:restart"
     update_interval: never
 
   - platform: template
-    name: "Verdichterstarts gestern"
-    # Tagesschnappschuss, springt in beide Richtungen: measurement.
+    name: "Compressor Starts Yesterday"
+    # Daily snapshot, jumps in both directions: measurement.
     state_class: measurement
-    id: starts_vortag_sensor
+    id: starts_yesterday_sensor
     accuracy_decimals: 0
     entity_category: diagnostic
     icon: "mdi:restart-off"
     update_interval: never
 
   - platform: template
-    name: "Mittlere Laufzeit pro Takt"
-    id: mittlere_laufzeit
+    name: "Mean Cycle Runtime"
+    id: mean_cycle_runtime
     unit_of_measurement: "min"
     state_class: measurement
     accuracy_decimals: 1
@@ -729,10 +729,10 @@ sensor:
     update_interval: never
 
   - platform: template
-    # Der aussagekraeftigste Einzelwert fuer ein Taktungsproblem.
-    name: "Kürzester Takt heute"
+    # The most telling single value for a short-cycling problem.
+    name: "Shortest Cycle Today"
     state_class: measurement
-    id: kuerzester_takt_sensor
+    id: shortest_cycle_sensor
     unit_of_measurement: "min"
     accuracy_decimals: 1
     entity_category: diagnostic
@@ -740,8 +740,8 @@ sensor:
     update_interval: never
 
   - platform: template
-    name: "Betriebsstunden Verdichter"
-    id: betriebsstunden
+    name: "Compressor Operating Hours"
+    id: operating_hours
     unit_of_measurement: "h"
     state_class: total_increasing
     accuracy_decimals: 2
@@ -750,20 +750,20 @@ sensor:
     update_interval: never
 
   - platform: template
-    name: "Warmwasserladungen heute"
-    # Wie die Verdichterstarts: Reset um Mitternacht, siehe oben.
+    name: "Hot Water Charges Today"
+    # Like the compressor starts: reset at midnight, see above.
     state_class: total_increasing
-    id: ladungen_heute_sensor
+    id: charges_today_sensor
     accuracy_decimals: 0
     entity_category: diagnostic
     icon: "mdi:water-plus"
     update_interval: never
 
   - platform: template
-    # Starts der letzten 3600 s. Bewusst fluechtig: millis() beginnt nach
-    # einem Neustart bei null.
-    name: "Verdichterstarts je Stunde"
-    id: starts_pro_stunde
+    # Starts in the last 3600 s. Deliberately volatile: millis() restarts
+    # at zero after a reboot.
+    name: "Compressor Starts Last Hour"
+    id: starts_last_hour
     unit_of_measurement: "1/h"
     state_class: measurement
     accuracy_decimals: 0
@@ -772,14 +772,14 @@ sensor:
     update_interval: never
 
   # =============================================================
-  # Verschleiss und Effizienz. Schwellen aus der entfallenen
-  # Waermepumpen-Analyse des HEMS-Projekts: zwei Schwellen je Hinweis,
-  # Tagesmittel, qualitativ formuliert (Pumpenkennlinie unbekannt).
+  # Wear and efficiency. Thresholds from the retired heat pump analysis
+  # of the HEMS project: two thresholds per hint, daily mean, worded
+  # qualitatively (pump curve unknown).
   # =============================================================
   - platform: template
-    # Nur bei laufendem Verdichter gemittelt.
-    name: "Spreizung Tagesmittel"
-    id: spreizung_mittel
+    # Averaged only while the compressor is running.
+    name: "Flow Return Delta Daily Mean"
+    id: delta_daily_mean
     unit_of_measurement: "K"
     state_class: measurement
     accuracy_decimals: 1
@@ -788,9 +788,9 @@ sensor:
     update_interval: never
 
   - platform: template
-    # Viele Starts bei wenig Laufzeit: Takten. Bei viel Laufzeit: Last.
-    name: "Laufzeitanteil heute"
-    id: laufzeitanteil
+    # Many starts with little runtime: short cycling. With much runtime: load.
+    name: "Runtime Share Today"
+    id: runtime_share
     unit_of_measurement: "%"
     state_class: measurement
     accuracy_decimals: 0
@@ -799,9 +799,9 @@ sensor:
     update_interval: never
 
   - platform: template
-    # Takten unabhaengig von der Tageslast.
-    name: "Starts je Betriebsstunde"
-    id: starts_je_stunde_lauf
+    # Short cycling independent of the daily load.
+    name: "Starts per Operating Hour"
+    id: starts_per_run_hour
     unit_of_measurement: "1/h"
     state_class: measurement
     accuracy_decimals: 1
@@ -810,10 +810,10 @@ sensor:
     update_interval: never
 
   - platform: template
-    # Einzige Groesse, die einen Ausfall ohne Busfehler zeigt (01.08.2026:
-    # 76 min Stillstand, CH03 nur am Bedienteil, Bus fehlerfrei).
-    name: "Stillstandsdauer"
-    id: stillstandsdauer
+    # The only value that shows a failure without bus errors (2026-08-01:
+    # 76 min standstill, CH03 only on the control panel, bus error-free).
+    name: "Standstill Duration"
+    id: standstill_duration
     unit_of_measurement: "min"
     state_class: measurement
     accuracy_decimals: 0
@@ -822,13 +822,13 @@ sensor:
     update_interval: never
 
   # =============================================================
-  # Bus-Gesundheit. ESPHome legt keine Timeout- und Exception-Zaehler offen;
-  # das hier sind Ersatzgroessen aus ausbleibenden Werten.
+  # Bus health. ESPHome exposes no timeout or exception counters;
+  # these are proxies derived from missing values.
   # =============================================================
   - platform: template
-    # Sekunden seit dem letzten Wert des Referenzregisters.
-    name: "Zeit seit letzter Antwort"
-    id: zeit_seit_antwort
+    # Seconds since the last value of the reference register.
+    name: "Time Since Last Response"
+    id: time_since_response
     unit_of_measurement: "s"
     state_class: measurement
     accuracy_decimals: 0
@@ -837,10 +837,10 @@ sensor:
     update_interval: never
 
   - platform: template
-    # Abstand zweier Werte des Referenzregisters. Normal 30 s
-    # (update_interval); darueber dauert ein Durchlauf laenger als vorgesehen.
-    name: "Zyklusdauer"
-    id: zyklusdauer
+    # Interval between two values of the reference register. Normally 30 s
+    # (update_interval); above that a poll pass takes longer than intended.
+    name: "Poll Cycle Duration"
+    id: cycle_duration
     unit_of_measurement: "s"
     state_class: measurement
     accuracy_decimals: 1
@@ -849,39 +849,39 @@ sensor:
     update_interval: never
 
   - platform: template
-    name: "Verpasste Abfragezyklen"
-    # Minuten mit mehr als 60 s Busstille. Laeuft ueber Neustarts weiter
-    # (restore_value) und zeigt schleichende Verschlechterung.
+    name: "Bus Silence Minutes"
+    # Minutes with more than 60 s of bus silence. Persists across reboots
+    # (restore_value) and shows gradual degradation.
     state_class: total_increasing
-    id: verpasste_zyklen
+    id: silent_minutes_sensor
     accuracy_decimals: 0
     entity_category: diagnostic
     icon: "mdi:alert-octagon-outline"
     update_interval: never
 
   - platform: template
-    # Ueberwachte Register ohne Wert.
-    name: "Punkte ohne Antwort"
+    # Monitored registers without a value.
+    name: "Registers Without Response"
     state_class: measurement
-    id: punkte_ohne_antwort
+    id: registers_missing
     accuracy_decimals: 0
     entity_category: diagnostic
     icon: "mdi:help-network-outline"
     update_interval: never
 
-  # --- Registerbeobachtung ---
+  # --- Register observation ---
   - platform: template
-    name: "Beobachtung Änderungen"
-    id: scan_zaehler_sensor
+    name: "Observation Changes"
+    id: obs_count_sensor
     accuracy_decimals: 0
     entity_category: diagnostic
     icon: "mdi:counter"
     update_interval: never
 
   - platform: template
-    # Restlaufzeit des Beobachtungsschalters.
-    name: "Beobachtung Restlaufzeit"
-    id: scan_restlaufzeit
+    # Remaining time of the observation switch.
+    name: "Observation Time Left"
+    id: obs_time_left
     unit_of_measurement: "min"
     accuracy_decimals: 0
     entity_category: diagnostic
@@ -889,90 +889,90 @@ sensor:
     update_interval: never
 
 # =============================================================
-# Klartextanzeigen
+# Plain-text displays
 # =============================================================
 text_sensor:
   - platform: template
-    id: betriebszyklus_text
-    name: "Wärmeanforderung"                 # IR26, Klartext statt 0 / 1 / 2
+    id: heat_demand_text
+    name: "Heat Demand"                 # IR26, plain text instead of 0 / 1 / 2
     entity_category: diagnostic
     icon: "mdi:sync"
     update_interval: never
 
   - platform: template
-    id: scan_letzte_text
-    name: "Beobachtung letzte Änderung"
+    id: obs_last_text
+    name: "Observation Last Change"
     entity_category: diagnostic
     icon: "mdi:swap-vertical"
     update_interval: never
 
   - platform: template
-    id: scan_liste_text
-    name: "Beobachtung geänderte Punkte"
+    id: obs_list_text
+    name: "Observation Changed Registers"
     entity_category: diagnostic
     icon: "mdi:format-list-bulleted"
     update_interval: never
 
   - platform: template
     id: ref_text
-    name: "Abweichung zum Referenzzustand"
+    name: "Reference Comparison"
     entity_category: diagnostic
     icon: "mdi:compare-horizontal"
     update_interval: never
 
   - platform: template
-    id: rand_text
-    name: "Ergebnis Randbereichsprüfung"
+    id: scan_result_text
+    name: "Edge Scan Result"
     entity_category: diagnostic
     icon: "mdi:radar"
     update_interval: never
 
   # -----------------------------------------------------------
-  # Diagnose in Klartext, in der Firmware statt als HA-Template: Sie bleibt
-  # bei HA-Neustart stehen. Von aussen kommen nur Aussenluft und Leistung,
-  # beide mit Rueckfall.
+  # Plain-text diagnosis in firmware rather than as an HA template: it stays
+  # up when HA restarts. Only outdoor air and power come from outside,
+  # both with a fallback.
   # -----------------------------------------------------------
   - platform: template
-    # Bewertet ueber die Sattdampftemperaturen, nicht den Rohdruck.
-    id: druck_text
-    name: "Druckbewertung"
+    # Assessed via the saturation temperatures, not the raw pressure.
+    id: pressure_text
+    name: "Pressure Assessment"
     entity_category: diagnostic
     icon: "mdi:gauge"
     update_interval: never
 
   - platform: template
-    # Urteil aus den Ersatzgroessen. Verpasste Zyklen zaehlen nicht mit: der
-    # Zaehler laeuft ueber Neustarts und bliebe sonst dauerhaft auffaellig.
-    id: bus_text
-    name: "Busgesundheit"
+    # Verdict from the proxy values. Bus silence minutes are not counted: the
+    # counter persists across reboots and would otherwise stay degraded forever.
+    id: bus_health_text
+    name: "Bus Health"
     entity_category: diagnostic
     icon: "mdi:lan-check"
     update_interval: never
 
   - platform: template
-    # Empfehlungen an einer laufenden Anlage, getrennt von der Diagnose.
-    id: effizienz_text
-    name: "Effizienzhinweis"
+    # Recommendations for a running unit, separate from the diagnosis.
+    id: efficiency_text
+    name: "Efficiency Hint"
     icon: "mdi:lightbulb-on-outline"
     update_interval: never
 
   - platform: template
-    # Alles Anstehende in einer Zeile.
-    id: diagnose_text
-    name: "Diagnose"
+    # Everything pending in one line.
+    id: diagnosis_text
+    name: "Diagnosis"
     icon: "mdi:stethoscope"
     update_interval: never
 
 
 # =============================================================
-# Binaere Punkte — Discrete Inputs und Coils (nur lesend).
-# Unbelegte tragen die Registerkennung im Namen; daran erkennt die
-# Registerbeobachtung echte Registerpunkte.
+# Binary points — discrete inputs and coils (read only).
+# Unassigned ones carry the register ID in their name; that is how the
+# register observation recognises real register points.
 # =============================================================
 binary_sensor:
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    name: "DI06 unbestimmt"
+    name: "DI06 Unassigned"
     address: 6
     register_type: discrete_input
     reuse_previous_range: false
@@ -980,9 +980,9 @@ binary_sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # DI07. Drei-Minuten-Wiederanlaufsperre: on = startbereit, faellt nach
-    # jedem Betriebsende fuer exakt 180 s ab (125 von 133 Phasen).
-    name: "Verdichter startbereit"
+    # DI07. Three-minute restart lock: on = ready to start, drops for exactly
+    # 180 s after every end of operation (125 of 133 phases).
+    name: "Compressor Ready"
     address: 7
     register_type: discrete_input
     reuse_previous_range: false
@@ -990,10 +990,10 @@ binary_sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # DI08 = IR20 auf 60, also die hoechste Stufe (siehe registerkarte.md).
-    # Redundant zu IR20, bleibt als unabhaengige Bestaetigung. Name bleibt wegen
-    # der Historie.
-    name: "Verdichter hohe Stufe"
+    # DI08 = IR20 at 60, i.e. the top stage (see register-map.md).
+    # Redundant with IR20, kept as independent confirmation. Name kept for
+    # the history.
+    name: "Compressor Top Stage"
     address: 8
     register_type: discrete_input
     reuse_previous_range: false
@@ -1001,66 +1001,66 @@ binary_sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # DI09. Belegt ueber zwei Ladungen; blieb in Kuehltakten aus, in denen die
-    # temperaturbasierte Erkennung angeschlagen haette. Grenzt die
-    # Ladungserkennung ein.
-    name: "DI09 Warmwasserbereitung"
-    id: di09_ww
+    # DI09. Confirmed over two hot-water charges; stayed off during cooling
+    # cycles in which the temperature-based detection would have triggered.
+    # Narrows down charge detection.
+    name: "DI09 Hot Water Mode"
+    id: di09_hot_water
     address: 9
     register_type: discrete_input
     reuse_previous_range: false
     entity_category: diagnostic
 
-  # CO5 nur LESEND. Bedeutung offen, Busantwort auf den Schreibversuch nicht
-  # festgehalten; daneben liegen in der LG-Karte Notaus und Desinfektion.
-  # Siehe registerkarte.md, Warnung zu Coil 5.
+  # CO5 READ ONLY. Meaning unknown, bus response to the write attempt was not
+  # recorded; next to it the LG map has emergency stop and disinfection.
+  # See register-map.md, warning on coil 5.
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    name: "CO5 unbestimmt (nur Anzeige)"
+    name: "CO5 Unassigned (Read Only)"
     address: 5
     register_type: coil
     reuse_previous_range: false
     entity_category: diagnostic
 
-  # DI31. Heizkreis 1 invertiert zu CO4: on solange HK1 aus ist.
+  # DI31. Heating circuit 1 inverted to CO4: on while HC1 is off.
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    name: "Heizkreis 1 invers"
+    name: "Heating Circuit 1 Inverted"
     address: 31
     register_type: discrete_input
     reuse_previous_range: false
     entity_category: diagnostic
 
-  # --- Erst durch Einzelabfrage gefunden (Gruppenscans uebersehen sie).
+  # --- Only found by individual read (group scans miss them).
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    name: "DI32 unbestimmt"
+    name: "DI32 Unassigned"
     address: 32
     register_type: discrete_input
     reuse_previous_range: false
     entity_category: diagnostic
 
-  # CO4. Heizkreis 1 aktiv. Nur LESEND: in der LG-Karte liegt hier
-  # Notaus/Notbetrieb.
+  # CO4. Heating circuit 1 active. READ ONLY: the LG map has
+  # emergency stop/emergency mode here.
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    name: "Heizkreis 1"
+    name: "Heating Circuit 1"
     address: 4
     register_type: coil
     reuse_previous_range: false
     entity_category: diagnostic
 
   # =============================================================
-  # Coils aus dem breiten Einzelscan: CO2, CO3, CO29, CO30. Die LG-Karte gilt
-  # hier nicht (CO6 = Warmwasser liegt dort auf Coil 1); Namensgleichheit ist
-  # kein Beleg. Alle nur lesend, CO2 ist unten als Schalter eingebunden.
+  # Coils from the wide individual scan: CO2, CO3, CO29, CO30. The LG map does
+  # not apply here (CO6 = hot water is on coil 1 there); matching names are
+  # no proof. All read only, CO2 is included below as a switch.
   # =============================================================
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # CO3. Aussen- bzw. Verdichtereinheit in Betrieb: rund 20 Flanken decken
-    # sich mit dem Verdichtermelder (Shelly-Wirkleistung, nicht zirkulaer).
-    # Ventilator ausgeschlossen.
-    name: "Außeneinheit in Betrieb"
+    # CO3. Outdoor/compressor unit running: about 20 edges match the
+    # compressor indicator (Shelly active power, not circular).
+    # Fan ruled out.
+    name: "Outdoor Unit Running"
     address: 3
     register_type: coil
     reuse_previous_range: false
@@ -1068,7 +1068,7 @@ binary_sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    name: "CO29 unbestimmt"
+    name: "CO29 Unassigned"
     address: 29
     register_type: coil
     reuse_previous_range: false
@@ -1076,267 +1076,267 @@ binary_sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    name: "CO30 unbestimmt"
+    name: "CO30 Unassigned"
     address: 30
     register_type: coil
     reuse_previous_range: false
     entity_category: diagnostic
 
   # =============================================================
-  # Melder. Jeder mit zwei Schwellen gegen Flattern.
+  # Indicators. Each with two thresholds (hysteresis) against flapping.
   # =============================================================
   - platform: template
-    # Quelle ist die gemessene Wirkleistung, nicht IR23. Belegte Niveaus:
-    # Elektronik ~4 W, Umwaelzpumpe 90..181 W, Verdichter ab 877 W. Die
-    # Schwellen 350/500 W liegen in der Luecke.
-    name: "Verdichter läuft"
-    id: verdichter_melder
+    # Source is the measured active power, not IR23. Observed levels:
+    # electronics ~4 W, circulation pump 90..181 W, compressor from 877 W. The
+    # 350/500 W thresholds sit in the gap.
+    name: "Compressor Running"
+    id: compressor_running
     device_class: running
     icon: "mdi:engine"
     lambda: |-
-      // Direkt aus den drei Phasen, nicht aus "Wirkleistung" (nur alle 30 s
-      // gerechnet): sonst liegen Start und Stopp bis zu 30 s daneben.
-      float w = id(l1_wirk).state + id(l2_wirk).state + id(l3_wirk).state;
+      // Directly from the three phases, not from "Active Power Measured" (only
+      // computed every 30 s): otherwise start and stop are off by up to 30 s.
+      float w = id(l1_active).state + id(l2_active).state + id(l3_active).state;
       if (!std::isnan(w)) {
-        if (id(verdichter_laeuft)) return w > 350.0f;
+        if (id(compressor_on)) return w > 350.0f;
         return w > 500.0f;
       }
-      float va = id(ir23_scheinleistung).state;
-      if (std::isnan(va)) return id(verdichter_laeuft);
-      if (id(verdichter_laeuft)) return va > 500.0f;
+      float va = id(ir23_apparent_power).state;
+      if (std::isnan(va)) return id(compressor_on);
+      if (id(compressor_on)) return va > 500.0f;
       return va > 700.0f;
 
   - platform: template
-    # Pumpe ist ueber Modbus nicht abgebildet (DI07 ist es nicht); erkannt
-    # ueber die Leistungsstufe 90..181 W.
-    name: "Umwälzpumpe läuft"
-    id: pumpe_melder
+    # Pump is not exposed via Modbus (DI07 is not it); detected
+    # via the 90..181 W power level.
+    name: "Circulation Pump Running"
+    id: pump_running
     device_class: running
     entity_category: diagnostic
     icon: "mdi:pump"
     lambda: |-
-      float w = id(l1_wirk).state + id(l2_wirk).state + id(l3_wirk).state;
-      if (std::isnan(w)) return id(pumpe_melder).state;
-      if (id(pumpe_melder).state) return w > 15.0f;
+      float w = id(l1_active).state + id(l2_active).state + id(l3_active).state;
+      if (std::isnan(w)) return id(pump_running).state;
+      if (id(pump_running).state) return w > 15.0f;
       return w > 25.0f;
 
   - platform: template
-    # device_class: problem; on = Problem.
-    name: "Kältekreis Status"
-    id: kreis_warnung
+    # device_class: problem; on = problem.
+    name: "Refrigerant Circuit Status"
+    id: circuit_alarm
     device_class: problem
     entity_category: diagnostic
     icon: "mdi:heat-pump-outline"
     lambda: |-
-      // Nur bei laufendem Verdichter aussagekraeftig.
-      if (!id(verdichter_melder).state) return false;
-      // Anlaufkarenz 5 min: beim Start ist die Ueberhitzung normal niedrig.
-      if (id(aktueller_takt_start) == 0) return false;
-      if ((millis() - id(aktueller_takt_start)) < 300000UL) return false;
-      float u = id(ueberhitzung).state;
+      // Only meaningful while the compressor is running.
+      if (!id(compressor_running).state) return false;
+      // Start-up grace period 5 min: superheat is normally low at start.
+      if (id(cycle_start_ms) == 0) return false;
+      if ((millis() - id(cycle_start_ms)) < 300000UL) return false;
+      float u = id(superheat).state;
       if (std::isnan(u)) return false;
-      // Untere Schwelle -0,5/0 K: Ein ueber 3,5 min gemitteltes Sauggas kann
-      // nicht kaelter als die Verdampfung sein. Im Betrieb liegt die Ueberhitzung
-      // bei 1,2 K im Median; eine Schwelle von 3 K meldete 74 % des Normalbetriebs.
-      // Obere Schwelle 11/12 K, 90. Perzentil im Betrieb 7,6 K.
-      if (id(kreis_warnung).state) return (u < 0.0f || u > 11.0f);
+      // Lower threshold -0.5/0 K: suction gas averaged over 3.5 min cannot
+      // be colder than the evaporating temperature. In operation the median
+      // superheat is 1.2 K; a 3 K threshold flagged 74 % of normal operation.
+      // Upper threshold 11/12 K, 90th percentile in operation 7.6 K.
+      if (id(circuit_alarm).state) return (u < 0.0f || u > 11.0f);
       return (u < -0.5f || u > 12.0f);
 
   - platform: template
-    # Abstand Kondensation zu Vorlauf; ueblich 2..5 K. Mehr heisst
-    # Verschmutzung oder Luft im Plattenwaermetauscher. on = Problem.
-    name: "Wärmeübergang Status"
-    id: uebergang_warnung
+    # Gap between condensing temperature and flow; typically 2..5 K. More means
+    # fouling or air in the plate heat exchanger. on = problem.
+    name: "Heat Transfer Status"
+    id: transfer_alarm
     device_class: problem
     entity_category: diagnostic
     icon: "mdi:heat-wave"
     lambda: |-
-      if (!id(verdichter_melder).state) return false;
-      // Anlaufkarenz wie beim Kaeltekreis.
-      if (id(aktueller_takt_start) == 0) return false;
-      if ((millis() - id(aktueller_takt_start)) < 300000UL) return false;
-      // Ueberwacht den Wasser-Plattenwaermetauscher: Kondensator im Heizen,
-      // Verdampfer im Kuehlen.
-      float a = id(kuehlrichtung) ? id(annaeherung_verd).state : id(annaeherung_kond).state;
+      if (!id(compressor_running).state) return false;
+      // Start-up grace period as for the refrigerant circuit.
+      if (id(cycle_start_ms) == 0) return false;
+      if ((millis() - id(cycle_start_ms)) < 300000UL) return false;
+      // Monitors the water plate heat exchanger: condenser when heating,
+      // evaporator when cooling.
+      float a = id(cooling_direction) ? id(approach_evap).state : id(approach_cond).state;
       if (std::isnan(a)) return false;
-      if (id(uebergang_warnung).state) return a > 7.0f;
+      if (id(transfer_alarm).state) return a > 7.0f;
       return a > 9.0f;
 
   - platform: template
-    # Bus zu lange stumm. Schwelle: max_luecke. Bricht laufende Werkzeuge ab
-    # (Schutzlogik im interval).
-    name: "Bus-Lücke zu lang"
-    id: bus_warnung
+    # Bus silent for too long. Threshold: max_gap. Aborts running tools
+    # (guard logic in interval).
+    name: "Bus Gap Too Long"
+    id: bus_gap_alarm
     device_class: problem
     entity_category: diagnostic
     icon: "mdi:lan-disconnect"
     lambda: |-
-      float s = id(luecke_s);
-      float grenze = id(max_luecke).state;
-      if (std::isnan(grenze)) return false;
-      if (id(bus_warnung).state) return s > grenze * 0.6f;
-      return s > grenze;
+      float s = id(gap_s);
+      float limit = id(max_gap).state;
+      if (std::isnan(limit)) return false;
+      if (id(bus_gap_alarm).state) return s > limit * 0.6f;
+      return s > limit;
 
   # =============================================================
-  # Stoerungsmelder. Der Fehlercode steht in keinem Register; die Melder
-  # haengen an der Wirkung einer Stoerung und greifen so bei jeder Ursache.
+  # Fault indicators. The error code is in no register; the indicators
+  # watch the effect of a fault and so trigger for any cause.
   # =============================================================
   - platform: template
-    # Wichtigster Melder: Einfrieren zerstoert Hardware. Ohne
-    # Ursachenpruefung (meldet auch bei Abschaltung oder Stromausfall), Pumpe
-    # keine Bedingung. Test im Sommer: Schwellen voruebergehend auf
-    # Aussenluft < 30, Wasser < 25.
-    name: "Frostgefahr"
-    id: frost_warnung
+    # Most important indicator: freezing destroys hardware. No cause
+    # check (also triggers on shutdown or power failure), pump is
+    # not a condition. Summer test: temporarily set thresholds to
+    # outdoor air < 30, water < 25.
+    name: "Frost Risk"
+    id: frost_alarm
     device_class: problem
     icon: "mdi:snowflake-alert"
     lambda: |-
-      // Unabhaengiger Sensor zuerst, Geraetefuehler als Rueckfall.
-      float aussen = id(aussentemp_ref).state;
-      if (std::isnan(aussen)) aussen = id(aussentemp).state;
-      float vor = id(vorlauf).state;
-      float ruck = id(ruecklauf).state;
-      float wasser = NAN;
-      if (!std::isnan(vor) && !std::isnan(ruck)) wasser = std::min(vor, ruck);
-      else if (!std::isnan(vor)) wasser = vor;
-      else if (!std::isnan(ruck)) wasser = ruck;
-      // Bus ausgefallen: Wassertemperatur unbekannt. Bei Frostwetter melden,
-      // denn ob jemand heizt, ist dann nicht mehr zu sehen. Nur mit dem
-      // unabhaengigen Aussensensor; der Geraetefuehler kommt ueber den Bus.
-      float aussen_ref = id(aussentemp_ref).state;
-      if (id(bus_ausfall) && !std::isnan(aussen_ref)) {
-        if (id(frost_warnung).state) return aussen_ref < 5.0f;
-        return aussen_ref < 3.0f;
+      // Independent sensor first, unit sensor as fallback.
+      float outdoor = id(outdoor_temp_ref).state;
+      if (std::isnan(outdoor)) outdoor = id(outdoor_temp_unit).state;
+      float vor = id(water_flow).state;
+      float ruck = id(water_return).state;
+      float water = NAN;
+      if (!std::isnan(vor) && !std::isnan(ruck)) water = std::min(vor, ruck);
+      else if (!std::isnan(vor)) water = vor;
+      else if (!std::isnan(ruck)) water = ruck;
+      // Bus down: water temperature unknown. Alarm in frost weather, since
+      // whether anything is heating can no longer be seen. Only with the
+      // independent outdoor sensor; the unit sensor comes over the bus.
+      float outdoor_ref = id(outdoor_temp_ref).state;
+      if (id(bus_down) && !std::isnan(outdoor_ref)) {
+        if (id(frost_alarm).state) return outdoor_ref < 5.0f;
+        return outdoor_ref < 3.0f;
       }
-      // Ohne Werte keine Meldung.
-      if (std::isnan(aussen) || std::isnan(wasser)) return false;
-      if (id(frost_warnung).state) return (aussen < 5.0f && wasser < 10.0f);
-      return (aussen < 3.0f && wasser < 8.0f);
+      // No readings, no alarm.
+      if (std::isnan(outdoor) || std::isnan(water)) return false;
+      if (id(frost_alarm).state) return (outdoor < 5.0f && water < 10.0f);
+      return (outdoor < 3.0f && water < 8.0f);
 
   - platform: template
-    # Anlage steht, Bus fehlerfrei (Fall 01.08.2026). HEMS-Taktpausen
-    # (HR26 = 0) dauern Minuten; die Grenze ist ein Stellwert ab 2 h. Bei
-    # gestoertem Bus schweigt der Melder, dann meldet die Busgesundheit.
-    name: "Stillstand Status"
-    id: stillstand_warnung
+    # Unit at standstill, bus healthy (case 2026-08-01). HEMS cycle pauses
+    # (HR26 = 0) last minutes; the limit is adjustable, default 2 h. With a
+    # faulty bus this indicator stays quiet; Bus Health reports instead.
+    name: "Standstill Status"
+    id: standstill_alarm
     device_class: problem
     icon: "mdi:sleep-off"
     lambda: |-
-      if (id(verdichter_melder).state) return false;
-      if (id(bus_warnung).state) return false;
-      float fehlen = id(punkte_ohne_antwort).state;
-      if (!std::isnan(fehlen) && fehlen > 0.0f) return false;
-      float dauer = id(stillstandsdauer).state;
-      float grenze = id(stillstand_grenze).state;
-      if (std::isnan(dauer) || std::isnan(grenze)) return false;
-      // Haelt, bis der Verdichter wieder laeuft.
-      if (id(stillstand_warnung).state) return dauer > grenze * 0.5f;
-      return dauer > grenze;
+      if (id(compressor_running).state) return false;
+      if (id(bus_gap_alarm).state) return false;
+      float missing = id(registers_missing).state;
+      if (!std::isnan(missing) && missing > 0.0f) return false;
+      float duration = id(standstill_duration).state;
+      float limit = id(standstill_limit).state;
+      if (std::isnan(duration) || std::isnan(limit)) return false;
+      // Holds until the compressor runs again.
+      if (id(standstill_alarm).state) return duration > limit * 0.5f;
+      return duration > limit;
 
   - platform: template
-    # Zwei Wege: viele Starts je Stunde oder zu kurze mittlere Laufzeit.
-    # Datenbasis-Sperre, weil nach Mitternacht oder Neustart ein einzelner Takt
-    # die mittlere Laufzeit stellt.
-    name: "Taktung Status"
-    id: taktung_warnung
+    # Two paths: many starts per hour or too short mean runtime.
+    # Minimum-data lock, because after midnight or a reboot a single cycle
+    # sets the mean runtime.
+    name: "Short Cycling Status"
+    id: cycling_alarm
     device_class: problem
     icon: "mdi:chart-timeline-variant"
     lambda: |-
-      if (id(starts_heute) < 5) return false;
-      float ml = id(mittlere_laufzeit).state;
-      float sh = id(starts_pro_stunde).state;
+      if (id(starts_today) < 5) return false;
+      float ml = id(mean_cycle_runtime).state;
+      float sh = id(starts_last_hour).state;
       bool ml_ok = !std::isnan(ml);
       bool sh_ok = !std::isnan(sh);
       if (!ml_ok && !sh_ok) return false;
-      if (id(taktung_warnung).state)
+      if (id(cycling_alarm).state)
         return (ml_ok && ml < 12.0f) || (sh_ok && sh >= 3.0f);
       return (ml_ok && ml < 10.0f) || (sh_ok && sh >= 4.0f);
 
   - platform: template
-    # Ueber die Sattdampftemperaturen, nicht den Rohdruck. Kondensation ueber
-    # 75 °C naehert sich der Hochdruckgrenze; normale Warmwasserladungen
-    # erreichen bereits 66,6 °C (29.07.2026), die fruehere Schwelle von 62 °C
-    # meldete also jede Ladung. Verdampfung < -20 °C heisst Unterversorgung.
-    # Anlaufkarenz 5 min.
-    name: "Druck Status"
-    id: druck_warnung
+    # Uses saturation temperatures, not raw pressure. Condensing above
+    # 75 °C approaches the high-pressure limit; normal hot-water charges
+    # already reach 66.6 °C (2026-07-29), so the former 62 °C threshold
+    # flagged every charge. Evaporating < -20 °C means undersupply.
+    # Start-up grace period 5 min.
+    name: "Pressure Status"
+    id: pressure_alarm
     device_class: problem
     icon: "mdi:gauge-low"
     lambda: |-
-      if (!id(verdichter_melder).state) return false;
-      if (id(aktueller_takt_start) == 0) return false;
-      if ((millis() - id(aktueller_takt_start)) < 300000UL) return false;
-      float k = id(kondensation).state;
-      float v = id(verdampfung).state;
+      if (!id(compressor_running).state) return false;
+      if (id(cycle_start_ms) == 0) return false;
+      if ((millis() - id(cycle_start_ms)) < 300000UL) return false;
+      float k = id(condensing_temp).state;
+      float v = id(evaporating_temp).state;
       if (std::isnan(k) && std::isnan(v)) return false;
-      if (id(druck_warnung).state)
+      if (id(pressure_alarm).state)
         return (!std::isnan(k) && k > 71.0f) || (!std::isnan(v) && v < -17.0f);
       return (!std::isnan(k) && k > 75.0f) || (!std::isnan(v) && v < -20.0f);
 
   # =============================================================
-  # Verschleiss- und Effizienzmelder (Schwellen aus HEMS, siehe oben).
+  # Wear and efficiency indicators (thresholds from HEMS, see above).
   # =============================================================
   - platform: template
-    # Vor- und Ruecklauf gleich: Spreizung strukturell null, meist eine
-    # gemeinsame Quelle. Schaltet den Spreizungshinweis ab.
-    name: "Temperaturen identisch"
-    id: temp_identisch
+    # Flow and return equal: delta structurally zero, usually a
+    # shared source. Disables the delta indicator.
+    name: "Temperatures Identical"
+    id: temps_identical
     device_class: problem
     entity_category: diagnostic
     icon: "mdi:equal"
     lambda: |-
-      // Untergrenze greift nur zu Tagesbeginn; ein Neustart verwirft den Tag
-      // nicht.
-      float n = id(spreiz_punkte);
-      if (n < 60.0f) return false;   // erste Minute Last am Tag: keine Aussage
-      float anteil = id(spreiz_null) / n;
-      if (id(temp_identisch).state) return anteil > 0.6f;
-      return anteil > 0.9f;
+      // The lower bound only applies at the start of the day; a reboot does
+      // not discard the day.
+      float n = id(delta_points);
+      if (n < 60.0f) return false;   // first minute under load of the day: no assessment
+      float share = id(delta_zero) / n;
+      if (id(temps_identical).state) return share > 0.6f;
+      return share > 0.9f;
 
   - platform: template
-    # Tagesmittel unter Last. Niedrig an 3,0 / aus 4,0 K (Pumpe foerdert zu
-    # viel), hoch an 8,0 / aus 7,0 K (zu wenig Durchfluss).
-    name: "Spreizung Status"
-    id: spreizung_warnung
+    # Daily mean under load. Low on 3.0 / off 4.0 K (pump moves too
+    # much), high on 8.0 / off 7.0 K (too little flow).
+    name: "Flow Return Delta Status"
+    id: delta_alarm
     device_class: problem
     entity_category: diagnostic
     icon: "mdi:arrow-collapse-vertical"
     lambda: |-
-      if (id(temp_identisch).state) return false;
-      float s = id(spreizung_mittel).state;
+      if (id(temps_identical).state) return false;
+      float s = id(delta_daily_mean).state;
       if (std::isnan(s)) return false;
-      if (id(spreizung_warnung).state) return (s < 4.0f || s > 7.0f);
+      if (id(delta_alarm).state) return (s < 4.0f || s > 7.0f);
       return (s < 3.0f || s > 8.0f);
 
   - platform: template
-    # Tagesbilanz der Takte: an ab 20, aus unter 14. Ergaenzt die
-    # Taktung-Meldung, die schon innerhalb des Tages anschlaegt.
-    name: "Verschleiß Status"
-    id: verschleiss_warnung
+    # Daily cycle count: on from 20, off below 14. Complements the
+    # short cycling indicator, which already triggers within the day.
+    name: "Wear Status"
+    id: wear_alarm
     device_class: problem
     entity_category: diagnostic
     icon: "mdi:wrench-clock"
     lambda: |-
-      float heute = (float) id(starts_heute);
-      float gestern = (float) id(starts_vortag);
-      // Maximum aus heute und gestern: ein auffaelliger Vortag verschwindet
-      // nicht um 00:00.
-      float takte = std::max(heute, gestern);
-      if (id(verschleiss_warnung).state) return takte >= 14.0f;
-      return takte >= 20.0f;
+      float today = (float) id(starts_today);
+      float yesterday = (float) id(starts_yesterday);
+      // Maximum of today and yesterday: a degraded previous day does not
+      // vanish at 00:00.
+      float cycles = std::max(today, yesterday);
+      if (id(wear_alarm).state) return cycles >= 14.0f;
+      return cycles >= 20.0f;
 
 # =============================================================
-# Sollwerte — Halteregister, SCHREIBBAR. Zehntelgrad: lambda beim Lesen,
-# write_lambda beim Schreiben, sonst werden 48 °C als 4,8 °C geschrieben.
+# Setpoints — holding registers, WRITABLE. Tenths of a degree: lambda on read,
+# write_lambda on write, otherwise 48 °C is written as 4.8 °C.
 # =============================================================
 number:
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # HR24. Bedeutung haengt an der Regelungsart am Bedienteil (hier Vorlauf im
-    # Heizen, Ruecklauf im Kuehlen); im Auto-Modus Kurvenverschiebung, siehe
-    # die naechste Entitaet. min/max sind zur Laufzeit nicht umschaltbar.
-    name: "Soll-Temperatur Heizkreis 1"      # HR24: 21 °C kuehlen -> 55 °C heizen
-    id: hk1_soll
+    # HR24. Meaning depends on the control mode set on the control panel (here
+    # flow when heating, return when cooling); in Auto mode curve shift, see
+    # the next entity. min/max cannot be switched at runtime.
+    name: "Heating Circuit 1 Setpoint"      # HR24: 21 °C cooling -> 55 °C heating
+    id: hc1_setpoint
     address: 24
     value_type: S_WORD
     reuse_previous_range: false
@@ -1345,23 +1345,23 @@ number:
     max_value: 65
     step: 0.5
     lambda: "return x * 0.1;"
-    # Im Auto-Modus ist HR24 eine Kurvenverschiebung; dann schreibt nur die
-    # Heizkurven-Verschiebung. Ohne bekannten Modus wird nicht geschrieben.
+    # In Auto mode HR24 is a curve shift; then only Heating Curve Shift
+    # writes it. Without a known mode nothing is written.
     write_lambda: |-
-      int m = id(modus_wirksam);
-      if (!id(kurve_schreibt) && (m < 0 || m == 3)) {
-        ESP_LOGW("hk1", "HR24 nicht geschrieben: Betriebsmodus %d (Auto oder unbekannt)", m);
+      int m = id(mode_effective);
+      if (!id(curve_writing) && (m < 0 || m == 3)) {
+        ESP_LOGW("hc1", "HR24 not written: operating mode %d (Auto or unknown)", m);
         item->publish_state(item->state);
         return {};
       }
       return x * 10;
 
-  # Heizkurven-Verschiebung: HR24 im Auto-Modus (HR26 = 3), 16..22 = -3..+3.
-  # Herkunft: vom Betreiber berichtet, Gegenprobe offen (registerkarte.md).
-  # Ausserhalb von Auto unbekannt und gesperrt.
+  # Heating curve shift: HR24 in Auto mode (HR26 = 3), 16..22 = -3..+3.
+  # Source: reported by the owner, cross-check pending (register-map.md).
+  # Outside Auto unknown and locked.
   - platform: template
-    name: "Heizkurven-Verschiebung"
-    id: kurve_shift
+    name: "Heating Curve Shift"
+    id: curve_shift
     min_value: -3
     max_value: 3
     step: 1
@@ -1369,31 +1369,31 @@ number:
     icon: "mdi:chart-bell-curve-cumulative"
     set_action:
       - lambda: |-
-          int m = id(modus_wirksam);
+          int m = id(mode_effective);
           if (m != 3) {
-            // Alten Zustand zurueckschicken, sonst sieht die Ablehnung wie eine
-            // Annahme aus.
-            id(kurve_shift).publish_state(id(kurve_shift).state);
-            ESP_LOGW("kurve", "Verschiebung nur im Auto-Modus stellbar, HR26 steht auf %d", m);
+            // Send back the old state, otherwise the rejection looks like an
+            // acceptance.
+            id(curve_shift).publish_state(id(curve_shift).state);
+            ESP_LOGW("curve", "Shift only adjustable in Auto mode, HR26 is %d", m);
             return;
           }
-          float stufe = roundf(x);
-          if (stufe < -3.0f) stufe = -3.0f;
-          if (stufe > 3.0f) stufe = 3.0f;
-          auto c = id(hk1_soll).make_call();
-          c.set_value(19.0f + stufe);
-          id(kurve_schreibt) = true;
+          float step_val = roundf(x);
+          if (step_val < -3.0f) step_val = -3.0f;
+          if (step_val > 3.0f) step_val = 3.0f;
+          auto c = id(hc1_setpoint).make_call();
+          c.set_value(19.0f + step_val);
+          id(curve_writing) = true;
           c.perform();
-          id(kurve_schreibt) = false;
-          // Sofort anzeigen; das 10-s-Intervall bestaetigt oder korrigiert.
-          id(kurve_shift).publish_state(stufe);
-          ESP_LOGI("kurve", "Verschiebung %+d -> HR24 %.0f", (int) stufe, 19.0f + stufe);
+          id(curve_writing) = false;
+          // Show immediately; the 10 s interval confirms or corrects it.
+          id(curve_shift).publish_state(step_val);
+          ESP_LOGI("curve", "Shift %+d -> HR24 %.0f", (int) step_val, 19.0f + step_val);
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # Bereich wie am Bedienteil.
-    name: "Soll-Temperatur Warmwasser"       # HR29: 480 bei "Warmwasser 48° eco"
-    id: ww_soll
+    # Range as on the control panel.
+    name: "Hot Water Setpoint"       # HR29: 480 at "hot water 48° eco"
+    id: hw_setpoint
     address: 29
     value_type: S_WORD
     reuse_previous_range: false
@@ -1404,12 +1404,12 @@ number:
     lambda: "return x * 0.1;"
     write_lambda: "return x * 10;"
 
-  # Meldeschwelle der Registerbeobachtung in Registerschritten, ueber
-  # accuracy_decimals umgerechnet: 1 = 1 Rohschritt, 0,1 °C, 0,01 bar.
-  # Binaere Punkte melden immer.
+  # Register observation reporting threshold in register steps, converted
+  # via accuracy_decimals: 1 = 1 raw step, 0.1 °C, 0.01 bar.
+  # Binary registers always report.
   - platform: template
-    name: "Beobachtung Meldeschwelle"
-    id: scan_schwelle
+    name: "Observation Threshold"
+    id: obs_threshold
     optimistic: true
     restore_value: true
     initial_value: 1.0
@@ -1421,9 +1421,9 @@ number:
     icon: "mdi:tune"
 
   - platform: template
-    # Startadresse des breiten Scans, 64 Adressen je Typ. 0..1023 ist
-    # bereits geprueft (registerkarte.md).
-    name: "Scan-Startadresse"
+    # Start address of the wide scan, 64 addresses per type. 0..1023 has
+    # already been checked (register-map.md).
+    name: "Scan Start Address"
     id: scan_start
     optimistic: true
     restore_value: true
@@ -1436,10 +1436,10 @@ number:
     icon: "mdi:ray-start-arrow"
 
   - platform: template
-    # Ab wann ein Stillstand als Stoerung gilt. HEMS-Pausen dauern Minuten,
-    # Kuehlpausen bis eine Stunde. Der Frostmelder haengt nicht daran.
-    name: "Stillstandsgrenze"
-    id: stillstand_grenze
+    # When a standstill counts as a fault. HEMS pauses last minutes,
+    # cooling pauses up to an hour. The frost indicator does not depend on it.
+    name: "Standstill Limit"
+    id: standstill_limit
     optimistic: true
     restore_value: true
     initial_value: 120
@@ -1450,11 +1450,11 @@ number:
     entity_category: config
     icon: "mdi:timer-alert-outline"
 
-  # Laengste erlaubte Bus-Stille, bevor der Waechter Werkzeuge abbricht.
-  # Ein Fehlerzustand der Anlage durch Stille ist nicht belegt.
+  # Longest allowed bus silence before the watchdog aborts tools.
+  # A fault state of the unit caused by silence has not been observed.
   - platform: template
-    name: "Maximale Bus-Lücke"
-    id: max_luecke
+    name: "Max Bus Gap"
+    id: max_gap
     optimistic: true
     restore_value: true
     initial_value: 60
@@ -1466,43 +1466,43 @@ number:
     icon: "mdi:timer-lock-outline"
 
 # =============================================================
-# Auswahlfelder — Halteregister
+# Selects — holding registers
 # =============================================================
 select:
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # Schreibt HR26; HEMS und die Climate-Entitaet nutzen es. Bisher blieb
-    # die Regelungsart bei Moduswechseln unveraendert. In jourdant/esphome-lgap
-    # Issue 24 (LGAP) hat ein Moduswechsel sie auf den Raumfuehler verstellt:
-    # nach Wechseln gelegentlich am Bedienteil pruefen.
-    name: "Betriebsmodus (stellbar)"         # HR26 — siehe Rohwert-Sensor oben
-    id: betriebsmodus_select
+    # Writes HR26; HEMS and the climate entity use it. So far the control
+    # mode stayed unchanged on mode changes. In jourdant/esphome-lgap
+    # issue 24 (LGAP) a mode change switched it to the room sensor:
+    # check the control panel occasionally after changes.
+    name: "Operating Mode"         # HR26 — see raw value sensor above
+    id: operating_mode_select
     address: 26
     value_type: U_WORD
     reuse_previous_range: false
-    # Geschriebenen Modus merken: HR26 wird erst im naechsten Zyklus
-    # nachgelesen, bis dahin gilt dieser Wert (modus_wirksam).
+    # Remember the written mode: HR26 is only read back in the next cycle,
+    # until then this value applies (mode_effective).
     write_lambda: |-
-      id(modus_geschrieben) = (int) value;
-      id(modus_schreibzeit) = millis() | 1;
+      id(mode_written) = (int) value;
+      id(mode_write_ms) = millis() | 1;
       return value;
     optionsmap:
-      "Aus / nur Warmwasser": 0
-      "Kühlen": 1
-      "Heizen": 2
+      "Off / Hot Water Only": 0
+      "Cool": 1
+      "Heat": 2
       "Auto": 3
 
 
 # =============================================================
-# Schalter
+# Switches
 # =============================================================
 switch:
-  # CO2 Fluestermodus, schaltbar. Vier Wechsel sekundengenau zur Bedienung.
-  # Schreibend, weil ruecknehmbar und ohne Schadenspotential; CO3/CO4/CO5
-  # bleiben lesend.
+  # CO2 silent mode, switchable. Four toggles tracked control-panel input to
+  # the second. Writable because it is reversible and harmless; CO3/CO4/CO5
+  # stay read-only.
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    name: "Flüstermodus"
+    name: "Silent Mode"
     address: 2
     register_type: coil
     reuse_previous_range: false
@@ -1510,121 +1510,121 @@ switch:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    name: "Warmwasser Freigabe"          # verifiziert 2026-07-29: schaltet die
-    address: 6                           # Warmwasserbereitung ein und aus.
-    register_type: coil                  # Erster bestaetigter SCHREIBzugriff.
+    name: "Hot Water Enable"          # verified 2026-07-29: switches hot-water
+    address: 6                           # production on and off.
+    register_type: coil                  # First confirmed WRITE access.
     reuse_previous_range: false
 
   # -----------------------------------------------------------
-  # Registerbeobachtung: welcher Punkt reagiert auf eine Bedienung am
-  # Bedienteil, ohne Schreibzugriff. Abfrage alle 10 s statt 30 s, effektiv
-  # ~20 s (ein Durchlauf dauert so lange). Nicht schneller stellen, sonst
-  # laeuft die Warteschlange ueber. Abschaltung nach 30 min.
-  # Der Ausgangswert wird unter der Schwelle nicht nachgezogen, langsame Drift
-  # meldet also irgendwann.
+  # Register observation: which point reacts to input on the control panel,
+  # without write access. Polls every 10 s instead of 30 s, effectively
+  # ~20 s (one pass takes that long). Do not set it faster or the queue
+  # overflows. Switches off after 30 min.
+  # The baseline is not updated below the threshold, so slow drift
+  # will eventually be reported.
   # -----------------------------------------------------------
   - platform: template
-    name: "Registerbeobachtung"
-    id: scan_switch
+    name: "Register Observation"
+    id: obs_switch
     optimistic: true
     entity_category: config
     icon: "mdi:radar"
     turn_on_action:
       - lambda: |-
-          id(scan_namen).clear();
-          id(scan_werte).clear();
-          id(scan_liste).clear();
-          id(scan_zaehler) = 0;
-          id(scan_laufzeit) = 0;
+          id(obs_names).clear();
+          id(obs_values).clear();
+          id(obs_list).clear();
+          id(obs_count) = 0;
+          id(obs_runtime) = 0;
       - text_sensor.template.publish:
-          id: scan_letzte_text
-          state: "läuft — Ausgangswerte werden erfasst"
+          id: obs_last_text
+          state: "running — capturing baseline values"
       - text_sensor.template.publish:
-          id: scan_liste_text
+          id: obs_list_text
           state: "—"
       - sensor.template.publish:
-          id: scan_zaehler_sensor
+          id: obs_count_sensor
           state: 0.0
       - component.update: therma_v
-    # optimistic-Switch feuert turn_off_action auch beim Hochlaufen.
+    # An optimistic switch also fires turn_off_action during boot.
     turn_off_action:
       - if:
           condition:
-            lambda: "return !id(scan_namen).empty();"
+            lambda: "return !id(obs_names).empty();"
           then:
             - lambda: |-
-                ESP_LOGI("beobachtung", "beendet nach %d Aenderungen an %d Punkten",
-                         id(scan_zaehler), (int) id(scan_liste).size());
+                ESP_LOGI("observe", "finished after %d changes on %d points",
+                         id(obs_count), (int) id(obs_list).size());
             - text_sensor.template.publish:
-                id: scan_letzte_text
+                id: obs_last_text
                 state: !lambda |-
-                  return str_sprintf("beendet — %d Änderungen an %d Punkten",
-                                     id(scan_zaehler), (int) id(scan_liste).size());
+                  return str_sprintf("finished — %d changes on %d points",
+                                     id(obs_count), (int) id(obs_list).size());
 
 # =============================================================
-# Werkzeuge fuer die weitere Kartierung
+# Tools for further register mapping
 # =============================================================
 button:
   - platform: template
-    # Momentaufnahme aller Punkte; nach der Bedienung vergleichen. Ohne
-    # Zeitdruck, anders als die Beobachtung.
-    name: "Referenzzustand festhalten"
-    id: ref_festhalten
+    # Snapshot of all points; compare after using the control panel. No
+    # time pressure, unlike the observation.
+    name: "Capture Reference"
+    id: ref_capture
     entity_category: config
     icon: "mdi:content-save-outline"
     on_press:
       - lambda: |-
-          id(ref_namen).clear();
-          id(ref_werte).clear();
-          // Nur Registerpunkte, inklusive Sollwerte (number) und Schalter (switch).
-          auto merken = [](const char *nam, float wert) {
-            if (!register_liste::ist_register(nam)) return;
-            id(ref_namen).push_back(std::string(nam));
-            id(ref_werte).push_back(wert);
+          id(ref_names).clear();
+          id(ref_values).clear();
+          // Register points only, including setpoints (number) and switches (switch).
+          auto remember = [](const char *nm, float val) {
+            if (!register_list::is_register(nm)) return;
+            id(ref_names).push_back(std::string(nm));
+            id(ref_values).push_back(val);
           };
           for (auto *s : App.get_sensors())
-            if (!s->is_internal() && !std::isnan(s->state)) merken(s->get_name().c_str(), s->state);
+            if (!s->is_internal() && !std::isnan(s->state)) remember(s->get_name().c_str(), s->state);
           for (auto *b : App.get_binary_sensors())
-            if (!b->is_internal() && b->has_state()) merken(b->get_name().c_str(), b->state ? 1.0f : 0.0f);
+            if (!b->is_internal() && b->has_state()) remember(b->get_name().c_str(), b->state ? 1.0f : 0.0f);
           for (auto *n : App.get_numbers())
-            if (!n->is_internal() && !std::isnan(n->state)) merken(n->get_name().c_str(), n->state);
+            if (!n->is_internal() && !std::isnan(n->state)) remember(n->get_name().c_str(), n->state);
           for (auto *w : App.get_switches())
-            if (!w->is_internal()) merken(w->get_name().c_str(), w->state ? 1.0f : 0.0f);
-          ESP_LOGI("referenz", "%d Punkte festgehalten", (int) id(ref_namen).size());
+            if (!w->is_internal()) remember(w->get_name().c_str(), w->state ? 1.0f : 0.0f);
+          ESP_LOGI("reference", "%d points captured", (int) id(ref_names).size());
       - text_sensor.template.publish:
           id: ref_text
           state: !lambda |-
-            return str_sprintf("%d Punkte festgehalten — jetzt am Bedienteil schalten",
-                               (int) id(ref_namen).size());
+            return str_sprintf("%d points captured — now operate the control panel",
+                               (int) id(ref_names).size());
 
   - platform: template
-    name: "Abweichung zum Referenzzustand"
-    id: ref_vergleichen
+    name: "Compare with Reference"
+    id: ref_compare
     entity_category: config
     icon: "mdi:compare-horizontal"
     on_press:
       - lambda: |-
-          if (id(ref_namen).empty()) {
-            id(ref_text).publish_state("kein Referenzzustand vorhanden");
+          if (id(ref_names).empty()) {
+            id(ref_text).publish_state("no reference snapshot available");
             return;
           }
-          float schwelle = id(scan_schwelle).state;
-          if (std::isnan(schwelle) || schwelle < 0.0f) schwelle = 1.0f;
-          std::string erg;
+          float threshold = id(obs_threshold).state;
+          if (std::isnan(threshold) || threshold < 0.0f) threshold = 1.0f;
+          std::string res;
           int n = 0;
 
-          auto vergleiche = [&](const std::string &nam, float wert, bool diskret, float eff) {
-            for (size_t i = 0; i < id(ref_namen).size(); i++) {
-              if (id(ref_namen)[i] != nam) continue;
-              float alt = id(ref_werte)[i];
-              float d = fabsf(wert - alt);
+          auto compare = [&](const std::string &nm, float val, bool discrete, float eff) {
+            for (size_t i = 0; i < id(ref_names).size(); i++) {
+              if (id(ref_names)[i] != nm) continue;
+              float old = id(ref_values)[i];
+              float d = fabsf(val - old);
               if (d < 0.0005f) return;
-              if (!diskret && d < eff) return;
+              if (!discrete && d < eff) return;
               n++;
-              ESP_LOGW("referenz", "%s: %.2f -> %.2f", nam.c_str(), alt, wert);
-              if (erg.size() < 190) {
-                if (!erg.empty()) erg += " | ";
-                erg += nam + str_sprintf(" %.2f→%.2f", alt, wert);
+              ESP_LOGW("reference", "%s: %.2f -> %.2f", nm.c_str(), old, val);
+              if (res.size() < 190) {
+                if (!res.empty()) res += " | ";
+                res += nm + str_sprintf(" %.2f→%.2f", old, val);
               }
               return;
             }
@@ -1632,461 +1632,461 @@ button:
 
           for (auto *s : App.get_sensors()) {
             if (s->is_internal() || std::isnan(s->state)) continue;
-            if (!register_liste::ist_register(s->get_name().c_str())) continue;
+            if (!register_list::is_register(s->get_name().c_str())) continue;
             int8_t dec = s->get_accuracy_decimals();
             if (dec < 0) dec = 0;
-            vergleiche(std::string(s->get_name().c_str()), s->state, false,
-                       schwelle * powf(10.0f, -((float) dec)));
+            compare(std::string(s->get_name().c_str()), s->state, false,
+                       threshold * powf(10.0f, -((float) dec)));
           }
           for (auto *b : App.get_binary_sensors()) {
             if (b->is_internal() || !b->has_state()) continue;
-            if (!register_liste::ist_register(b->get_name().c_str())) continue;
-            vergleiche(std::string(b->get_name().c_str()), b->state ? 1.0f : 0.0f, true, 0.0f);
+            if (!register_list::is_register(b->get_name().c_str())) continue;
+            compare(std::string(b->get_name().c_str()), b->state ? 1.0f : 0.0f, true, 0.0f);
           }
           for (auto *nu : App.get_numbers()) {
             if (nu->is_internal() || std::isnan(nu->state)) continue;
-            if (!register_liste::ist_register(nu->get_name().c_str())) continue;
-            vergleiche(std::string(nu->get_name().c_str()), nu->state, false, 0.05f);
+            if (!register_list::is_register(nu->get_name().c_str())) continue;
+            compare(std::string(nu->get_name().c_str()), nu->state, false, 0.05f);
           }
           for (auto *w : App.get_switches()) {
-            if (w->is_internal() || !register_liste::ist_register(w->get_name().c_str())) continue;
-            vergleiche(std::string(w->get_name().c_str()), w->state ? 1.0f : 0.0f, true, 0.0f);
+            if (w->is_internal() || !register_list::is_register(w->get_name().c_str())) continue;
+            compare(std::string(w->get_name().c_str()), w->state ? 1.0f : 0.0f, true, 0.0f);
           }
 
-          id(ref_text).publish_state(n == 0 ? std::string("keine Abweichung")
-                                            : str_sprintf("%d Punkte: ", n) + erg);
+          id(ref_text).publish_state(n == 0 ? std::string("no deviation")
+                                            : str_sprintf("%d points: ", n) + res);
 
   - platform: template
-    # Einmalig die Register neben den bekannten Inseln. Zeigt, ob eine
-    # Einstellung neue Register freischaltet. Laeuft durch dieselbe Warteschlange
-    # wie der Normalbetrieb.
-    name: "Randbereiche prüfen"
-    id: rand_pruefen
+    # One-off read of the registers next to the known islands. Shows whether a
+    # setting unlocks new registers. Runs through the same queue as normal
+    # operation.
+    name: "Check Edge Registers"
+    id: edge_check_button
     entity_category: config
     icon: "mdi:magnify-scan"
     on_press:
       - lambda: |-
-          id(rand_ergebnis).clear();
-          id(rand_text).publish_state("Prüfung läuft …");
+          id(edge_hits).clear();
+          id(scan_result_text).publish_state("check running …");
 
           using modbus::EntityType;
-          // Eigenes Hub-Geraet mit der Controller-Adresse; lebt bis zum Neustart,
-          // damit spaete Antworten ein Ziel haben.
-          static auto *leser = new einzelleser::EinzelLeser(
+          // Own hub device with the controller address; lives until reboot
+          // so late responses still have a target.
+          static auto *reader = new single_reader::SingleReader(
               id(therma_v)->hub(), id(therma_v)->device_address(),
-              [](EntityType typ, uint16_t adr, uint16_t v) {
-                std::string bez = str_sprintf("%s%02u", einzelleser::EinzelLeser::kuerzel(typ), adr);
-                id(rand_ergebnis).push_back(bez + str_sprintf("=%u", v));
-                ESP_LOGW("randbereich", "%s antwortet: %u", bez.c_str(), v);
+              [](EntityType kind, uint16_t addr, uint16_t v) {
+                std::string label = str_sprintf("%s%02u", single_reader::SingleReader::prefix(kind), addr);
+                id(edge_hits).push_back(label + str_sprintf("=%u", v));
+                ESP_LOGW("edge_scan", "%s responds: %u", label.c_str(), v);
               });
-          struct Kandidat { EntityType typ; uint16_t adr; };
-          static const Kandidat liste[] = {
+          struct Candidate { EntityType kind; uint16_t addr; };
+          static const Candidate list[] = {
             {EntityType::INPUT_REGISTER, 8}, {EntityType::INPUT_REGISTER, 28},
             {EntityType::INPUT_REGISTER, 29},
             {EntityType::HOLDING, 23}, {EntityType::HOLDING, 30}, {EntityType::HOLDING, 31},
             {EntityType::DISCRETE_INPUT, 5}, {EntityType::DISCRETE_INPUT, 10},
-            // DI32 und CO4 sind inzwischen bekannt und werden gelesen; dafuer
-            // die naechsten Nachbarn DI33 und CO1.
+            // DI32 and CO4 are now known and read; their next neighbours
+            // DI33 and CO1 are checked instead.
             {EntityType::DISCRETE_INPUT, 30}, {EntityType::DISCRETE_INPUT, 33},
             {EntityType::COIL, 1}, {EntityType::COIL, 7},
           };
-          for (auto &k : liste) {
-            if (!leser->lesen(k.typ, k.adr))
-              ESP_LOGW("randbereich", "%s%02u: Anfrage vom Hub abgelehnt",
-                       einzelleser::EinzelLeser::kuerzel(k.typ), k.adr);
+          for (auto &k : list) {
+            if (!reader->read_one(k.kind, k.addr))
+              ESP_LOGW("edge_scan", "%s%02u: request rejected by hub",
+                       single_reader::SingleReader::prefix(k.kind), k.addr);
           }
       - delay: 30s
       - text_sensor.template.publish:
-          id: rand_text
+          id: scan_result_text
           state: !lambda |-
-            if (id(rand_ergebnis).empty())
-              return std::string("keines der 12 Randregister antwortet");
-            std::string s = str_sprintf("%d von 12 antworten: ", (int) id(rand_ergebnis).size());
-            for (size_t i = 0; i < id(rand_ergebnis).size(); i++) {
+            if (id(edge_hits).empty())
+              return std::string("none of the 12 edge registers responds");
+            std::string s = str_sprintf("%d of 12 respond: ", (int) id(edge_hits).size());
+            for (size_t i = 0; i < id(edge_hits).size(); i++) {
               if (s.size() > 200) { s += " …"; break; }
               if (i) s += ", ";
-              s += id(rand_ergebnis)[i];
+              s += id(edge_hits)[i];
             }
             return s;
 
 
   - platform: template
-    # Adressen ab scan_start, 64 je Typ, einzeln (256 Anfragen). Gedrosselt
-    # auf 8 je 15 s, rund 8 min.
-    name: "Breiter Registerscan"
-    id: breit_scan
+    # Addresses from scan_start, 64 per type, read individually (256 requests).
+    # Throttled to 8 per 15 s, about 8 min.
+    name: "Wide Register Scan"
+    id: wide_scan_button
     entity_category: config
     icon: "mdi:radar"
     on_press:
       - lambda: |-
-          if (id(breit_aktiv)) {
-            id(breit_aktiv) = false;
-            id(rand_text).publish_state("breiter Scan abgebrochen");
-            ESP_LOGW("breitscan", "abgebrochen");
+          if (id(wide_scan_active)) {
+            id(wide_scan_active) = false;
+            id(scan_result_text).publish_state("wide scan cancelled");
+            ESP_LOGW("wide_scan", "cancelled");
             return;
           }
-          id(breit_aktiv) = true;
-          id(breit_zeiger) = 0;
-          id(breit_treffer).clear();
-          id(rand_text).publish_state("breiter Scan läuft — 0 von 256");
-          ESP_LOGW("breitscan", "gestartet");
+          id(wide_scan_active) = true;
+          id(wide_scan_pos) = 0;
+          id(wide_scan_hits).clear();
+          id(scan_result_text).publish_state("wide scan running — 0 of 256");
+          ESP_LOGW("wide_scan", "started");
 
 # =============================================================
-# Climate-Entitaet
+# Climate entity
 #
-# EIN Sollwert (HR24) statt zwei: ESPHomes Zweipunktregler verlangt
-# kuehlen > heizen, hier ist es umgekehrt (55 °C Vorlauf-Soll gegen 21 °C
-# Ruecklauf-Soll). Im Auto-Modus ruht die Sync, HR24 ist dort eine
-# Kurvenverschiebung. Die Betriebsart stellt das Auswahlfeld; der thermostat
-# regelt nicht selbst.
+# ONE setpoint (HR24) instead of two: ESPHome's two-point controller requires
+# cool > heat, here it is the other way round (55 °C flow setpoint vs. 21 °C
+# return setpoint). In Auto mode the sync rests; there HR24 is a curve
+# shift. The operating mode is set by the select; the thermostat does not
+# control anything itself.
 # =============================================================
 climate:
   - platform: thermostat
-    name: "Wärmepumpe"
-    id: wp_climate
-    sensor: vorlauf
+    name: "Heat Pump"
+    id: hp_climate
+    sensor: water_flow
     visual:
       min_temperature: 5
       max_temperature: 65
       temperature_step: 0.5
-    default_preset: Anlage
-    # Zwei Sollpunkte, weil cool_action sie verlangt. Die Sync fuehrt den zum
-    # Modus passenden nach (low beim Heizen, high beim Kuehlen).
+    default_preset: Unit
+    # Two setpoints because cool_action requires them. The sync updates the one
+    # matching the mode (low when heating, high when cooling).
     preset:
-      - name: Anlage
+      - name: Unit
         default_target_temperature_low: 21
         default_target_temperature_high: 24
     heat_deadband: 0.5
     heat_overrun: 0.5
     min_heating_off_time: 30s
     min_heating_run_time: 30s
-    # Ohne heat_cool_mode kann HR26 = 3 nicht angezeigt werden.
+    # Without heat_cool_mode, HR26 = 3 cannot be displayed.
     heat_cool_mode: true
     cool_deadband: 0.5
     cool_overrun: 0.5
     min_cooling_off_time: 30s
     min_cooling_run_time: 30s
     min_idle_time: 30s
-    # Die Aktionen schreiben HR26 NICHT: HR26 gehoert HEMS. In dessen
-    # Taktpausen (HR26 = 0) haette cool_action den Modus wieder gesetzt und die
-    # Pause aufgehoben. Nur "Aus" per Hand geht durch (on_state). Einschalten
-    # ueber das Auswahlfeld.
+    # The actions do NOT write HR26: HR26 belongs to HEMS. During its cycle
+    # pauses (HR26 = 0), cool_action would have set the mode again and ended
+    # the pause. Only a manual "Off" goes through (on_state). Switching on
+    # is done via the select.
     heat_action:
       - logger.log:
           level: INFO
-          format: "Climate wuerde heizen — HR26 gehoert HEMS, kein Schreibzugriff von hier"
+          format: "Climate would heat — HR26 belongs to HEMS, no write access from here"
     cool_action:
       - logger.log:
           level: INFO
-          format: "Climate wuerde kuehlen — HR26 gehoert HEMS, kein Schreibzugriff von hier"
+          format: "Climate would cool — HR26 belongs to HEMS, no write access from here"
     idle_action:
       - logger.log:
           level: DEBUG
-          format: "Sollwert erreicht, Betriebsmodus bleibt stehen"
-    # Nur Moduswechsel von aussen (HA) zaehlen. Start, Wiederherstellung aus
-    # dem Flash und die Spiegelung der Anlage schreiben nie: vor dem ersten
-    # gueltigen HR26 (climate_bereit) und waehrend der Spiegelung
-    # (climate_spiegelt) wird nur der Stand gemerkt.
+          format: "Setpoint reached, operating mode unchanged"
+    # Only mode changes from outside (HA) count. Boot, restore from flash and
+    # mirroring of the unit never write: before the first valid HR26
+    # (climate_ready) and during mirroring (climate_mirroring) the state is
+    # only remembered.
     on_state:
       - lambda: |-
-          static climate::ClimateMode letzter = climate::CLIMATE_MODE_OFF;
-          climate::ClimateMode m = id(wp_climate).mode;
-          if (id(climate_spiegelt) || !id(climate_bereit)) { letzter = m; return; }
-          if (m == letzter) return;
-          letzter = m;
-          int modus = id(modus_wirksam);
+          static climate::ClimateMode last = climate::CLIMATE_MODE_OFF;
+          climate::ClimateMode m = id(hp_climate).mode;
+          if (id(climate_mirroring) || !id(climate_ready)) { last = m; return; }
+          if (m == last) return;
+          last = m;
+          int cur_mode = id(mode_effective);
           if (m == climate::CLIMATE_MODE_OFF) {
-            if (modus > 0) {
-              // HR26 = 0 ueber das Auswahlfeld (Funktion 06).
-              id(betriebsmodus_select).make_call().set_option("Aus / nur Warmwasser").perform();
-              ESP_LOGI("climate", "Betriebsmodus -> Aus");
+            if (cur_mode > 0) {
+              // HR26 = 0 via the select (function 06).
+              id(operating_mode_select).make_call().set_option("Off / Hot Water Only").perform();
+              ESP_LOGI("climate", "Operating mode -> Off");
             }
           } else {
-            ESP_LOGW("climate", "Einschalten nur ueber das Auswahlfeld; Anzeige folgt wieder der Anlage");
+            ESP_LOGW("climate", "Switch on only via the select; display follows the unit again");
           }
-          // Die Spiegelung stellt den Anlagenmodus wieder her, sobald HR26
-          // nachgelesen ist.
-          id(climate_modus_gesehen) = -1;
+          // Mirroring restores the unit's mode as soon as HR26
+          // has been re-read.
+          id(climate_mode_seen) = -1;
 
 globals:
-  # --- Schreibpfad. Alle fluechtig: nach einem Neustart gilt erst wieder,
-  #     was von der Anlage gelesen ist.
-  - id: climate_bereit
+  # --- Write path. All volatile: after a reboot only what has been read
+  #     from the unit counts.
+  - id: climate_ready
     type: bool
     restore_value: false
     initial_value: "false"
-  - id: climate_spiegelt
+  - id: climate_mirroring
     type: bool
     restore_value: false
     initial_value: "false"
-  - id: climate_modus_gesehen
+  - id: climate_mode_seen
     type: int
     restore_value: false
     initial_value: "-1"
-  - id: kurve_schreibt
+  - id: curve_writing
     type: bool
     restore_value: false
     initial_value: "false"
-  - id: modus_geschrieben
+  - id: mode_written
     type: int
     restore_value: false
     initial_value: "-1"
-  - id: modus_schreibzeit
+  - id: mode_write_ms
     type: uint32_t
     restore_value: false
     initial_value: "0"
-  # Betriebsmodus fuer Entscheidungen: 40 s nach einem Schreiben der
-  # geschriebene, sonst HR26; -1 = unbekannt. Gesetzt im 1-s-Intervall.
-  - id: modus_wirksam
+  # Operating mode for decisions: for 40 s after a write the written one,
+  # otherwise HR26; -1 = unknown. Set in the 1 s interval.
+  - id: mode_effective
     type: int
     restore_value: false
     initial_value: "-1"
-  # Richtung des Kaeltekreises aus der Spreizung (30-s-Intervall).
-  - id: kuehlrichtung
+  # Refrigerant circuit direction from the flow/return delta (30 s interval).
+  - id: cooling_direction
     type: bool
     restore_value: false
     initial_value: "false"
-  - id: scan_namen
+  - id: obs_names
     type: std::vector<std::string>
     restore_value: false
-  - id: scan_werte
+  - id: obs_values
     type: std::vector<float>
     restore_value: false
-  - id: scan_liste
+  - id: obs_list
     type: std::vector<std::string>
     restore_value: false
-  - id: scan_zaehler
+  - id: obs_count
     type: int
     restore_value: false
     initial_value: "0"
-  - id: scan_laufzeit
+  - id: obs_runtime
     type: int
     restore_value: false
     initial_value: "0"
 
-  # --- Betriebsstatistik, restore_value ueber Neustarts.
-  - id: starts_heute
+  # --- Operating statistics, restore_value across reboots.
+  - id: starts_today
     type: int
     restore_value: true
     initial_value: "0"
-  - id: starts_vortag
+  - id: starts_yesterday
     type: int
     restore_value: true
     initial_value: "0"
-  - id: ladungen_heute
+  - id: charges_today
     type: int
     restore_value: true
     initial_value: "0"
-  - id: ladungen_vortag
+  - id: charges_yesterday
     type: int
     restore_value: true
     initial_value: "0"
-  - id: laufsekunden_gesamt
+  - id: run_seconds_total
     type: uint32_t
     restore_value: true
     initial_value: "0"
-  - id: laufsekunden_heute
+  - id: run_seconds_today
     type: uint32_t
     restore_value: true
     initial_value: "0"
-  - id: kuerzester_takt_24h
+  - id: shortest_cycle_min
     type: float
     restore_value: true
     initial_value: "0"
-  # millis()-Werte ohne restore_value: nach einem Neustart beginnt millis()
-  # bei null. Der Zustand kommt aus start_sync.
-  - id: aktueller_takt_start
+  # millis() values without restore_value: after a reboot millis() starts
+  # at zero. The state comes from start_sync.
+  - id: cycle_start_ms
     type: uint32_t
     restore_value: false
     initial_value: "0"
-  - id: verdichter_laeuft
+  - id: compressor_on
     type: bool
     restore_value: false
     initial_value: "false"
-  # Takt mit unbekanntem Anfang (Neustart oder Mitternacht): zaehlt nicht
-  # als kuerzester. Getrennt von aktueller_takt_start, an dem die
-  # Anlaufkarenz haengt.
-  - id: takt_angeschnitten
+  # Cycle with unknown start (reboot or midnight): does not count as the
+  # shortest. Separate from cycle_start_ms, which the start-up grace
+  # period depends on.
+  - id: cycle_truncated
     type: bool
     restore_value: false
     initial_value: "false"
-  # Zustandsuebernahme nach dem Start; sonst zaehlt ein Neustart im Betrieb
-  # einen Phantomstart.
+  # State takeover after boot; otherwise a reboot while running would count
+  # a phantom start.
   - id: start_sync
     type: bool
     restore_value: false
     initial_value: "true"
-  - id: stat_dirty
+  - id: stats_dirty
     type: bool
     restore_value: false
     initial_value: "true"
 
-  # --- Warmwasserladung. ladung_aktiv und ladung_start_temp ueberleben den
-  #     Neustart, damit eine Ladung fortgesetzt statt doppelt gezaehlt wird.
-  #     ladung_wh ist fluechtig; ladung_teil unterdrueckt dann die Kennzahl.
-  - id: ladung_aktiv
+  # --- Hot-water charge. charge_active and charge_start_temp survive a
+  #     reboot so a charge is continued instead of counted twice.
+  #     charge_wh is volatile; charge_partial then suppresses the metric.
+  - id: charge_active
     type: bool
     restore_value: true
     initial_value: "false"
-  - id: ladung_wh
+  - id: charge_wh
     type: float
     restore_value: false
     initial_value: "0"
-  - id: ladung_start_temp
+  - id: charge_start_temp
     type: float
     restore_value: true
     initial_value: "0"
-  - id: ladung_teil
+  - id: charge_partial
     type: bool
     restore_value: true
     initial_value: "false"
 
-  # --- Spreizung: Summe und Punktzahl statt Filter, damit der Tagesreset
-  #     sauber ist. restore_value, damit ein Neustart den Tag nicht verwirft.
-  - id: spreiz_summe
+  # --- Flow/return delta: sum and point count instead of a filter, so the
+  #     daily reset is clean. restore_value so a reboot does not discard the day.
+  - id: delta_sum
     type: float
     restore_value: true
     initial_value: "0"
-  - id: spreiz_punkte
+  - id: delta_points
     type: float
     restore_value: true
     initial_value: "0"
-  # Punkte mit Spreizung ≈ 0 (Messfehler-Verdacht).
-  - id: spreiz_null
+  # Points with delta ≈ 0 (suspected measurement error).
+  - id: delta_zero
     type: float
     restore_value: true
     initial_value: "0"
 
-  # --- Stoerungsmelder. millis()-Werte, deshalb ohne restore_value;
-  #     stillstand_seit kommt aus start_sync.
-  - id: start_zeiten
+  # --- Fault indicators. millis() values, hence no restore_value;
+  #     standstill_since comes from start_sync.
+  - id: start_times
     type: std::vector<uint32_t>
     restore_value: false
-  - id: stillstand_seit
+  - id: standstill_since
     type: uint32_t
     restore_value: false
     initial_value: "0"
 
-  # --- Bus-Gesundheit
-  - id: letzte_antwort_ms
+  # --- Bus health
+  - id: last_response_ms
     type: uint32_t
     restore_value: false
     initial_value: "0"
-  - id: vorletzte_antwort_ms
+  - id: prev_response_ms
     type: uint32_t
     restore_value: false
     initial_value: "0"
-  - id: verpasste
+  - id: silent_minutes
     type: int
     restore_value: true
     initial_value: "0"
-  - id: luecke_gemeldet
+  - id: gap_reported
     type: bool
     restore_value: false
     initial_value: "false"
-  # Sekunden seit der letzten Antwort (ab Start, solange keine kam). Logik
-  # liest diesen Wert; der Sensor wird nur alle 15 s veroeffentlicht.
-  - id: luecke_s
+  # Seconds since the last response (since boot, while none has arrived).
+  # Logic reads this value; the sensor is only published every 15 s.
+  - id: gap_s
     type: float
     restore_value: false
     initial_value: "0.0f"
-  # Bus laenger als max_luecke stumm: Registerwerte sind ungueltig gesetzt.
-  - id: bus_ausfall
+  # Bus silent longer than max_gap: register values are set invalid.
+  - id: bus_down
     type: bool
     restore_value: false
     initial_value: "false"
-  # Datum (JJJJMMTT), zu dem die Tageszaehler gehoeren. Gespeichert, damit ein
-  # verpasster Tageswechsel (Neustart um Mitternacht, Geraet aus) nachgeholt
-  # wird. 0 = noch nie gesetzt.
-  - id: tag_stempel
+  # Date (YYYYMMDD) the daily counters belong to. Stored so a missed day
+  # change (reboot at midnight, device off) is caught up.
+  # 0 = never set.
+  - id: day_stamp
     type: int
     restore_value: true
     initial_value: "0"
 
-  # --- Kartierungswerkzeuge
-  - id: breit_aktiv
+  # --- Mapping tools
+  - id: wide_scan_active
     type: bool
     restore_value: false
     initial_value: "false"
-  - id: breit_zeiger
+  - id: wide_scan_pos
     type: int
     restore_value: false
     initial_value: "0"
-  - id: breit_treffer
+  - id: wide_scan_hits
     type: std::vector<std::string>
     restore_value: false
-  - id: ref_namen
+  - id: ref_names
     type: std::vector<std::string>
     restore_value: false
-  - id: ref_werte
+  - id: ref_values
     type: std::vector<float>
     restore_value: false
-  - id: rand_ergebnis
+  - id: edge_hits
     type: std::vector<std::string>
     restore_value: false
 
 interval:
-  # Tageswechsel. Ersetzt den Zeit-Trigger um 00:00, der nach einem Neustart
-  # um Mitternacht oder ohne Zeitquelle ausfiel und die Zaehler in den
-  # naechsten Tag mitnahm. Fehlt mehr als ein Tag, ist "gestern" 0.
+  # Day change. Replaces the time trigger at 00:00, which was missed after a
+  # reboot around midnight or without a time source and carried the counters
+  # into the next day. If more than one day is missing, "yesterday" is 0.
   - interval: 10s
     then:
       - lambda: |-
-          auto zeit = id(ha_zeit).now();
-          if (!zeit.is_valid()) zeit = id(sntp_zeit).now();
-          if (!zeit.is_valid()) return;
-          int heute = zeit.year * 10000 + zeit.month * 100 + zeit.day_of_month;
-          int stempel = id(tag_stempel);
-          if (stempel == heute) return;
-          id(tag_stempel) = heute;
-          // Erster Lauf: die Zaehler gehoeren zu heute.
-          if (stempel == 0) return;
-          if (heute < stempel) {
-            ESP_LOGW("tageswechsel", "Datum rueckwaerts (%d -> %d), Zaehler bleiben", stempel, heute);
+          auto now_t = id(ha_time).now();
+          if (!now_t.is_valid()) now_t = id(sntp_time).now();
+          if (!now_t.is_valid()) return;
+          int today = now_t.year * 10000 + now_t.month * 100 + now_t.day_of_month;
+          int stamp = id(day_stamp);
+          if (stamp == today) return;
+          id(day_stamp) = today;
+          // First run: the counters belong to today.
+          if (stamp == 0) return;
+          if (today < stamp) {
+            ESP_LOGW("day_change", "Date went backwards (%d -> %d), counters kept", stamp, today);
             return;
           }
-          // Gestern ueber die lokale Mitternacht bestimmen (sommerzeitfest).
-          ESPTime mitternacht = zeit;
-          mitternacht.hour = 0;
-          mitternacht.minute = 0;
-          mitternacht.second = 0;
-          mitternacht.recalc_timestamp_local();
-          ESPTime g = ESPTime::from_epoch_local(mitternacht.timestamp - 3600);
-          bool ein_tag = (stempel == g.year * 10000 + g.month * 100 + g.day_of_month);
-          id(starts_vortag) = ein_tag ? id(starts_heute) : 0;
-          id(starts_heute) = 0;
-          id(ladungen_vortag) = ein_tag ? id(ladungen_heute) : 0;
-          id(ladungen_heute) = 0;
-          id(kuerzester_takt_24h) = 0;
-          // Nenner der mittleren Laufzeit ist starts_heute; beide zuruecksetzen.
-          id(laufsekunden_heute) = 0;
-          // Ein Takt ueber Mitternacht ist angeschnitten und zaehlt nicht als
-          // kuerzester.
-          if (id(verdichter_laeuft)) id(takt_angeschnitten) = true;
-          // Spreizungsmittel ist ein Tageswert.
-          id(spreiz_summe) = 0.0f;
-          id(spreiz_punkte) = 0.0f;
-          id(spreiz_null) = 0.0f;
-          id(stat_dirty) = true;
-          ESP_LOGI("tageswechsel", "%d -> %d%s", stempel, heute, ein_tag ? "" : " (Tage fehlen, gestern = 0)");
+          // Determine yesterday via local midnight (DST-safe).
+          ESPTime midnight = now_t;
+          midnight.hour = 0;
+          midnight.minute = 0;
+          midnight.second = 0;
+          midnight.recalc_timestamp_local();
+          ESPTime g = ESPTime::from_epoch_local(midnight.timestamp - 3600);
+          bool one_day = (stamp == g.year * 10000 + g.month * 100 + g.day_of_month);
+          id(starts_yesterday) = one_day ? id(starts_today) : 0;
+          id(starts_today) = 0;
+          id(charges_yesterday) = one_day ? id(charges_today) : 0;
+          id(charges_today) = 0;
+          id(shortest_cycle_min) = 0;
+          // The mean runtime's denominator is starts_today; reset both.
+          id(run_seconds_today) = 0;
+          // A cycle spanning midnight is truncated and does not count as the
+          // shortest.
+          if (id(compressor_on)) id(cycle_truncated) = true;
+          // The delta mean is a daily value.
+          id(delta_sum) = 0.0f;
+          id(delta_points) = 0.0f;
+          id(delta_zero) = 0.0f;
+          id(stats_dirty) = true;
+          ESP_LOGI("day_change", "%d -> %d%s", stamp, today, one_day ? "" : " (days missing, yesterday = 0)");
 
-  # Abgeleitete Kaeltekreis-Werte. Propan-Sattdampftabelle, linear
-  # interpoliert. Ausserhalb der Tabelle NaN statt erfundener Zahl.
+  # Derived refrigerant-circuit values. Propane saturation table, linearly
+  # interpolated. Outside the table NaN instead of a made-up number.
   - interval: 30s
     then:
       - lambda: |-
           static const float T[] = {-20,-10,0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80};
-          // Stuetzstellen am 16.08.2026 gegen CoolProp korrigiert (vorher bis
-          // 0,17 bar zu hoch, Kondensation 0,2..0,4 K zu niedrig). Die Interpolation
-          // kostet 0,01..0,05 K.
+          // Table points corrected against CoolProp on 2026-08-16 (previously up to
+          // 0.17 bar too high, condensing temperature 0.2..0.4 K too low). The
+          // interpolation costs 0.01..0.05 K.
           static const float P[] = {2.45f,3.45f,4.74f,5.51f,6.37f,7.32f,8.36f,9.52f,10.79f,
                                     12.18f,13.69f,15.34f,17.13f,19.07f,21.17f,23.43f,25.87f,
                                     28.49f,31.32f};
           static const int N = 19;
 
-          // Register ist Ueberdruck; +1 bar = Absolutdruck.
-          auto sattdampf = [&](float bar_ueber) -> float {
-            float pa = bar_ueber + 1.0f;
+          // Register is gauge pressure; +1 bar = absolute pressure.
+          auto saturation = [&](float bar_gauge) -> float {
+            float pa = bar_gauge + 1.0f;
             if (pa < P[0] || pa > P[N-1]) return NAN;
             for (int i = 0; i < N - 1; i++) {
               if (pa >= P[i] && pa <= P[i+1]) {
@@ -2096,533 +2096,533 @@ interval:
             return NAN;
           };
 
-          float nd = id(ir22_niederdruck).state;
-          float hd = id(ir21_hochdruck).state;
-          float sg = id(ir17_sauggas).state;
+          float nd = id(ir22_low_pressure).state;
+          float hd = id(ir21_high_pressure).state;
+          float sg = id(ir17_suction_gas).state;
 
-          float t_verd = std::isnan(nd) ? NAN : sattdampf(nd);
-          float t_kond = std::isnan(hd) ? NAN : sattdampf(hd);
+          float t_verd = std::isnan(nd) ? NAN : saturation(nd);
+          float t_kond = std::isnan(hd) ? NAN : saturation(hd);
 
-          id(verdampfung).publish_state(t_verd);
-          id(kondensation).publish_state(t_kond);
-          id(ueberhitzung).publish_state(
+          id(evaporating_temp).publish_state(t_verd);
+          id(condensing_temp).publish_state(t_kond);
+          id(superheat).publish_state(
               (std::isnan(sg) || std::isnan(t_verd)) ? NAN : (sg - t_verd));
-          id(temperaturhub).publish_state(
+          id(temp_lift).publish_state(
               (std::isnan(t_kond) || std::isnan(t_verd)) ? NAN : (t_kond - t_verd));
-          id(druckdifferenz).publish_state(
+          id(pressure_diff).publish_state(
               (std::isnan(hd) || std::isnan(nd)) ? NAN : (hd - nd));
-          id(verdichtungsverhaeltnis).publish_state(
+          id(compression_ratio).publish_state(
               (std::isnan(hd) || std::isnan(nd) || nd + 1.0f <= 0.0f)
                   ? NAN : ((hd + 1.0f) / (nd + 1.0f)));
 
-          // Betriebs-Gate fuer Carnot und Annaeherungen: Druckhub > 2 bar
-          // (Stillstand 0,03 bar, Betrieb ~13 bar). Nicht der Verdichtermelder,
-          // damit die Rechnung ohne HA laeuft.
-          bool druck_ok = !std::isnan(hd) && !std::isnan(nd);
-          bool im_betrieb = druck_ok && (hd - nd) > 2.0f;
+          // Running gate for Carnot and approaches: pressure lift > 2 bar
+          // (standstill 0.03 bar, running ~13 bar). Not the compressor indicator,
+          // so the calculation works without HA.
+          bool pressure_ok = !std::isnan(hd) && !std::isnan(nd);
+          bool running_now = pressure_ok && (hd - nd) > 2.0f;
 
-          // Carnot-COP als Obergrenze. Der Hub-Waechter (3 K) schuetzt die Division.
-          if (im_betrieb && !std::isnan(t_kond) && !std::isnan(t_verd) &&
+          // Carnot COP as upper bound. The lift guard (3 K) protects the division.
+          if (running_now && !std::isnan(t_kond) && !std::isnan(t_verd) &&
               (t_kond - t_verd) > 3.0f) {
             id(carnot).publish_state((t_kond + 273.15f) / (t_kond - t_verd));
           } else {
             id(carnot).publish_state(NAN);
           }
 
-          float vor = id(vorlauf).state;
-          float ruck = id(ruecklauf).state;
-          // Unabhaengiger Sensor, Rueckfall IR12.
-          float aussen = id(aussentemp_ref).state;
-          if (std::isnan(aussen)) aussen = id(aussentemp).state;
-          // Im Kuehlen tauschen Kondensator und Verdampfer die Seiten. Die
-          // Richtung kommt aus der Spreizung, nicht aus HR26: auch im Auto-Modus
-          // (HR26 = 3) wird gekuehlt, und eine Warmwasserladung heizt auch bei
-          // HR26 = 1. Ohne klare Spreizung entscheidet HR26.
-          bool kuehlen;
+          float vor = id(water_flow).state;
+          float ruck = id(water_return).state;
+          // Independent sensor, fallback IR12.
+          float outdoor = id(outdoor_temp_ref).state;
+          if (std::isnan(outdoor)) outdoor = id(outdoor_temp_unit).state;
+          // In cooling, condenser and evaporator swap sides. The direction comes
+          // from the delta, not from HR26: Auto mode (HR26 = 3) also cools, and a
+          // hot-water charge heats even at HR26 = 1. Without a clear delta, HR26
+          // decides.
+          bool cooling;
           if (!std::isnan(vor) && !std::isnan(ruck) && fabsf(vor - ruck) > 0.5f)
-            kuehlen = vor < ruck;
+            cooling = vor < ruck;
           else
-            kuehlen = (id(hr26_modus).state == 1.0f);
-          id(kuehlrichtung) = kuehlen;
-          float medium_kond = kuehlen ? aussen : vor;   // warme Seite
-          float medium_verd = kuehlen ? vor : aussen;   // kalte Seite
-          id(annaeherung_kond).publish_state(
-              (!im_betrieb || std::isnan(t_kond) || std::isnan(medium_kond))
-                  ? NAN : (t_kond - medium_kond));
-          id(annaeherung_verd).publish_state(
-              (!im_betrieb || std::isnan(medium_verd) || std::isnan(t_verd))
-                  ? NAN : (medium_verd - t_verd));
-          id(spreizung).publish_state(
+            cooling = (id(hr26_mode).state == 1.0f);
+          id(cooling_direction) = cooling;
+          float medium_cond = cooling ? outdoor : vor;   // warm side
+          float medium_evap = cooling ? vor : outdoor;   // cold side
+          id(approach_cond).publish_state(
+              (!running_now || std::isnan(t_kond) || std::isnan(medium_cond))
+                  ? NAN : (t_kond - medium_cond));
+          id(approach_evap).publish_state(
+              (!running_now || std::isnan(medium_evap) || std::isnan(t_verd))
+                  ? NAN : (medium_evap - t_verd));
+          id(flow_return_delta).publish_state(
               (std::isnan(vor) || std::isnan(ruck)) ? NAN : (vor - ruck));
 
-          // --- Elektrische Messung (Shelly 3EM) ---
-          float p1 = id(l1_wirk).state, p2 = id(l2_wirk).state, p3 = id(l3_wirk).state;
+          // --- Electrical measurement (Shelly 3EM) ---
+          float p1 = id(l1_active).state, p2 = id(l2_active).state, p3 = id(l3_active).state;
           float u1 = id(l1_volt).state, u2 = id(l2_volt).state, u3 = id(l3_volt).state;
           float i1 = id(l1_amp).state, i2 = id(l2_amp).state, i3 = id(l3_amp).state;
           bool p_ok = !(std::isnan(p1) || std::isnan(p2) || std::isnan(p3));
           bool s_ok = p_ok && !(std::isnan(u1) || std::isnan(u2) || std::isnan(u3) ||
                                 std::isnan(i1) || std::isnan(i2) || std::isnan(i3));
-          float wirk = p_ok ? (p1 + p2 + p3) : NAN;
-          float schein = s_ok ? (u1 * i1 + u2 * i2 + u3 * i3) : NAN;
-          id(wirkleistung).publish_state(wirk);
-          id(scheinleistung).publish_state(schein);
-          id(leistungsfaktor).publish_state(
-              (std::isnan(wirk) || std::isnan(schein) || schein < 1.0f) ? NAN : (wirk / schein));
+          float active = p_ok ? (p1 + p2 + p3) : NAN;
+          float apparent = s_ok ? (u1 * i1 + u2 * i2 + u3 * i3) : NAN;
+          id(active_power_meas).publish_state(active);
+          id(apparent_power_meas).publish_state(apparent);
+          id(power_factor).publish_state(
+              (std::isnan(active) || std::isnan(apparent) || apparent < 1.0f) ? NAN : (active / apparent));
 
-          float va = id(ir23_scheinleistung).state;
-          id(ir23_abgleich).publish_state(
-              (std::isnan(va) || std::isnan(schein) || schein < 200.0f) ? NAN : (va / schein));
+          float va = id(ir23_apparent_power).state;
+          id(ir23_ratio).publish_state(
+              (std::isnan(va) || std::isnan(apparent) || apparent < 200.0f) ? NAN : (va / apparent));
 
           if (p_ok) {
             float mx = std::max(p1, std::max(p2, p3));
             float mn = std::min(p1, std::min(p2, p3));
-            id(schieflast).publish_state(mx > 20.0f ? (100.0f * (mx - mn) / mx) : NAN);
+            id(phase_imbalance).publish_state(mx > 20.0f ? (100.0f * (mx - mn) / mx) : NAN);
           } else {
-            id(schieflast).publish_state(NAN);
+            id(phase_imbalance).publish_state(NAN);
           }
 
   # =============================================================
-  # Statistik, Bus-Gesundheit, Schutzlogik. Sekundentakt, ohne Busverkehr.
+  # Statistics, bus health, guard logic. Every second, no bus traffic.
   # =============================================================
   - interval: 1s
     then:
       - lambda: |-
           uint32_t jetzt = millis();
-          bool laeuft = id(verdichter_melder).state;
+          bool is_running = id(compressor_running).state;
 
-          // Zaehler beim Start einmal veroeffentlichen (sonst "unknown").
-          static bool erstlauf = true;
-          if (erstlauf) {
-            erstlauf = false;
-            id(verpasste_zyklen).publish_state((float) id(verpasste));
-            id(stat_dirty) = true;
+          // Publish counters once at boot (otherwise "unknown").
+          static bool first_run = true;
+          if (first_run) {
+            first_run = false;
+            id(silent_minutes_sensor).publish_state((float) id(silent_minutes));
+            id(stats_dirty) = true;
           }
 
-          // --- Zustandsuebernahme nach dem Start -------------------------
-          // Aus den Leistungswerten, nicht aus dem Melder (der ist beim ersten Tick
-          // noch nicht nachgezogen). Wartet auf eine Quelle, hoechstens 60 s.
+          // --- State takeover after boot ---------------------------------
+          // From the power readings, not from the indicator (it has not caught up
+          // on the first tick). Waits for a source, at most 60 s.
           if (id(start_sync)) {
-            float w0 = id(l1_wirk).state + id(l2_wirk).state + id(l3_wirk).state;
-            float va0 = id(ir23_scheinleistung).state;
-            bool quelle_ok = !std::isnan(w0) || !std::isnan(va0);
-            if (quelle_ok || jetzt > 60000UL) {
+            float w0 = id(l1_active).state + id(l2_active).state + id(l3_active).state;
+            float va0 = id(ir23_apparent_power).state;
+            bool source_ok = !std::isnan(w0) || !std::isnan(va0);
+            if (source_ok || jetzt > 60000UL) {
               id(start_sync) = false;
-              bool laeuft_ist = !std::isnan(w0) ? (w0 > 500.0f)
+              bool running_actual = !std::isnan(w0) ? (w0 > 500.0f)
                               : (!std::isnan(va0) ? (va0 > 700.0f) : false);
-              id(verdichter_laeuft) = laeuft_ist;
-              // Lokal gleichziehen, sonst Flanke gegen den alten Melderwert.
-              laeuft = laeuft_ist;
-              if (laeuft_ist) {
-                // Karenz ab jetzt; die Taktdauer ist ein Teilstueck.
-                id(aktueller_takt_start) = jetzt > 0 ? jetzt : 1;
-                id(takt_angeschnitten) = true;
-                id(stillstand_seit) = 0;
+              id(compressor_on) = running_actual;
+              // Sync locally, otherwise an edge against the old indicator value.
+              is_running = running_actual;
+              if (running_actual) {
+                // Grace period from now; the cycle duration is partial.
+                id(cycle_start_ms) = jetzt > 0 ? jetzt : 1;
+                id(cycle_truncated) = true;
+                id(standstill_since) = 0;
               } else {
-                // Stillstand mit unbekanntem Anfang: ab jetzt zaehlen. Ein geratener
-                // Anfang loeste Fehlalarm aus.
-                id(stillstand_seit) = jetzt;
+                // Standstill with unknown start: count from now. A guessed start
+                // caused false alarms.
+                id(standstill_since) = jetzt;
               }
-              float wt0 = id(ww_temp).state;
-              if (id(ladung_aktiv)) {
-                if (laeuft_ist) {
-                  // Ladung laeuft weiter: nicht neu zaehlen, Kennzahl unterdruecken.
-                  id(ladung_teil) = true;
-                  id(ladung_wh) = 0.0f;
+              float tw0 = id(hw_temp).state;
+              if (id(charge_active)) {
+                if (running_actual) {
+                  // Charge continues: do not count again, suppress the metric.
+                  id(charge_partial) = true;
+                  id(charge_wh) = 0.0f;
                 } else {
-                  // Verdichter steht: die Ladung war beendet.
-                  id(ladung_aktiv) = false;
-                  id(ladung_teil) = false;
-                  if (!std::isnan(wt0)) id(ladung_start_temp) = wt0;
+                  // Compressor stopped: the charge had ended.
+                  id(charge_active) = false;
+                  id(charge_partial) = false;
+                  if (!std::isnan(tw0)) id(charge_start_temp) = tw0;
                 }
-              } else if (id(ladung_start_temp) <= 0.0f && !std::isnan(wt0)) {
-                // Startwert setzen, sonst wird nie eine Ladung erkannt.
-                id(ladung_start_temp) = wt0;
+              } else if (id(charge_start_temp) <= 0.0f && !std::isnan(tw0)) {
+                // Set the start value, otherwise no charge is ever detected.
+                id(charge_start_temp) = tw0;
               }
-              id(stat_dirty) = true;
-              ESP_LOGI("statistik", "Zustand uebernommen: Verdichter %s",
-                       laeuft_ist ? "laeuft" : "steht");
+              id(stats_dirty) = true;
+              ESP_LOGI("stats", "State taken over: compressor %s",
+                       running_actual ? "running" : "stopped");
             }
           }
 
-          // --- Verdichter: Starts, Takte, Laufzeit ---
-          if (laeuft && !id(verdichter_laeuft)) {
-            id(verdichter_laeuft) = true;
-            // 0 ist die Marke fuer "kein Takt" bzw. "kein Stillstand", deshalb
-            // mindestens 1.
-            id(aktueller_takt_start) = jetzt > 0 ? jetzt : 1;
-            id(takt_angeschnitten) = false;   // Anfang bekannt
-            id(starts_heute)++;
-            id(start_zeiten).push_back(jetzt > 0 ? jetzt : 1);
-            id(stillstand_seit) = 0;
-            // Sofort, nicht erst zur naechsten Minute: sonst haelt der
-            // Stillstandsmelder nach einem kurzen Takt den alten Wert.
-            id(stillstandsdauer).publish_state(0.0f);
-            id(stat_dirty) = true;
-            ESP_LOGI("statistik", "Verdichter an, %d. Start heute", id(starts_heute));
-          } else if (!laeuft && id(verdichter_laeuft)) {
-            id(verdichter_laeuft) = false;
-            id(stillstand_seit) = jetzt > 0 ? jetzt : 1;
-            id(stillstandsdauer).publish_state(0.0f);
-            if (id(aktueller_takt_start) > 0) {
-              float takt = (jetzt - id(aktueller_takt_start)) / 60000.0f;
-              // Angeschnittener Takt zaehlt nicht als kuerzester.
-              if (id(takt_angeschnitten)) {
-                ESP_LOGI("statistik", "Verdichter aus, Takt angeschnitten (%.1f min gemessen)", takt);
-              } else if (id(kuerzester_takt_24h) <= 0.0f || takt < id(kuerzester_takt_24h)) {
-                id(kuerzester_takt_24h) = takt;
-                ESP_LOGI("statistik", "Verdichter aus nach %.1f min", takt);
+          // --- Compressor: starts, cycles, runtime ---
+          if (is_running && !id(compressor_on)) {
+            id(compressor_on) = true;
+            // 0 is the marker for "no cycle" or "no standstill", hence at
+            // least 1.
+            id(cycle_start_ms) = jetzt > 0 ? jetzt : 1;
+            id(cycle_truncated) = false;   // start known
+            id(starts_today)++;
+            id(start_times).push_back(jetzt > 0 ? jetzt : 1);
+            id(standstill_since) = 0;
+            // Immediately, not at the next minute: otherwise the standstill
+            // indicator keeps the old value after a short cycle.
+            id(standstill_duration).publish_state(0.0f);
+            id(stats_dirty) = true;
+            ESP_LOGI("stats", "Compressor on, start #%d today", id(starts_today));
+          } else if (!is_running && id(compressor_on)) {
+            id(compressor_on) = false;
+            id(standstill_since) = jetzt > 0 ? jetzt : 1;
+            id(standstill_duration).publish_state(0.0f);
+            if (id(cycle_start_ms) > 0) {
+              float cycle = (jetzt - id(cycle_start_ms)) / 60000.0f;
+              // A truncated cycle does not count as the shortest.
+              if (id(cycle_truncated)) {
+                ESP_LOGI("stats", "Compressor off, cycle truncated (%.1f min measured)", cycle);
+              } else if (id(shortest_cycle_min) <= 0.0f || cycle < id(shortest_cycle_min)) {
+                id(shortest_cycle_min) = cycle;
+                ESP_LOGI("stats", "Compressor off after %.1f min", cycle);
               } else {
-                ESP_LOGI("statistik", "Verdichter aus nach %.1f min", takt);
+                ESP_LOGI("stats", "Compressor off after %.1f min", cycle);
               }
             }
-            id(takt_angeschnitten) = false;
-            // Zurueck auf "kein Takt". Sonst prueft die Anlaufkarenz beim naechsten
-            // Start bis zu 1 s gegen den alten Zeitstempel (Ein-Sekunden-Alarme).
-            id(aktueller_takt_start) = 0;
-            id(stat_dirty) = true;
+            id(cycle_truncated) = false;
+            // Back to "no cycle". Otherwise the start-up grace period checks against
+            // the old timestamp for up to 1 s on the next start (one-second alarms).
+            id(cycle_start_ms) = 0;
+            id(stats_dirty) = true;
           }
-          // Laufzeit aus der tatsaechlich vergangenen Zeit: das Intervall laeuft
-          // nicht exakt im Sekundentakt und verliert bei langen Blockaden Ticks.
-          static uint32_t letzter_tick = jetzt;
+          // Runtime from the actually elapsed time: the interval does not run
+          // exactly every second and loses ticks during long blocking.
+          static uint32_t last_tick = jetzt;
           static uint32_t rest_ms = 0;
-          uint32_t dt = jetzt - letzter_tick;
-          letzter_tick = jetzt;
-          if (id(verdichter_laeuft)) {
+          uint32_t dt = jetzt - last_tick;
+          last_tick = jetzt;
+          if (id(compressor_on)) {
             rest_ms += dt;
             while (rest_ms >= 1000) {
               rest_ms -= 1000;
-              id(laufsekunden_gesamt)++;
-              id(laufsekunden_heute)++;
-              if (id(laufsekunden_gesamt) % 60 == 0) id(stat_dirty) = true;
+              id(run_seconds_total)++;
+              id(run_seconds_today)++;
+              if (id(run_seconds_total) % 60 == 0) id(stats_dirty) = true;
             }
           } else {
             rest_ms = 0;
           }
 
-          // --- Warmwasserladung: Energie je Kelvin Speicherhub. Grenzen: DI09
-          //     UND steigende Speichertemperatur bei laufendem Verdichter. Temperatur
-          //     allein zaehlte in Kuehltakten Phantomladungen (Fuehler in 1,1-K-Stufen,
-          //     Mischung nach Zapfung).
-          bool ww_bereitung = id(di09_ww).has_state() && id(di09_ww).state;
-          float wt = id(ww_temp).state;
-          float wirk = id(wirkleistung).state;
-          // Energie zaehlt ab dem tiefsten Punkt bei DI09 und laufendem Verdichter,
-          // nicht erst ab der Bestaetigung (+0,5 K); sonst fehlt im Zaehler die
-          // Energie, deren Hub im Nenner steht. Eine Verdichterpause unter 5 min
-          // (Wiederanlaufsperre 3 min) bei weiter aktivem DI09 beendet die
-          // Ladung nicht.
-          static float wh_vor = 0.0f;
-          static uint32_t pause_seit = 0;
-          if (!std::isnan(wt)) {
-            if (!id(ladung_aktiv)) {
-              if (laeuft && ww_bereitung && !std::isnan(wirk)) wh_vor += wirk / 3600.0f;
-              if (!(laeuft && ww_bereitung)) wh_vor = 0.0f;
-              if (laeuft && ww_bereitung && id(ladung_start_temp) > 0.0f && wt > id(ladung_start_temp) + 0.5f) {
-                id(ladung_aktiv) = true;
-                id(ladung_teil) = false;
-                id(ladung_wh) = wh_vor;
-                wh_vor = 0.0f;
-                pause_seit = 0;
-                id(ladungen_heute)++;
-                id(stat_dirty) = true;
-                ESP_LOGI("ladung", "Ladung erkannt ab %.1f °C", id(ladung_start_temp));
-              } else if (!laeuft) {
-                id(ladung_start_temp) = wt;
-              } else if (id(ladung_start_temp) <= 0.0f || wt < id(ladung_start_temp)) {
-                // Minimum mitfuehren, solange keine Ladung laeuft: eine Zapfung im Takt
-                // verschiebt sonst den Startwert ueber das Ladungsende. Hub und Energie
-                // zaehlen ab dem tiefsten Punkt.
-                id(ladung_start_temp) = wt;
-                wh_vor = 0.0f;
+          // --- Hot-water charge: energy per kelvin of tank lift. Bounds: DI09
+          //     AND rising tank temperature with the compressor running. Temperature
+          //     alone counted phantom charges in cooling cycles (sensor in 1.1 K
+          //     steps, mixing after a draw-off).
+          bool hw_mode = id(di09_hot_water).has_state() && id(di09_hot_water).state;
+          float tw = id(hw_temp).state;
+          float active = id(active_power_meas).state;
+          // Energy counts from the lowest point with DI09 and the compressor running,
+          // not only from confirmation (+0.5 K); otherwise the numerator lacks the
+          // energy whose lift is in the denominator. A compressor pause under 5 min
+          // (restart lock 3 min) with DI09 still active does not end the
+          // charge.
+          static float wh_pre = 0.0f;
+          static uint32_t pause_since = 0;
+          if (!std::isnan(tw)) {
+            if (!id(charge_active)) {
+              if (is_running && hw_mode && !std::isnan(active)) wh_pre += active / 3600.0f;
+              if (!(is_running && hw_mode)) wh_pre = 0.0f;
+              if (is_running && hw_mode && id(charge_start_temp) > 0.0f && tw > id(charge_start_temp) + 0.5f) {
+                id(charge_active) = true;
+                id(charge_partial) = false;
+                id(charge_wh) = wh_pre;
+                wh_pre = 0.0f;
+                pause_since = 0;
+                id(charges_today)++;
+                id(stats_dirty) = true;
+                ESP_LOGI("charge", "Charge detected from %.1f °C", id(charge_start_temp));
+              } else if (!is_running) {
+                id(charge_start_temp) = tw;
+              } else if (id(charge_start_temp) <= 0.0f || tw < id(charge_start_temp)) {
+                // Track the minimum while no charge is running: a draw-off during the
+                // cycle would otherwise push the start value past the end of the
+                // charge. Lift and energy count from the lowest point.
+                id(charge_start_temp) = tw;
+                wh_pre = 0.0f;
               }
             } else {
-              if (!std::isnan(wirk)) id(ladung_wh) += wirk / 3600.0f;
-              bool ende;
-              if (!ww_bereitung) {
-                ende = true;
-              } else if (!laeuft) {
-                if (pause_seit == 0) pause_seit = jetzt > 0 ? jetzt : 1;
-                ende = (jetzt - pause_seit) > 300000UL;
+              if (!std::isnan(active)) id(charge_wh) += active / 3600.0f;
+              bool done;
+              if (!hw_mode) {
+                done = true;
+              } else if (!is_running) {
+                if (pause_since == 0) pause_since = jetzt > 0 ? jetzt : 1;
+                done = (jetzt - pause_since) > 300000UL;
               } else {
-                pause_seit = 0;
-                ende = false;
+                pause_since = 0;
+                done = false;
               }
-              if (ende) {
-                float hub = wt - id(ladung_start_temp);
-                // Ladung mit Neustart: zaehlt, aber ohne Kennzahl.
-                if (id(ladung_teil)) {
-                  ESP_LOGI("ladung", "Ladung beendet, unvollstaendig (Neustart) — keine Kennzahl");
+              if (done) {
+                float lift = tw - id(charge_start_temp);
+                // Charge with a reboot: counts, but without a metric.
+                if (id(charge_partial)) {
+                  ESP_LOGI("charge", "Charge finished, incomplete (reboot) — no metric");
                 } else {
-                  if (hub > 1.0f && id(ladung_wh) > 1.0f)
-                    id(kwh_pro_kelvin).publish_state((id(ladung_wh) / 1000.0f) / hub);
-                  ESP_LOGI("ladung", "Ladung beendet: %.0f Wh fuer %.1f K", id(ladung_wh), hub);
+                  if (lift > 1.0f && id(charge_wh) > 1.0f)
+                    id(kwh_per_kelvin).publish_state((id(charge_wh) / 1000.0f) / lift);
+                  ESP_LOGI("charge", "Charge finished: %.0f Wh for %.1f K", id(charge_wh), lift);
                 }
-                id(ladung_aktiv) = false;
-                id(ladung_teil) = false;
-                id(ladung_start_temp) = wt;
-                pause_seit = 0;
+                id(charge_active) = false;
+                id(charge_partial) = false;
+                id(charge_start_temp) = tw;
+                pause_since = 0;
               }
             }
           }
 
-          if (!laeuft && !std::isnan(wirk)) id(standby_verbrauch).publish_state(wirk);
+          if (!is_running && !std::isnan(active)) id(standby_power).publish_state(active);
 
-          // --- Bus-Gesundheit ---
-          // Ohne jede Antwort seit dem Start zaehlt die Luecke ab dem Start,
-          // sonst blieben Waechter und Melder bei totem Bus stumm.
-          float s = (id(letzte_antwort_ms) > 0 ? (jetzt - id(letzte_antwort_ms)) : jetzt) / 1000.0f;
-          id(luecke_s) = s;
-          // Sensor nur alle 15 s (sonst 86 400 Zeilen am Tag in der HA-Datenbank).
-          static uint32_t letzte_luecke_pub = 0;
-          if (letzte_luecke_pub == 0 || (jetzt - letzte_luecke_pub) >= 15000UL) {
-            letzte_luecke_pub = jetzt > 0 ? jetzt : 1;
-            id(zeit_seit_antwort).publish_state(roundf(s));
+          // --- Bus health ---
+          // Without any response since boot, the gap counts from boot; otherwise
+          // watchdog and indicators would stay silent on a dead bus.
+          float s = (id(last_response_ms) > 0 ? (jetzt - id(last_response_ms)) : jetzt) / 1000.0f;
+          id(gap_s) = s;
+          // Sensor only every 15 s (otherwise 86,400 rows a day in the HA database).
+          static uint32_t last_gap_pub = 0;
+          if (last_gap_pub == 0 || (jetzt - last_gap_pub) >= 15000UL) {
+            last_gap_pub = jetzt > 0 ? jetzt : 1;
+            id(time_since_response).publish_state(roundf(s));
           }
-          static uint32_t letzte_zaehlung = 0;
-          // Ein Durchlauf dauert ~20 s; dreimal so lange stumm = Zyklus ausgefallen.
-          if (s > 60.0f && (jetzt - letzte_zaehlung) > 60000) {
-            id(verpasste)++;
-            letzte_zaehlung = jetzt;
-            id(verpasste_zyklen).publish_state((float) id(verpasste));
+          static uint32_t last_count = 0;
+          // One pass takes ~20 s; silent for three times as long = cycle missed.
+          if (s > 60.0f && (jetzt - last_count) > 60000) {
+            id(silent_minutes)++;
+            last_count = jetzt;
+            id(silent_minutes_sensor).publish_state((float) id(silent_minutes));
           }
 
-          // Punkte ohne Antwort: Registerliste aus include/register_liste.h.
-          int fehlen = 0;
+          // Points without response: register list from include/register_list.h.
+          int missing = 0;
           for (auto *se : App.get_sensors()) {
-            if (se->is_internal() || !register_liste::ist_register(se->get_name().c_str())) continue;
-            if (std::isnan(se->state)) fehlen++;
+            if (se->is_internal() || !register_list::is_register(se->get_name().c_str())) continue;
+            if (std::isnan(se->state)) missing++;
           }
           for (auto *b : App.get_binary_sensors()) {
-            if (b->is_internal() || !register_liste::ist_register(b->get_name().c_str())) continue;
-            if (!b->has_state()) fehlen++;
+            if (b->is_internal() || !register_list::is_register(b->get_name().c_str())) continue;
+            if (!b->has_state()) missing++;
           }
           for (auto *nu : App.get_numbers()) {
-            if (nu->is_internal() || !register_liste::ist_register(nu->get_name().c_str())) continue;
-            if (std::isnan(nu->state)) fehlen++;
+            if (nu->is_internal() || !register_list::is_register(nu->get_name().c_str())) continue;
+            if (std::isnan(nu->state)) missing++;
           }
-          id(punkte_ohne_antwort).publish_state((float) fehlen);
+          id(registers_missing).publish_state((float) missing);
 
-          // --- Schutzlogik: Bus-Luecke ueber der Grenze. Laufende Werkzeuge
-          //     beenden und alle Registerwerte ungueltig setzen: ESPHome behaelt
-          //     sonst den letzten Wert, und Frost- und Kreismelder bewerteten
-          //     eingefrorene Zahlen. Die naechste Antwort setzt sie neu.
-          float grenze = id(max_luecke).state;
-          if (!std::isnan(grenze) && s > grenze) {
-            if (!id(luecke_gemeldet)) {
-              id(luecke_gemeldet) = true;
-              id(bus_ausfall) = true;
-              ESP_LOGE("schutz", "Bus %.0f s stumm (Grenze %.0f s): Werkzeuge beendet, Registerwerte ungueltig",
-                       s, grenze);
-              if (id(scan_switch).state) id(scan_switch).turn_off();
-              if (id(breit_aktiv)) {
-                id(breit_aktiv) = false;
-                id(rand_text).publish_state(str_sprintf("breiter Scan abgebrochen: Bus-Lücke zu lang (%d von 256)",
-                                                        id(breit_zeiger)));
+          // --- Guard logic: bus gap above the limit. Stop running tools and
+          //     invalidate all register values: ESPHome otherwise keeps the last
+          //     value, and the frost and circuit alarms would assess frozen
+          //     numbers. The next response sets them again.
+          float limit = id(max_gap).state;
+          if (!std::isnan(limit) && s > limit) {
+            if (!id(gap_reported)) {
+              id(gap_reported) = true;
+              id(bus_down) = true;
+              ESP_LOGE("guard", "Bus silent for %.0f s (limit %.0f s): tools stopped, register values invalidated",
+                       s, limit);
+              if (id(obs_switch).state) id(obs_switch).turn_off();
+              if (id(wide_scan_active)) {
+                id(wide_scan_active) = false;
+                id(scan_result_text).publish_state(str_sprintf("wide scan aborted: bus gap too long (%d of 256)",
+                                                        id(wide_scan_pos)));
               }
               for (auto *se : App.get_sensors())
-                if (register_liste::ist_register(se->get_name().c_str())) se->publish_state(NAN);
+                if (register_list::is_register(se->get_name().c_str())) se->publish_state(NAN);
               for (auto *b : App.get_binary_sensors())
-                if (register_liste::ist_register(b->get_name().c_str())) b->invalidate_state();
+                if (register_list::is_register(b->get_name().c_str())) b->invalidate_state();
               for (auto *nu : App.get_numbers())
-                if (register_liste::ist_register(nu->get_name().c_str())) nu->publish_state(NAN);
+                if (register_list::is_register(nu->get_name().c_str())) nu->publish_state(NAN);
             }
           } else {
-            id(luecke_gemeldet) = false;
-            id(bus_ausfall) = false;
+            id(gap_reported) = false;
+            id(bus_down) = false;
           }
 
-          if (id(scan_switch).state)
-            id(scan_restlaufzeit).publish_state((1800 - id(scan_laufzeit)) / 60.0f);
+          if (id(obs_switch).state)
+            id(obs_time_left).publish_state((1800 - id(obs_runtime)) / 60.0f);
 
-          // --- Schalthaeufigkeit und Stillstandsdauer, minuetlich veroeffentlicht.
+          // --- Switching frequency and standstill duration, published every minute.
           {
-            // uint32-Subtraktion ist auch ueber den millis()-Ueberlauf richtig.
-            auto &zs = id(start_zeiten);
+            // uint32 subtraction is correct across the millis() overflow too.
+            auto &zs = id(start_times);
             while (!zs.empty() && (jetzt - zs.front()) > 3600000UL) zs.erase(zs.begin());
 
-            // Spreizung nur unter Last mitteln; keine Anlaufkarenz (haengt an der
-            // Pumpe, nicht am Kaeltekreis).
-            if (id(verdichter_laeuft)) {
-              float sp = id(spreizung).state;
+            // Average the delta only under load; no start-up grace period (it depends
+            // on the pump, not the refrigerant circuit).
+            if (id(compressor_on)) {
+              float sp = id(flow_return_delta).state;
               if (!std::isnan(sp)) {
-                id(spreiz_summe) += fabsf(sp);
-                id(spreiz_punkte) += 1.0f;
-                // 0,05 K: Aufloesung 0,1 K, identische Quellen liefern exakt dieselbe Zahl.
-                if (fabsf(sp) < 0.05f) id(spreiz_null) += 1.0f;
+                id(delta_sum) += fabsf(sp);
+                id(delta_points) += 1.0f;
+                // 0.05 K: resolution 0.1 K, identical sources yield exactly the same number.
+                if (fabsf(sp) < 0.05f) id(delta_zero) += 1.0f;
               }
             }
 
-            static uint32_t letzte_diag = 0;
-            if (letzte_diag == 0 || (jetzt - letzte_diag) >= 60000UL) {
-              letzte_diag = jetzt;
-              id(starts_pro_stunde).publish_state((float) zs.size());
-              // --- Verschleiss- und Effizienzkennzahlen ------------------
-              id(spreizung_mittel).publish_state(
-                  id(spreiz_punkte) > 0.0f
-                      ? id(spreiz_summe) / id(spreiz_punkte) : NAN);
-              // Anteil an der seit Mitternacht vergangenen Zeit, nicht an 24 h.
-              auto zeit = id(ha_zeit).now();
-              if (!zeit.is_valid()) zeit = id(sntp_zeit).now();
-              if (zeit.is_valid()) {
-                // Ab lokaler Mitternacht ueber Zeitstempel: an Tagen der
-                // Zeitumstellung hat der Tag 23 oder 25 Stunden.
-                ESPTime mitternacht = zeit;
-                mitternacht.hour = 0;
-                mitternacht.minute = 0;
-                mitternacht.second = 0;
-                mitternacht.recalc_timestamp_local();
-                float sek_heute = (float) (zeit.timestamp - mitternacht.timestamp);
-                id(laufzeitanteil).publish_state(
-                    sek_heute > 60.0f
-                        ? 100.0f * id(laufsekunden_heute) / sek_heute : NAN);
+            static uint32_t last_diag = 0;
+            if (last_diag == 0 || (jetzt - last_diag) >= 60000UL) {
+              last_diag = jetzt;
+              id(starts_last_hour).publish_state((float) zs.size());
+              // --- Wear and efficiency metrics ---------------------------
+              id(delta_daily_mean).publish_state(
+                  id(delta_points) > 0.0f
+                      ? id(delta_sum) / id(delta_points) : NAN);
+              // Share of the time elapsed since midnight, not of 24 h.
+              auto now_t = id(ha_time).now();
+              if (!now_t.is_valid()) now_t = id(sntp_time).now();
+              if (now_t.is_valid()) {
+                // From local midnight via timestamps: on DST change days the day
+                // has 23 or 25 hours.
+                ESPTime midnight = now_t;
+                midnight.hour = 0;
+                midnight.minute = 0;
+                midnight.second = 0;
+                midnight.recalc_timestamp_local();
+                float sec_today = (float) (now_t.timestamp - midnight.timestamp);
+                id(runtime_share).publish_state(
+                    sec_today > 60.0f
+                        ? 100.0f * id(run_seconds_today) / sec_today : NAN);
               }
-              float lauf_h = id(laufsekunden_heute) / 3600.0f;
-              id(starts_je_stunde_lauf).publish_state(
-                  lauf_h > 0.25f ? id(starts_heute) / lauf_h : NAN);
-              // stillstand_seit == 0 heisst laeuft ODER noch unbekannt. Vor start_sync
-              // NaN, sonst waere die Stillstandsueberwachung in der ersten Minute stumm.
-              id(stillstandsdauer).publish_state(
+              float run_h = id(run_seconds_today) / 3600.0f;
+              id(starts_per_run_hour).publish_state(
+                  run_h > 0.25f ? id(starts_today) / run_h : NAN);
+              // standstill_since == 0 means running OR still unknown. NaN before
+              // start_sync, otherwise standstill monitoring would be silent in the first minute.
+              id(standstill_duration).publish_state(
                   id(start_sync) ? NAN
-                  : (id(stillstand_seit) == 0
+                  : (id(standstill_since) == 0
                          ? 0.0f
-                         : (jetzt - id(stillstand_seit)) / 60000.0f));
+                         : (jetzt - id(standstill_since)) / 60000.0f));
             }
           }
 
-          // --- Statistik nur bei Änderung veroeffentlichen ---
-          if (id(stat_dirty)) {
-            id(stat_dirty) = false;
-            id(starts_heute_sensor).publish_state((float) id(starts_heute));
-            id(starts_vortag_sensor).publish_state((float) id(starts_vortag));
-            id(ladungen_heute_sensor).publish_state((float) id(ladungen_heute));
-            id(betriebsstunden).publish_state(id(laufsekunden_gesamt) / 3600.0f);
-            id(kuerzester_takt_sensor).publish_state(
-                id(kuerzester_takt_24h) > 0.0f ? id(kuerzester_takt_24h) : NAN);
-            id(mittlere_laufzeit).publish_state(
-                id(starts_heute) > 0
-                    ? (id(laufsekunden_heute) / 60.0f / (float) id(starts_heute)) : NAN);
+          // --- Publish statistics only on change ---
+          if (id(stats_dirty)) {
+            id(stats_dirty) = false;
+            id(starts_today_sensor).publish_state((float) id(starts_today));
+            id(starts_yesterday_sensor).publish_state((float) id(starts_yesterday));
+            id(charges_today_sensor).publish_state((float) id(charges_today));
+            id(operating_hours).publish_state(id(run_seconds_total) / 3600.0f);
+            id(shortest_cycle_sensor).publish_state(
+                id(shortest_cycle_min) > 0.0f ? id(shortest_cycle_min) : NAN);
+            id(mean_cycle_runtime).publish_state(
+                id(starts_today) > 0
+                    ? (id(run_seconds_today) / 60.0f / (float) id(starts_today)) : NAN);
           }
 
-  # Haeppchenweise Abarbeitung des breiten Scans.
+  # Process the wide scan in small batches.
   - interval: 15s
     then:
       - lambda: |-
-          if (!id(breit_aktiv)) return;
-          // Schutz: bei zu langer Bus-Luecke abbrechen statt draufzusatteln.
-          float luecke = id(luecke_s);
-          float grenze = id(max_luecke).state;
-          if (!std::isnan(grenze) && luecke > grenze * 0.7f) {
-            ESP_LOGW("breitscan", "pausiert, Bus-Luecke %.0f s", luecke);
+          if (!id(wide_scan_active)) return;
+          // Guard: on a long bus gap, back off instead of piling on.
+          float gap = id(gap_s);
+          float limit = id(max_gap).state;
+          if (!std::isnan(limit) && gap > limit * 0.7f) {
+            ESP_LOGW("wide_scan", "paused, bus gap %.0f s", gap);
             return;
           }
           using modbus::EntityType;
-          static auto *leser = new einzelleser::EinzelLeser(
+          static auto *reader = new single_reader::SingleReader(
               id(therma_v)->hub(), id(therma_v)->device_address(),
-              [](EntityType typ, uint16_t adr, uint16_t v) {
-                std::string bez = str_sprintf("%s%u", einzelleser::EinzelLeser::kuerzel(typ), adr);
-                id(breit_treffer).push_back(bez + str_sprintf("=%u", v));
-                ESP_LOGW("breitscan", "%s antwortet: %u", bez.c_str(), v);
+              [](EntityType kind, uint16_t addr, uint16_t v) {
+                std::string label = str_sprintf("%s%u", single_reader::SingleReader::prefix(kind), addr);
+                id(wide_scan_hits).push_back(label + str_sprintf("=%u", v));
+                ESP_LOGW("wide_scan", "%s responds: %u", label.c_str(), v);
               });
-          static const EntityType typen[4] = {
+          static const EntityType kinds[4] = {
             EntityType::INPUT_REGISTER, EntityType::HOLDING,
             EntityType::DISCRETE_INPUT, EntityType::COIL};
-          for (int n = 0; n < 8 && id(breit_zeiger) < 256; n++, id(breit_zeiger)++) {
-            int i = id(breit_zeiger);
-            uint16_t basis = (uint16_t) id(scan_start).state;
-            uint16_t adr = (uint16_t)(basis + (i % 64));
-            if (!leser->lesen(typen[i / 64], adr))
-              ESP_LOGW("breitscan", "%s%u: Anfrage vom Hub abgelehnt",
-                       einzelleser::EinzelLeser::kuerzel(typen[i / 64]), adr);
+          for (int n = 0; n < 8 && id(wide_scan_pos) < 256; n++, id(wide_scan_pos)++) {
+            int i = id(wide_scan_pos);
+            uint16_t base = (uint16_t) id(scan_start).state;
+            uint16_t addr = (uint16_t)(base + (i % 64));
+            if (!reader->read_one(kinds[i / 64], addr))
+              ESP_LOGW("wide_scan", "%s%u: request rejected by hub",
+                       single_reader::SingleReader::prefix(kinds[i / 64]), addr);
           }
-          if (id(breit_zeiger) >= 256) {
-            id(breit_aktiv) = false;
-            std::string s = str_sprintf("breiter Scan fertig, %d Treffer: ",
-                                        (int) id(breit_treffer).size());
-            for (size_t i = 0; i < id(breit_treffer).size(); i++) {
+          if (id(wide_scan_pos) >= 256) {
+            id(wide_scan_active) = false;
+            std::string s = str_sprintf("wide scan done, %d hits: ",
+                                        (int) id(wide_scan_hits).size());
+            for (size_t i = 0; i < id(wide_scan_hits).size(); i++) {
               if (s.size() > 200) { s += " …"; break; }
               if (i) s += ", ";
-              s += id(breit_treffer)[i];
+              s += id(wide_scan_hits)[i];
             }
-            id(rand_text).publish_state(s);
-            ESP_LOGW("breitscan", "fertig, %d Treffer", (int) id(breit_treffer).size());
+            id(scan_result_text).publish_state(s);
+            ESP_LOGW("wide_scan", "done, %d hits", (int) id(wide_scan_hits).size());
           } else {
-            id(rand_text).publish_state(str_sprintf("breiter Scan läuft — %d von 256, %d Treffer",
-                id(breit_zeiger), (int) id(breit_treffer).size()));
+            id(scan_result_text).publish_state(str_sprintf("wide scan running — %d of 256, %d hits",
+                id(wide_scan_pos), (int) id(wide_scan_hits).size()));
           }
 
-  # Wirksamer Betriebsmodus fuer alle Schreibentscheidungen. HR26 wird nur
-  # alle 30 s gelesen; nach einem eigenen Schreiben (Auswahlfeld, HEMS ueber
-  # HA) gilt 40 s lang der geschriebene Wert. Danach zaehlt wieder HR26 —
-  # auch wenn die Anlage das Schreiben nicht uebernommen hat.
+  # Effective operating mode for all write decisions. HR26 is only read
+  # every 30 s; after a write of our own (select, HEMS via HA) the written
+  # value applies for 40 s. After that HR26 counts again — even if the
+  # unit did not accept the write.
   - interval: 1s
     then:
       - lambda: |-
-          bool frisch = id(modus_schreibzeit) != 0 &&
-                        (millis() - id(modus_schreibzeit)) < 40000UL;
-          float hr26 = id(hr26_modus).state;
+          bool fresh = id(mode_write_ms) != 0 &&
+                        (millis() - id(mode_write_ms)) < 40000UL;
+          float hr26 = id(hr26_mode).state;
           int m = -1;
-          if (frisch && id(modus_geschrieben) >= 0) m = id(modus_geschrieben);
+          if (fresh && id(mode_written) >= 0) m = id(mode_written);
           else if (!std::isnan(hr26) && hr26 >= -0.5f && hr26 <= 3.5f) m = (int) lroundf(hr26);
-          id(modus_wirksam) = m;
+          id(mode_effective) = m;
 
-  # Sollwert und Betriebsart zwischen Climate-Entitaet und Anlage abgleichen.
-  # Die Anlage hat Vorrang: Im ersten gueltigen Takt und bei jedem
-  # Moduswechsel folgt die Climate-Entitaet HR24, ohne zu schreiben. Nur eine
-  # Aenderung des Sollwerts von der Climate-Seite bei unveraendertem Modus
-  # Kuehlen oder Heizen geht nach HR24. Im Auto-Modus ruht die Sync,
-  # nachgefuehrt wird dann die Heizkurven-Verschiebung.
+  # Sync setpoint and mode between the climate entity and the unit.
+  # The unit takes precedence: on the first valid cycle and on every mode
+  # change the climate entity follows HR24 without writing. Only a setpoint
+  # change from the climate side with the mode unchanged at Cool or Heat
+  # goes to HR24. In Auto mode the sync rests; the heating curve shift is
+  # tracked instead.
   - interval: 10s
     then:
       - lambda: |-
-          static float hr24_gesehen = NAN;
-          static float ziel_gesehen = NAN;
-          static int modus_vorher = -1;
-          float hr24 = id(hk1_soll).state;
-          int modus = id(modus_wirksam);
-          if (std::isnan(hr24) || modus < 0) return;
-          bool frisch = id(modus_schreibzeit) != 0 &&
-                        (millis() - id(modus_schreibzeit)) < 40000UL;
-          // Kuehlen: oberer Sollpunkt, sonst unterer.
-          bool kuehlbetrieb = (modus == 1);
-          // Auto: HR24 ist Kurvenverschiebung, Climate folgt und schreibt nicht.
-          bool automatik = (modus == 3);
+          static float hr24_seen = NAN;
+          static float target_seen = NAN;
+          static int cur_mode_prev = -1;
+          float hr24 = id(hc1_setpoint).state;
+          int cur_mode = id(mode_effective);
+          if (std::isnan(hr24) || cur_mode < 0) return;
+          bool fresh = id(mode_write_ms) != 0 &&
+                        (millis() - id(mode_write_ms)) < 40000UL;
+          // Cool: upper setpoint, otherwise lower.
+          bool cooling_mode = (cur_mode == 1);
+          // Auto: HR24 is the curve shift; climate follows and does not write.
+          bool auto_mode = (cur_mode == 3);
 
-          // Verschiebung nachfuehren, nur bei Aenderung publizieren. Ausserhalb
-          // 16..22 nichts anzeigen (z. B. kurz nach dem Moduswechsel).
-          float stufe = NAN;
-          if (automatik && hr24 >= 15.5f && hr24 <= 22.5f) {
-            stufe = roundf(hr24 - 19.0f);
-          } else if (automatik) {
-            ESP_LOGW("kurve", "Auto-Modus, aber HR24 = %.1f liegt ausserhalb 16..22", hr24);
+          // Track the shift, publish only on change. Outside 16..22 show
+          // nothing (e.g. right after a mode change).
+          float step_val = NAN;
+          if (auto_mode && hr24 >= 15.5f && hr24 <= 22.5f) {
+            step_val = roundf(hr24 - 19.0f);
+          } else if (auto_mode) {
+            ESP_LOGW("curve", "Auto mode, but HR24 = %.1f is outside 16..22", hr24);
           }
-          float stufe_alt = id(kurve_shift).state;
-          bool stufe_neu = std::isnan(stufe) != std::isnan(stufe_alt) ||
-                           (!std::isnan(stufe) && fabsf(stufe - stufe_alt) > 0.01f);
-          if (stufe_neu) {
-            id(kurve_shift).publish_state(stufe);
-            if (!std::isnan(stufe))
-              ESP_LOGI("kurve", "Verschiebung von der Anlage: %+d (HR24 %.1f)",
-                       (int) stufe, hr24);
+          float step_old = id(curve_shift).state;
+          bool step_changed = std::isnan(step_val) != std::isnan(step_old) ||
+                           (!std::isnan(step_val) && fabsf(step_val - step_old) > 0.01f);
+          if (step_changed) {
+            id(curve_shift).publish_state(step_val);
+            if (!std::isnan(step_val))
+              ESP_LOGI("curve", "shift from the unit: %+d (HR24 %.1f)",
+                       (int) step_val, hr24);
           }
 
-          float ziel = kuehlbetrieb ? id(wp_climate).target_temperature_high
-                                    : id(wp_climate).target_temperature_low;
-          // Der Wechsel zwischen oberem und unterem Sollpunkt beim Moduswechsel
-          // ist keine Nutzeraenderung: neu basieren statt schreiben.
-          bool neu_basieren = !id(climate_bereit) || modus != modus_vorher;
-          bool anlage_hat_geaendert = neu_basieren ||
-              (!std::isnan(hr24_gesehen) && fabsf(hr24 - hr24_gesehen) > 0.05f);
-          bool nutzer_hat_geaendert = !neu_basieren && !std::isnan(ziel_gesehen) &&
-                                      fabsf(ziel - ziel_gesehen) > 0.05f;
+          float target = cooling_mode ? id(hp_climate).target_temperature_high
+                                    : id(hp_climate).target_temperature_low;
+          // Switching between upper and lower setpoint on a mode change is
+          // not a user change: rebase instead of writing.
+          bool rebase = !id(climate_ready) || cur_mode != cur_mode_prev;
+          bool device_changed = rebase ||
+              (!std::isnan(hr24_seen) && fabsf(hr24 - hr24_seen) > 0.05f);
+          bool user_changed = !rebase && !std::isnan(target_seen) &&
+                                      fabsf(target - target_seen) > 0.05f;
 
-          if (automatik) {
-            // Auto: beide Richtungen ruhen (19 °C waere kein Sollwert, 55 °C keine
-            // Stufe). Die Merker laufen mit.
-          } else if (anlage_hat_geaendert) {
-            // Immer beide Punkte mit 2 K Abstand setzen: ESPHome prueft low < high
-            // nur, wenn beide im selben Aufruf kommen.
-            auto call = id(wp_climate).make_call();
-            if (kuehlbetrieb) {
+          if (auto_mode) {
+            // Auto: both directions rest (19 °C would not be a setpoint, 55 °C
+            // not a step). The trackers keep running.
+          } else if (device_changed) {
+            // Always set both points 2 K apart: ESPHome checks low < high
+            // only when both come in the same call.
+            auto call = id(hp_climate).make_call();
+            if (cooling_mode) {
               call.set_target_temperature_high(hr24);
               call.set_target_temperature_low(hr24 - 2.0f);
             } else {
@@ -2630,289 +2630,289 @@ interval:
               call.set_target_temperature_high(hr24 + 2.0f);
             }
             call.perform();
-            ESP_LOGI("climate", "Sollwert folgt der Anlage: %.1f (%s)", hr24,
-                     kuehlbetrieb ? "kuehlen" : "heizen");
-          } else if (nutzer_hat_geaendert && fabsf(ziel - hr24) > 0.05f) {
-            // Nur in Kuehlen/Heizen und nicht direkt nach einem Moduswechsel:
-            // im Modus Aus ist die Bedeutung von HR24 nicht belegt.
-            if ((modus == 1 || modus == 2) && !frisch) {
-              auto c = id(hk1_soll).make_call();
-              c.set_value(ziel);
+            ESP_LOGI("climate", "setpoint follows the unit: %.1f (%s)", hr24,
+                     cooling_mode ? "cool" : "heat");
+          } else if (user_changed && fabsf(target - hr24) > 0.05f) {
+            // Only in Cool/Heat and not right after a mode change:
+            // in mode Off the meaning of HR24 is undefined.
+            if ((cur_mode == 1 || cur_mode == 2) && !fresh) {
+              auto c = id(hc1_setpoint).make_call();
+              c.set_value(target);
               c.perform();
-              ESP_LOGI("climate", "Sollwert an die Anlage: %.1f", ziel);
+              ESP_LOGI("climate", "setpoint to the unit: %.1f", target);
             } else {
-              ESP_LOGW("climate", "Sollwert %.1f nicht geschrieben (Modus %d)", ziel, modus);
+              ESP_LOGW("climate", "setpoint %.1f not written (mode %d)", target, cur_mode);
             }
           }
-          hr24_gesehen = id(hk1_soll).state;
-          ziel_gesehen = kuehlbetrieb ? id(wp_climate).target_temperature_high
-                                      : id(wp_climate).target_temperature_low;
-          modus_vorher = modus;
+          hr24_seen = id(hc1_setpoint).state;
+          target_seen = cooling_mode ? id(hp_climate).target_temperature_high
+                                      : id(hp_climate).target_temperature_low;
+          cur_mode_prev = cur_mode;
 
-          // Betriebsmodus der Anlage in die Climate-Entitaet spiegeln. Nicht
-          // waehrend ein eigenes Schreiben noch nicht nachgelesen ist.
-          if (!frisch && modus != id(climate_modus_gesehen)) {
-            id(climate_modus_gesehen) = modus;
-            auto call = id(wp_climate).make_call();
-            switch (modus) {
+          // Mirror the unit's operating mode into the climate entity. Not
+          // while a write of our own has not been read back yet.
+          if (!fresh && cur_mode != id(climate_mode_seen)) {
+            id(climate_mode_seen) = cur_mode;
+            auto call = id(hp_climate).make_call();
+            switch (cur_mode) {
               case 0: call.set_mode(climate::CLIMATE_MODE_OFF); break;
               case 1: call.set_mode(climate::CLIMATE_MODE_COOL); break;
               case 2: call.set_mode(climate::CLIMATE_MODE_HEAT); break;
               // 3 = Auto = HEAT_COOL.
               default: call.set_mode(climate::CLIMATE_MODE_HEAT_COOL); break;
             }
-            id(climate_spiegelt) = true;
+            id(climate_mirroring) = true;
             call.perform();
-            id(climate_spiegelt) = false;
-            ESP_LOGI("climate", "Betriebsmodus von der Anlage uebernommen: %d", modus);
+            id(climate_mirroring) = false;
+            ESP_LOGI("climate", "operating mode taken from the unit: %d", cur_mode);
           }
-          id(climate_bereit) = true;
+          id(climate_ready) = true;
 
-  # Schnelles Abfragen waehrend der Beobachtung, Abschaltung nach 30 min.
+  # Fast polling during register observation, switches off after 30 min.
   - interval: 10s
     then:
       - if:
           condition:
-            lambda: "return id(scan_switch).state;"
+            lambda: "return id(obs_switch).state;"
           then:
             - lambda: |-
-                id(scan_laufzeit) += 10;
+                id(obs_runtime) += 10;
             - if:
                 condition:
-                  lambda: "return id(scan_laufzeit) >= 1800;"
+                  lambda: "return id(obs_runtime) >= 1800;"
                 then:
-                  - switch.turn_off: scan_switch
+                  - switch.turn_off: obs_switch
                 else:
                   - component.update: therma_v
 
-  # Auswertung der Beobachtung, ohne Busverkehr.
+  # Evaluation of the register observation, without bus traffic.
   - interval: 2s
     then:
       - if:
           condition:
-            lambda: "return id(scan_switch).state;"
+            lambda: "return id(obs_switch).state;"
           then:
             - lambda: |-
-                float schwelle = id(scan_schwelle).state;
-                if (std::isnan(schwelle) || schwelle < 0.0f) schwelle = 1.0f;
-                std::string meldung;
-                int neu = 0;
+                float threshold = id(obs_threshold).state;
+                if (std::isnan(threshold) || threshold < 0.0f) threshold = 1.0f;
+                std::string msg;
+                int fresh_count = 0;
 
-                // Schwelle in Registerschritten, je Sensor ueber accuracy_decimals.
-                auto pruefen = [&](const std::string &nam, float wert, bool diskret,
-                                   float schwelle_eff) {
+                // Threshold in register steps, per sensor via accuracy_decimals.
+                auto check = [&](const std::string &nm, float val, bool discrete,
+                                   float threshold_eff) {
                   int idx = -1;
-                  for (size_t i = 0; i < id(scan_namen).size(); i++) {
-                    if (id(scan_namen)[i] == nam) { idx = (int) i; break; }
+                  for (size_t i = 0; i < id(obs_names).size(); i++) {
+                    if (id(obs_names)[i] == nm) { idx = (int) i; break; }
                   }
                   if (idx < 0) {
-                    id(scan_namen).push_back(nam);
-                    id(scan_werte).push_back(wert);
+                    id(obs_names).push_back(nm);
+                    id(obs_values).push_back(val);
                     return;
                   }
-                  float alt = id(scan_werte)[idx];
-                  float d = fabsf(wert - alt);
+                  float old = id(obs_values)[idx];
+                  float d = fabsf(val - old);
                   if (d < 0.0005f) return;
-                  if (!diskret && d < schwelle_eff) return;
-                  id(scan_werte)[idx] = wert;
-                  id(scan_zaehler)++;
-                  neu++;
-                  ESP_LOGW("beobachtung", "%s: %.2f -> %.2f", nam.c_str(), alt, wert);
-                  if (meldung.size() < 180) {
-                    if (!meldung.empty()) meldung += " | ";
-                    meldung += nam + str_sprintf(" %.2f→%.2f", alt, wert);
+                  if (!discrete && d < threshold_eff) return;
+                  id(obs_values)[idx] = val;
+                  id(obs_count)++;
+                  fresh_count++;
+                  ESP_LOGW("observe", "%s: %.2f -> %.2f", nm.c_str(), old, val);
+                  if (msg.size() < 180) {
+                    if (!msg.empty()) msg += " | ";
+                    msg += nm + str_sprintf(" %.2f→%.2f", old, val);
                   }
-                  bool bekannt = false;
-                  for (size_t i = 0; i < id(scan_liste).size(); i++) {
-                    if (id(scan_liste)[i] == nam) { bekannt = true; break; }
+                  bool known = false;
+                  for (size_t i = 0; i < id(obs_list).size(); i++) {
+                    if (id(obs_list)[i] == nm) { known = true; break; }
                   }
-                  if (!bekannt) id(scan_liste).push_back(nam);
+                  if (!known) id(obs_list).push_back(nm);
                 };
 
                 for (auto *s : App.get_sensors()) {
                   if (s->is_internal()) continue;
-                  // Nur Register; abgeleitete Werte fuellten die Liste.
-                  if (!register_liste::ist_register(s->get_name().c_str())) continue;
+                  // Registers only; derived values would flood the list.
+                  if (!register_list::is_register(s->get_name().c_str())) continue;
                   if (std::isnan(s->state)) continue;
                   int8_t dec = s->get_accuracy_decimals();
                   if (dec < 0) dec = 0;
-                  float eff = schwelle * powf(10.0f, -((float) dec));
-                  pruefen(std::string(s->get_name().c_str()), s->state, false, eff);
+                  float eff = threshold * powf(10.0f, -((float) dec));
+                  check(std::string(s->get_name().c_str()), s->state, false, eff);
                 }
                 for (auto *b : App.get_binary_sensors()) {
                   if (b->is_internal()) continue;
-                  if (!register_liste::ist_register(b->get_name().c_str())) continue;
+                  if (!register_list::is_register(b->get_name().c_str())) continue;
                   if (!b->has_state()) continue;
-                  pruefen(std::string(b->get_name().c_str()), b->state ? 1.0f : 0.0f, true, 0.0f);
+                  check(std::string(b->get_name().c_str()), b->state ? 1.0f : 0.0f, true, 0.0f);
                 }
                 for (auto *nu : App.get_numbers()) {
                   if (nu->is_internal() || std::isnan(nu->state)) continue;
-                  if (!register_liste::ist_register(nu->get_name().c_str())) continue;
-                  pruefen(std::string(nu->get_name().c_str()), nu->state, false, 0.05f);
+                  if (!register_list::is_register(nu->get_name().c_str())) continue;
+                  check(std::string(nu->get_name().c_str()), nu->state, false, 0.05f);
                 }
                 for (auto *w : App.get_switches()) {
-                  if (w->is_internal() || !register_liste::ist_register(w->get_name().c_str())) continue;
-                  pruefen(std::string(w->get_name().c_str()), w->state ? 1.0f : 0.0f, true, 0.0f);
+                  if (w->is_internal() || !register_list::is_register(w->get_name().c_str())) continue;
+                  check(std::string(w->get_name().c_str()), w->state ? 1.0f : 0.0f, true, 0.0f);
                 }
 
-                if (neu > 0) {
-                  id(scan_letzte_text).publish_state(meldung);
-                  id(scan_zaehler_sensor).publish_state((float) id(scan_zaehler));
-                  std::string liste;
-                  for (size_t i = 0; i < id(scan_liste).size(); i++) {
-                    if (liste.size() > 210) { liste += " …"; break; }
-                    if (i) liste += ", ";
-                    liste += id(scan_liste)[i];
+                if (fresh_count > 0) {
+                  id(obs_last_text).publish_state(msg);
+                  id(obs_count_sensor).publish_state((float) id(obs_count));
+                  std::string list;
+                  for (size_t i = 0; i < id(obs_list).size(); i++) {
+                    if (list.size() > 210) { list += " …"; break; }
+                    if (i) list += ", ";
+                    list += id(obs_list)[i];
                   }
-                  id(scan_liste_text).publish_state(liste);
+                  id(obs_list_text).publish_state(list);
                 }
 
   # =============================================================
-  # Klartext-Diagnose, ohne Busverkehr. Nur bei Aenderung veroeffentlichen,
-  # sonst fuellt der Text alle 30 s die Datenbank.
+  # Plain-text diagnostics, without bus traffic. Publish only on change,
+  # otherwise the text fills the database every 30 s.
   # =============================================================
   - interval: 30s
     then:
       - lambda: |-
-          // --- Druck: ok / zu hoch / zu niedrig, mit Betriebs-Gate -------
-          float hd = id(ir21_hochdruck).state;
-          float nd = id(ir22_niederdruck).state;
-          float k = id(kondensation).state;
-          float v = id(verdampfung).state;
-          bool im_betrieb = !std::isnan(hd) && !std::isnan(nd) && (hd - nd) > 2.0f;
+          // --- Pressure: ok / too high / too low, gated on operation -----
+          float hd = id(ir21_high_pressure).state;
+          float nd = id(ir22_low_pressure).state;
+          float k = id(condensing_temp).state;
+          float v = id(evaporating_temp).state;
+          bool running_now = !std::isnan(hd) && !std::isnan(nd) && (hd - nd) > 2.0f;
 
-          std::string dr;
-          if (!im_betrieb) {
-            dr = "im Stillstand — keine Aussage";
+          std::string pr;
+          if (!running_now) {
+            pr = "at standstill — no assessment";
           } else if (!std::isnan(k) && k > 75.0f) {
-            dr = str_sprintf("zu hoch — Kondensation %.0f °C", k);
+            pr = str_sprintf("too high — condensing %.0f °C", k);
           } else if (!std::isnan(v) && v < -20.0f) {
-            dr = str_sprintf("zu niedrig — Verdampfung %.0f °C", v);
-          } else if (id(druck_warnung).state) {
-            // Zwischen den Schwellen.
-            dr = "grenzwertig";
+            pr = str_sprintf("too low — evaporating %.0f °C", v);
+          } else if (id(pressure_alarm).state) {
+            // Between the thresholds.
+            pr = "borderline";
           } else if (std::isnan(k) && std::isnan(v)) {
-            dr = "keine Messwerte";
+            pr = "no readings";
           } else {
-            dr = str_sprintf("ok — %.0f/%.0f bar, Kondensation %.0f °C",
+            pr = str_sprintf("ok — %.0f/%.0f bar, condensing %.0f °C",
                              hd, nd, std::isnan(k) ? 0.0f : k);
           }
-          static std::string dr_alt;
-          if (dr != dr_alt) { dr_alt = dr; id(druck_text).publish_state(dr); }
+          static std::string pr_old;
+          if (pr != pr_old) { pr_old = pr; id(pressure_text).publish_state(pr); }
 
-          // --- Busgesundheit -------------------------------------------
-          float fehlen = id(punkte_ohne_antwort).state;
-          float zyklus = id(zyklusdauer).state;
-          float luecke = id(luecke_s);
-          std::string bg;
-          if (id(bus_warnung).state) {
-            bg = str_sprintf("gestört — %.0f s ohne Antwort", luecke);
-          } else if (!std::isnan(fehlen) && fehlen > 0.0f) {
-            bg = str_sprintf("gestört — %.0f Punkte ohne Antwort", fehlen);
-          } else if (!std::isnan(zyklus) && zyklus > 45.0f) {
-            bg = str_sprintf("auffällig — Zyklus %.0f s", zyklus);
+          // --- Bus health ----------------------------------------------
+          float missing = id(registers_missing).state;
+          float cyc = id(cycle_duration).state;
+          float gap = id(gap_s);
+          std::string bh;
+          if (id(bus_gap_alarm).state) {
+            bh = str_sprintf("faulty — %.0f s without response", gap);
+          } else if (!std::isnan(missing) && missing > 0.0f) {
+            bh = str_sprintf("faulty — %.0f points without response", missing);
+          } else if (!std::isnan(cyc) && cyc > 45.0f) {
+            bh = str_sprintf("degraded — cycle %.0f s", cyc);
           } else {
-            bg = str_sprintf("gut — Zyklus %.0f s", std::isnan(zyklus) ? 0.0f : zyklus);
+            bh = str_sprintf("good — cycle %.0f s", std::isnan(cyc) ? 0.0f : cyc);
           }
-          if (id(verpasste) > 0)
-            bg += str_sprintf(", %d Minuten Busstille insgesamt", id(verpasste));
-          static std::string bg_alt;
-          if (bg != bg_alt) { bg_alt = bg; id(bus_text).publish_state(bg); }
+          if (id(silent_minutes) > 0)
+            bh += str_sprintf(", %d minutes of bus silence in total", id(silent_minutes));
+          static std::string bh_old;
+          if (bh != bh_old) { bh_old = bh; id(bus_health_text).publish_state(bh); }
 
-          // --- Effizienzhinweis, qualitativ ----------------------------
+          // --- Efficiency hint, qualitative ----------------------------
           std::string eff;
-          auto eff_dazu = [&](const std::string &s) {
+          auto eff_add = [&](const std::string &s) {
             if (!eff.empty()) eff += " | ";
             eff += s;
           };
-          float sp_mittel = id(spreizung_mittel).state;
-          if (id(temp_identisch).state) {
-            eff_dazu("Vor- und Rücklauf melden dieselbe Zahl — Fühlerzuordnung "
-                     "prüfen, bis dahin kein Spreizungsurteil");
-          } else if (id(spreizung_warnung).state && !std::isnan(sp_mittel)) {
-            if (sp_mittel < 4.0f)
-              eff_dazu(str_sprintf(
-                  "Spreizung nur %.1f K — Umwälzpumpe drosseln spart Strom, "
-                  "ohne Wärme zu kosten", sp_mittel));
+          float sp_mean = id(delta_daily_mean).state;
+          if (id(temps_identical).state) {
+            eff_add("flow and return report the same value — check sensor "
+                     "assignment, no delta assessment until then");
+          } else if (id(delta_alarm).state && !std::isnan(sp_mean)) {
+            if (sp_mean < 4.0f)
+              eff_add(str_sprintf(
+                  "delta only %.1f K — throttling the circulation pump saves power "
+                  "without costing heat", sp_mean));
             else
-              eff_dazu(str_sprintf(
-                  "Spreizung %.1f K — es kommt zu wenig durch: Volumenstrom, "
-                  "Filter und Ventile prüfen", sp_mittel));
+              eff_add(str_sprintf(
+                  "delta %.1f K — too little flow: check flow rate, "
+                  "filter and valves", sp_mean));
           }
-          if (id(verschleiss_warnung).state) {
-            float sjs = id(starts_je_stunde_lauf).state;
-            eff_dazu(str_sprintf(
-                "%d Starts heute (%d gestern, %.1f je Betriebsstunde) — "
-                "längere Takte schonen den Verdichter",
-                id(starts_heute), id(starts_vortag),
+          if (id(wear_alarm).state) {
+            float sjs = id(starts_per_run_hour).state;
+            eff_add(str_sprintf(
+                "%d starts today (%d yesterday, %.1f per operating hour) — "
+                "longer cycles spare the compressor",
+                id(starts_today), id(starts_yesterday),
                 std::isnan(sjs) ? 0.0f : sjs));
           }
-          // Hoher Temperaturhub, nur unter Last. Der noetige Vorlauf haengt an der
-          // Heizkurve, die ueber Modbus nicht sichtbar ist.
-          if (im_betrieb && !std::isnan(k) && !std::isnan(v) && (k - v) > 40.0f)
-            eff_dazu(str_sprintf(
-                "Temperaturhub %.0f K — jedes Kelvin weniger Vorlauf bringt "
-                "rund 2 %% Leistungszahl", k - v));
-          if (eff.empty()) eff = "kein Hinweis";
+          // High temperature lift, only under load. The required flow
+          // temperature depends on the heating curve, which Modbus does not expose.
+          if (running_now && !std::isnan(k) && !std::isnan(v) && (k - v) > 40.0f)
+            eff_add(str_sprintf(
+                "temperature lift %.0f K — each kelvin less flow temperature gains "
+                "about 2 %% COP", k - v));
+          if (eff.empty()) eff = "no hint";
           if (eff.size() > 250) {
-            // Nicht mitten in einem UTF-8-Zeichen abschneiden.
+            // Do not cut in the middle of a UTF-8 character.
             size_t n = 247;
             while (n > 0 && (eff[n] & 0xC0) == 0x80) n--;
             eff.resize(n);
             eff += "…";
           }
-          static std::string eff_alt;
-          if (eff != eff_alt) { eff_alt = eff; id(effizienz_text).publish_state(eff); }
+          static std::string eff_old;
+          if (eff != eff_old) { eff_old = eff; id(efficiency_text).publish_state(eff); }
 
-          // --- Sammelmeldung, nach Dringlichkeit -----------------------
+          // --- Summary message, by urgency -----------------------------
           std::string d;
-          auto dazu = [&](const std::string &s) {
+          auto add = [&](const std::string &s) {
             if (!d.empty()) d += " | ";
             d += s;
           };
-          if (id(frost_warnung).state) {
-            float a = id(aussentemp_ref).state;
-            if (std::isnan(a)) a = id(aussentemp).state;
-            dazu(str_sprintf("FROSTGEFAHR — außen %.0f °C, Wasser %.0f °C",
+          if (id(frost_alarm).state) {
+            float a = id(outdoor_temp_ref).state;
+            if (std::isnan(a)) a = id(outdoor_temp_unit).state;
+            add(str_sprintf("FROST RISK — outdoor %.0f °C, water %.0f °C",
                              std::isnan(a) ? 0.0f : a,
-                             std::isnan(id(vorlauf).state) ? 0.0f : id(vorlauf).state));
+                             std::isnan(id(water_flow).state) ? 0.0f : id(water_flow).state));
           }
-          if (id(stillstand_warnung).state) {
-            float sd = id(stillstandsdauer).state;
-            dazu(str_sprintf("Anlage steht seit %.0f min, Bus antwortet",
+          if (id(standstill_alarm).state) {
+            float sd = id(standstill_duration).state;
+            add(str_sprintf("unit at standstill for %.0f min, bus responding",
                              std::isnan(sd) ? 0.0f : sd));
           }
-          if (id(druck_warnung).state) dazu("Druck: " + dr);
-          if (id(kreis_warnung).state) {
-            float u = id(ueberhitzung).state;
-            dazu(str_sprintf("Kältekreis — Überhitzung %.1f K", std::isnan(u) ? 0.0f : u));
+          if (id(pressure_alarm).state) add("Pressure: " + pr);
+          if (id(circuit_alarm).state) {
+            float u = id(superheat).state;
+            add(str_sprintf("refrigerant circuit — superheat %.1f K", std::isnan(u) ? 0.0f : u));
           }
-          if (id(uebergang_warnung).state) {
-            float a = id(kuehlrichtung) ? id(annaeherung_verd).state : id(annaeherung_kond).state;
-            dazu(str_sprintf("Wärmeübergang — Annäherung %.1f K", std::isnan(a) ? 0.0f : a));
+          if (id(transfer_alarm).state) {
+            float a = id(cooling_direction) ? id(approach_evap).state : id(approach_cond).state;
+            add(str_sprintf("heat transfer — approach %.1f K", std::isnan(a) ? 0.0f : a));
           }
-          if (id(taktung_warnung).state) {
-            float ml = id(mittlere_laufzeit).state;
-            float sh = id(starts_pro_stunde).state;
-            dazu(str_sprintf("Taktung — %.0f Starts/h, im Mittel %.0f min",
+          if (id(cycling_alarm).state) {
+            float ml = id(mean_cycle_runtime).state;
+            float sh = id(starts_last_hour).state;
+            add(str_sprintf("short cycling — %.0f starts/h, %.0f min on average",
                              std::isnan(sh) ? 0.0f : sh, std::isnan(ml) ? 0.0f : ml));
           }
-          // Verschleiss und Spreizung gehoeren in die Sammelmeldung, aber
-          // hinter die Stoerungen: sie kosten Effizienz, nicht Betrieb.
-          if (id(verschleiss_warnung).state)
-            dazu(str_sprintf("Verschleiß — %d Starts heute, %d gestern",
-                             id(starts_heute), id(starts_vortag)));
-          if (id(spreizung_warnung).state && !std::isnan(sp_mittel))
-            dazu(str_sprintf("Spreizung %.1f K im Tagesmittel", sp_mittel));
-          if (id(bus_warnung).state || (!std::isnan(fehlen) && fehlen > 0.0f))
-            dazu("Bus: " + bg);
-          if (d.empty()) d = "keine Auffälligkeit";
+          // Wear and delta belong in the summary, but after the faults:
+          // they cost efficiency, not operation.
+          if (id(wear_alarm).state)
+            add(str_sprintf("wear — %d starts today, %d yesterday",
+                             id(starts_today), id(starts_yesterday)));
+          if (id(delta_alarm).state && !std::isnan(sp_mean))
+            add(str_sprintf("delta %.1f K daily mean", sp_mean));
+          if (id(bus_gap_alarm).state || (!std::isnan(missing) && missing > 0.0f))
+            add("Bus: " + bh);
+          if (d.empty()) d = "no issues";
           if (d.size() > 250) {
-            // Nicht mitten in einem UTF-8-Zeichen abschneiden.
+            // Do not cut in the middle of a UTF-8 character.
             size_t n = 247;
             while (n > 0 && (d[n] & 0xC0) == 0x80) n--;
             d.resize(n);
             d += "…";
           }
-          static std::string d_alt;
-          if (d != d_alt) { d_alt = d; id(diagnose_text).publish_state(d); }
+          static std::string d_old;
+          if (d != d_old) { d_old = d; id(diagnosis_text).publish_state(d); }
