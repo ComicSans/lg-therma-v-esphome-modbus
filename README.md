@@ -247,3 +247,8 @@ Hände einer Fachkraft.
 *English:* Use at your own risk. To the extent permitted by law, I accept no
 liability for any damage or consequences resulting from the use of this
 project.
+
+## Lizenz
+
+[MIT](LICENSE). Der Haftungsausschluss oben ergänzt die Lizenz, er ersetzt sie
+nicht.
