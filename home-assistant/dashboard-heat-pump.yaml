@@ -1,0 +1,678 @@
+# Lovelace view for the heat pump (template)
+#
+# Exported from the running view (storage dashboard, path "heat-pump") on
+# 2026-10-05, after the flash of the English firmware (v2026.11) and the entity
+# migration (docs/migration/). This template is ALWAYS generated from the
+# running dashboard and never maintained by hand: a template that drifts and is
+# written back loses the difference.
+#
+# All entities carry the prefix of the original device
+# (heizungskeller_warmepumpe_modbus_). When you use it in another instance,
+# replace it with your device prefix (see README). The ESPHome name
+# therma-v-gateway does not appear in it.
+#
+# Some tiles use Home Assistant helpers of the original installation that are
+# not part of this firmware (sensor.wp_*, select.wp_energie_geteilt,
+# input_select.wp_saison_richtung); drop or replace them.
+title: Heat Pump
+path: heat-pump
+icon: mdi:heat-pump
+type: sections
+max_columns: 3
+dense_section_placement: true
+sections:
+- type: grid
+  cards:
+  - type: heading
+    heading: Controls
+    icon: mdi:tune
+    badges:
+    - type: entity
+      entity: select.heizungskeller_warmepumpe_modbus_operating_mode
+      name: Mode
+      show_state: true
+      show_icon: true
+    - type: entity
+      entity: sensor.heizungskeller_warmepumpe_modbus_heat_demand
+      name: Demand
+      show_state: true
+      show_icon: true
+    heading_style: title
+  - type: tile
+    entity: select.heizungskeller_warmepumpe_modbus_operating_mode
+    name: Operating Mode
+    icon: mdi:sun-snowflake
+    color: orange
+    grid_options:
+      columns: 6
+      rows: 2
+    features:
+    - type: select-options
+  - type: tile
+    entity: switch.heizungskeller_warmepumpe_modbus_hot_water_enable
+    name: Hot Water
+    icon: mdi:water-boiler
+    color: red
+    vertical: false
+    features:
+    - type: toggle
+    features_position: bottom
+  - type: vertical-stack
+    cards:
+    - type: conditional
+      conditions:
+      - condition: state
+        entity: select.heizungskeller_warmepumpe_modbus_operating_mode
+        state: Auto
+      card:
+        type: tile
+        entity: number.heizungskeller_warmepumpe_modbus_heating_curve_shift
+        name: Shift Heating Curve
+        icon: mdi:chart-bell-curve-cumulative
+        color: deep-orange
+        hide_state: true
+        vertical: false
+        features:
+        - type: numeric-input
+          style: buttons
+        features_position: bottom
+    - type: conditional
+      conditions:
+      - condition: state
+        entity: select.heizungskeller_warmepumpe_modbus_operating_mode
+        state_not: Auto
+      card:
+        type: tile
+        entity: number.heizungskeller_warmepumpe_modbus_heating_circuit_1_setpoint
+        name: Heating Circuit Target
+        icon: mdi:radiator
+        color: deep-orange
+        hide_state: true
+        vertical: false
+        features:
+        - type: numeric-input
+          style: buttons
+        features_position: bottom
+    grid_options:
+      columns: 6
+      rows: auto
+  - type: tile
+    entity: number.heizungskeller_warmepumpe_modbus_hot_water_setpoint
+    name: Hot Water Target
+    icon: mdi:thermometer-water
+    color: red
+    hide_state: true
+    vertical: false
+    features:
+    - type: numeric-input
+      style: buttons
+    features_position: bottom
+  - type: tile
+    entity: switch.heizungskeller_warmepumpe_modbus_silent_mode
+    name: Silent Mode
+    icon: mdi:volume-low
+    color: indigo
+    vertical: false
+    features:
+    - type: toggle
+    features_position: bottom
+  column_span: 1
+- type: grid
+  column_span: 1
+  cards:
+  - type: heading
+    heading: Now
+    icon: mdi:flash
+    badges:
+    - type: entity
+      entity: sensor.heizungskeller_warmepumpe_modbus_active_power_measured
+      name: Power
+      color: amber
+      show_state: true
+      show_icon: true
+    - type: entity
+      entity: sensor.heizungskeller_warmepumpe_modbus_outdoor_temperature_unit_sensor
+      name: Outdoor (Unit)
+      color: light-blue
+      show_state: true
+      show_icon: true
+    - type: entity
+      entity: sensor.heizungskeller_warmepumpe_modbus_hot_water_temperature
+      name: Hot Water
+      color: red
+      show_state: true
+      show_icon: true
+    heading_style: subtitle
+  - type: tile
+    entity: binary_sensor.heizungskeller_warmepumpe_modbus_compressor_running
+    name: Compressor
+    color: green
+    state_content:
+    - state
+    - last_changed
+  - type: tile
+    entity: binary_sensor.heizungskeller_warmepumpe_modbus_circulation_pump_running
+    name: Circulation Pump
+    color: cyan
+    state_content:
+    - state
+    - last_changed
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_active_power_measured
+    name: Power
+    color: amber
+    grid_options:
+      columns: 6
+      rows: 2
+    features:
+    - type: trend-graph
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_hot_water_temperature
+    name: Hot Water
+    color: red
+    features:
+    - type: trend-graph
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_outdoor_temperature_unit_sensor
+    name: Outdoor (Unit)
+    color: light-blue
+    features:
+    - type: trend-graph
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_room_temperature
+    name: Room
+    color: teal
+    features:
+    - type: trend-graph
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_water_return_temperature
+    name: Return
+    color: brown
+    features:
+    - type: trend-graph
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_water_flow_temperature
+    name: Flow
+    color: orange
+    features:
+    - type: trend-graph
+- type: grid
+  cards:
+  - type: heading
+    heading: Warnings and Notes
+    heading_style: title
+    icon: mdi:alert-outline
+  - type: tile
+    entity: binary_sensor.heizungskeller_warmepumpe_modbus_frost_risk
+  - type: tile
+    entity: binary_sensor.heizungskeller_warmepumpe_modbus_pressure_status
+  - type: tile
+    entity: binary_sensor.heizungskeller_warmepumpe_modbus_standstill_status
+  - type: tile
+    entity: binary_sensor.heizungskeller_warmepumpe_modbus_short_cycling_status
+  - type: tile
+    entity: binary_sensor.heizungskeller_warmepumpe_modbus_flow_return_delta_status
+  - type: tile
+    entity: binary_sensor.heizungskeller_warmepumpe_modbus_wear_status
+  - type: tile
+    entity: binary_sensor.heizungskeller_warmepumpe_modbus_temperatures_identical
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_diagnosis
+    grid_options:
+      columns: full
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_efficiency_hint
+    grid_options:
+      columns: full
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_bus_health
+    grid_options:
+      columns: full
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_pressure_assessment
+    grid_options:
+      columns: full
+- type: grid
+  cards:
+  - type: heading
+    heading: Where the Electricity Goes
+    heading_style: subtitle
+    icon: mdi:transmission-tower
+  - type: tile
+    entity: sensor.wp_energie_taeglich
+    name: Total Today
+  - type: tile
+    entity: sensor.wp_strom_gestern
+    name: Total Yesterday
+  - type: tile
+    entity: sensor.wp_energie_geteilt_heizen
+    name: Heating Today
+  - type: tile
+    entity: sensor.wp_heizen_gestern
+    name: Heating Yesterday
+  - type: tile
+    entity: sensor.wp_energie_geteilt_ww
+    name: Hot Water Today
+  - type: tile
+    entity: sensor.wp_warmwasser_gestern
+    name: Hot Water Yesterday
+  - type: tile
+    entity: sensor.wp_energie_geteilt_kuehlen
+    name: Cooling Today
+  - type: tile
+    entity: sensor.wp_kuehlen_gestern
+    name: Cooling Yesterday
+  - type: tile
+    entity: select.wp_energie_geteilt
+    name: Currently Counting As
+  - type: tile
+    entity: input_select.wp_saison_richtung
+    name: Season Direction
+  - type: tile
+    entity: sensor.wp_heizgradtage_gestern
+    name: Heating Degree Days Yesterday
+  - type: tile
+    entity: sensor.wp_kennzahl_gestern
+    name: Key Figure Yesterday
+- type: grid
+  cards:
+  - type: heading
+    heading: Wear
+    heading_style: subtitle
+    icon: mdi:engine-outline
+  - type: tile
+    entity: binary_sensor.heizungskeller_warmepumpe_modbus_compressor_ready
+    name: Ready to Start
+  - type: tile
+    entity: binary_sensor.heizungskeller_warmepumpe_modbus_compressor_top_stage
+    name: Top Stage (DI08 = IR20 60)
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_compressor_starts_today
+    name: Starts Today
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_compressor_starts_yesterday
+    name: Starts Yesterday
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_shortest_cycle_today
+    name: Shortest Cycle
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_mean_cycle_runtime
+    name: Average Run Time
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_hot_water_charges_today
+    name: Hot Water Charges Today
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_compressor_operating_hours
+    name: Operating Hours
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_energy_per_kelvin_tank_lift
+    name: Energy per Kelvin of Lift
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_runtime_share_today
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_starts_per_operating_hour
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_compressor_starts_last_hour
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_standstill_duration
+  - type: tile
+    entity: number.heizungskeller_warmepumpe_modbus_standstill_limit
+- type: grid
+  cards:
+  - type: heading
+    heading: Refrigerant Circuit
+    icon: mdi:snowflake-thermometer
+    badges:
+    - type: entity
+      entity: sensor.heizungskeller_warmepumpe_modbus_suction_superheat
+      name: Superheat
+      show_state: true
+      show_icon: true
+    heading_style: title
+  - type: gauge
+    entity: sensor.heizungskeller_warmepumpe_modbus_suction_superheat
+    name: Superheat
+    min: 0
+    max: 20
+    needle: true
+    segments:
+    - from: 0
+      color: '#c62828'
+    - from: 3
+      color: '#f9a825'
+    - from: 4
+      color: '#2e7d32'
+    - from: 11
+      color: '#f9a825'
+    - from: 12
+      color: '#c62828'
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_condensing_temperature
+    name: Condensing
+    icon: mdi:thermometer-chevron-up
+    color: red
+    features:
+    - type: trend-graph
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_evaporating_temperature
+    name: Evaporating
+    icon: mdi:thermometer-chevron-down
+    color: blue
+    features:
+    - type: trend-graph
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_suction_gas_temperature
+    name: Suction Gas
+    icon: mdi:gas-cylinder
+    color: cyan
+- type: grid
+  cards:
+  - type: heading
+    heading: Lift and Carnot
+    heading_style: subtitle
+    icon: mdi:swap-vertical
+  - type: gauge
+    entity: sensor.heizungskeller_warmepumpe_modbus_temperature_lift
+    name: Temperature Lift
+    min: -20
+    max: 70
+    needle: true
+    segments:
+    - from: 0
+      color: '#2e7d32'
+    - from: 35
+      color: '#f9a825'
+    - from: 50
+      color: '#c62828'
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_compression_ratio
+    name: Compression Ratio
+    icon: mdi:arrow-collapse-vertical
+    grid_options:
+      columns: 12
+      rows: 1
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_carnot_limit
+    name: Carnot Limit
+    icon: mdi:chart-bell-curve
+    grid_options:
+      columns: 12
+      rows: 1
+- type: grid
+  cards:
+  - type: heading
+    heading: Pressures
+    icon: mdi:gauge
+    badges:
+    - type: entity
+      entity: sensor.heizungskeller_warmepumpe_modbus_high_pressure
+      name: High
+      color: red
+      show_state: true
+      show_icon: true
+    - type: entity
+      entity: sensor.heizungskeller_warmepumpe_modbus_low_pressure
+      name: Low
+      color: blue
+      show_state: true
+      show_icon: true
+    heading_style: subtitle
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_high_pressure
+    name: High Pressure
+    color: red
+    features:
+    - type: trend-graph
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_low_pressure
+    name: Low Pressure
+    color: blue
+    features:
+    - type: trend-graph
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_pressure_difference
+    name: Difference
+    icon: mdi:arrow-expand-horizontal
+    grid_options:
+      columns: 12
+  - type: markdown
+    content: |-
+      {% set hd = states('sensor.heizungskeller_warmepumpe_modbus_high_pressure')|float(-1) %}{% set nd = states('sensor.heizungskeller_warmepumpe_modbus_low_pressure')|float(-1) %}{% set l = states('binary_sensor.heizungskeller_warmepumpe_modbus_compressor_running') %}
+      {% if hd < 0 or nd < 0 or l not in ['on', 'off'] %}*Pressure or compressor state unavailable.* {% elif l == 'off' %}**Compressor stopped.** High and low pressure almost equal ({{ hd|round(2) }} / {{ nd|round(2) }} bar) — pressures equalized, as expected. {% else %}In operation the pressures move apart: **{{ hd|round(2) }} bar high** against **{{ nd|round(2) }} bar low**. {% if hd > 27.5 %}🔴 High pressure critical — above ~27 bar, R290 condenses at about 75 °C (the Pressure Status threshold), close to the unit's high-pressure limit; it may eventually fault. Usually the flow or hot water temperature is set too high. {% elif hd > 22 %}🟡 Elevated, typical during a hot water charge. {% else %}🟢 Comfortable range.{% endif %}{% endif %}
+
+      *The raw value is gauge pressure in hundredths of a bar; for the saturation temperature, 1 bar is added and the propane vapor pressure curve is interpolated between table points every 5 K. From 45 °C up, the table points were up to 0.17 bar too high; they were corrected against CoolProp on 2026-08-16, which amounted to 0.2 to 0.4 K. About 0.6 K of the gap remains: during a hot water charge the calculated condensing temperature still lies below the flow temperature, which is physically impossible. That is on the order of the tolerance of the flow sensor and pressure transducer.*
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_compressor_shell_temperature
+    name: Compressor Shell (IR18)
+    icon: mdi:thermometer-high
+    features:
+    - type: trend-graph
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_compressor_speed
+    name: Compressor Speed (IR20)
+    icon: mdi:speedometer
+    features:
+    - type: trend-graph
+- type: grid
+  cards:
+  - type: heading
+    heading: Heat Transfer
+    icon: mdi:swap-horizontal-bold
+    badges:
+    - type: entity
+      entity: sensor.heizungskeller_warmepumpe_modbus_flow_return_delta
+      name: Delta T
+      show_state: true
+      show_icon: true
+    heading_style: subtitle
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_condenser_approach
+    name: Condensing Above Flow
+    icon: mdi:thermometer-plus
+    grid_options:
+      columns: 6
+      rows: 1
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_evaporator_approach
+    name: Outdoor Air Above Evaporating
+    icon: mdi:weather-windy
+    grid_options:
+      columns: 6
+      rows: 1
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_flow_return_delta
+    name: Flow/Return Delta T
+    icon: mdi:arrow-split-horizontal
+    grid_options:
+      columns: 12
+    features:
+    - type: trend-graph
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_flow_return_delta_daily_mean
+  - type: markdown
+    content: |-
+      {% set ak = states('sensor.heizungskeller_warmepumpe_modbus_condenser_approach')|float(-99) %}{% set av = states('sensor.heizungskeller_warmepumpe_modbus_evaporator_approach')|float(-99) %}{% set sp = states('sensor.heizungskeller_warmepumpe_modbus_flow_return_delta')|float(-99) %}{% set l = states('binary_sensor.heizungskeller_warmepumpe_modbus_compressor_running') %}
+      {% if l == 'on' and ak > -90 %}**Condensing above flow: {{ ak|round(1) }} K.** {% if ak < 2 %}🟢 Very good transfer. {% elif ak <= 5 %}🟢 Normal (2–5 K). {% elif ak <= 9 %}🟡 Elevated — fouling in the plate heat exchanger or air in the circuit. Watch whether it rises over weeks. {% else %}🔴 Too high. Bleed the circuit and check the flow rate.{% endif %}
+
+      {% if av > -90 %}**Outdoor air above evaporating: {{ av|round(1) }} K.** {% if av < 4 %}🟢 Very good. {% elif av <= 10 %}🟢 Normal. {% elif av <= 15 %}🟡 Elevated — dirty fins or icing starting. {% else %}🔴 Too high. Icing or heavily soiled fins. {% endif %}{% else %}*Evaporator approach unavailable.*{% endif %} {% elif ak > -90 and l == 'off' %}*Compressor stopped — only meaningful in operation.* {% endif %}
+
+      {% if sp > -90 %}**Flow/return delta T: {{ sp|round(1) }} K.** {% if l == 'off' %}Near zero at standstill, as expected. {% elif l != 'on' %}Compressor state unavailable. {% elif sp|abs < 3 %}🟡 Small — overpumped; lowering the pump output saves electricity. {% elif sp|abs <= 8 %}🟢 Usual range. {% else %}🟡 Large — flow rate too low; check the filter and pump stage.{% endif %}{% endif %}
+- type: grid
+  cards:
+  - type: heading
+    heading: Electrical
+    icon: mdi:current-ac
+    badges:
+    - type: entity
+      entity: sensor.heizungskeller_warmepumpe_modbus_power_factor
+      name: cos φ
+      show_state: true
+      show_icon: true
+    - type: entity
+      entity: sensor.heizungskeller_warmepumpe_modbus_standby_power
+      name: Standby
+      show_state: true
+      show_icon: true
+    heading_style: subtitle
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_apparent_power_measured
+    name: Apparent Power (Meter)
+    icon: mdi:flash-outline
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_unit_apparent_power
+    name: Apparent Power (Modbus IR23)
+    icon: mdi:sine-wave
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_power_factor
+    name: Power Factor
+    icon: mdi:angle-acute
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_standby_power
+    name: Standby
+    icon: mdi:power-standby
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_phase_imbalance
+    name: Phase Imbalance
+    icon: mdi:scale-unbalanced
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_ir23_to_meter_ratio
+    name: Modbus vs. Meter
+    icon: mdi:division
+  - type: markdown
+    content: |-
+      {% set pf = states('sensor.heizungskeller_warmepumpe_modbus_power_factor')|float(-1) %}{% set sl = states('sensor.heizungskeller_warmepumpe_modbus_phase_imbalance')|float(-1) %}{% set st = states('sensor.heizungskeller_warmepumpe_modbus_standby_power')|float(-1) %}{% set l = states('binary_sensor.heizungskeller_warmepumpe_modbus_compressor_running') %}
+      {% if l == 'on' and pf < 0 %}*Power factor unavailable.* {% elif l not in ['on', 'off'] %}*Compressor state unavailable.* {% elif l == 'on' %}**Power factor {{ pf|round(2) }}.** {% if pf < 0.6 %}🟡 Low — much reactive current, normal at low load. {% elif pf < 0.85 %}🟢 Typical for an inverter, rises with load. {% else %}🟢 Good, close to full load.{% endif %} {% elif st >= 0 %}**Standby {{ st|round(1) }} W.** {% if st < 50 %}🟢 Low. {% elif st < 150 %}🟡 Noticeable — 100 W add up to ~880 kWh per year. {% else %}🔴 High. Is the circulation pump running continuously?{% endif %}{% endif %}
+
+      {% if l == 'on' and sl >= 0 %}**Phase imbalance {{ sl|round(1) }} %.** {% if sl < 15 %}🟢 Balanced — this is how an inverter draws across three phases. {% else %}🟡 Imbalanced. This system has **no backup heater**; a strong imbalance would mean a measurement problem or another load on the supply line.{% endif %}{% endif %}
+
+      *Modbus reports **apparent power** (VA), the meter **active power** (W). Confirmed over 27 data points: the ratio to apparent power is constant (~0.95). The Therma V's internal energy metering is known to be inaccurate — the external meter is authoritative.*
+- type: grid
+  column_span: 2
+  cards:
+  - type: heading
+    heading: History
+    icon: mdi:chart-timeline-variant
+    heading_style: subtitle
+  - type: history-graph
+    hours_to_show: 24
+    entities:
+    - entity: sensor.heizungskeller_warmepumpe_modbus_water_flow_temperature
+      name: Flow
+    - entity: sensor.heizungskeller_warmepumpe_modbus_water_return_temperature
+      name: Return
+    - entity: sensor.heizungskeller_warmepumpe_modbus_hot_water_temperature
+      name: Hot Water
+    - entity: sensor.heizungskeller_warmepumpe_modbus_outdoor_temperature_unit_sensor
+      name: Outdoor (Unit)
+    - entity: sensor.heizungskeller_warmepumpe_modbus_room_temperature
+      name: Room
+  - type: history-graph
+    hours_to_show: 24
+    entities:
+    - entity: sensor.heizungskeller_warmepumpe_modbus_active_power_measured
+      name: Active Power
+    - entity: sensor.heizungskeller_warmepumpe_modbus_suction_superheat
+      name: Superheat
+    - entity: sensor.heizungskeller_warmepumpe_modbus_temperature_lift
+      name: Temperature Lift
+- type: grid
+  cards:
+  - type: heading
+    heading: Bus Health
+    icon: mdi:lan-connect
+    badges:
+    - type: entity
+      entity: sensor.heizungskeller_warmepumpe_modbus_registers_without_response
+      name: No Response
+      show_state: true
+      show_icon: true
+    - type: entity
+      entity: sensor.heizungskeller_warmepumpe_modbus_poll_cycle_duration
+      name: Cycle
+      show_state: true
+      show_icon: true
+    heading_style: title
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_time_since_last_response
+    name: Since Last Response
+    icon: mdi:timer-sand
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_poll_cycle_duration
+    name: Cycle Time
+    icon: mdi:timer-outline
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_registers_without_response
+    name: Points Without Response
+    icon: mdi:link-off
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_bus_silence_minutes
+    name: Missed Cycles
+    icon: mdi:sync-alert
+  - type: tile
+    entity: number.heizungskeller_warmepumpe_modbus_max_bus_gap
+    name: Gap Limit
+    icon: mdi:ruler
+    grid_options:
+      columns: 12
+    features:
+    - type: numeric-input
+      style: buttons
+- type: grid
+  column_span: 3
+  collapsed: true
+  cards:
+  - type: heading
+    heading: Raw Register Values
+    icon: mdi:table-eye
+    heading_style: subtitle
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_observation_changes
+  - type: entities
+    title: Meaning Unknown
+    entities:
+    - entity: sensor.heizungskeller_warmepumpe_modbus_ir10_unassigned
+      name: IR10 — open, identical to DI32
+    - entity: sensor.heizungskeller_warmepumpe_modbus_ir27_unassigned
+    - entity: sensor.heizungskeller_warmepumpe_modbus_hr25_unassigned
+    - entity: sensor.heizungskeller_warmepumpe_modbus_hr27_unassigned
+    - entity: sensor.heizungskeller_warmepumpe_modbus_hr28_unassigned
+  - type: entities
+    title: Identified Since 2026-08-08
+    entities:
+    - entity: sensor.heizungskeller_warmepumpe_modbus_compressor_speed
+      name: Compressor Speed (IR20)
+    - entity: sensor.heizungskeller_warmepumpe_modbus_compressor_shell_temperature
+      name: Compressor Shell (IR18)
+    - entity: sensor.heizungskeller_warmepumpe_modbus_outdoor_heat_exchanger
+      name: Outdoor Heat Exchanger (IR11)
+    - entity: sensor.heizungskeller_warmepumpe_modbus_outdoor_heat_exchanger_mirror_register
+      name: Outdoor Heat Exchanger, Mirror (IR19)
+  - type: entities
+    title: Open or Only Narrowed Down
+    entities:
+    - entity: sensor.heizungskeller_warmepumpe_modbus_ir14_water_temperature_unassigned
+      name: Water Temperature (IR14)
+    - entity: sensor.heizungskeller_warmepumpe_modbus_ir09_constant
+      name: Parameter (IR09, constant)
+    - entity: sensor.heizungskeller_warmepumpe_modbus_ir13_refrigerant_constant
+      name: Refrigerant Parameter (IR13, constant)
+  - type: entities
+    title: Switching States
+    entities:
+    - entity: binary_sensor.heizungskeller_warmepumpe_modbus_heating_circuit_1
+      name: Heating Circuit 1 (CO4)
+    - entity: binary_sensor.heizungskeller_warmepumpe_modbus_heating_circuit_1_inverted
+      name: Heating Circuit 1 Inverted (DI31)
+    - entity: binary_sensor.heizungskeller_warmepumpe_modbus_di06_unassigned
+      name: DI06 — open, only during space heating
+    - entity: binary_sensor.heizungskeller_warmepumpe_modbus_di09_hot_water_mode
+      name: Hot Water Production (DI09)
+    - entity: binary_sensor.heizungskeller_warmepumpe_modbus_di32_unassigned
+      name: DI32 — open, identical to IR10
+    - entity: binary_sensor.heizungskeller_warmepumpe_modbus_co5_unassigned_read_only
+      name: CO5 — open (display only)
+    - entity: binary_sensor.heizungskeller_warmepumpe_modbus_co29_unassigned
+      name: CO29 — single-scan finding
+    - entity: binary_sensor.heizungskeller_warmepumpe_modbus_co30_unassigned
+      name: CO30 — single-scan finding
+cards: []
