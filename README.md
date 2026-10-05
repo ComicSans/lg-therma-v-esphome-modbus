@@ -8,6 +8,10 @@ die meiste Zeit kostet: eine empirisch geprüfte
 [Registerkarte](docs/registerkarte.md), die dokumentierten Sackgassen und die
 Werkzeuge, mit denen sich die offenen Register weiter eingrenzen lassen.
 
+Die Firmware ist als Wärmepumpe für [HEMS](https://github.com/ComicSans/hahems)
+ausgelegt, den PV- und Energiemanager für Home Assistant aus demselben Haus, läuft
+aber auch ohne ihn (siehe [Als Wärmepumpen-Rolle in HEMS](#als-wärmepumpen-rolle-in-hems)).
+
 ## Gemessen an genau diesem Gerät
 
 | | |
@@ -19,24 +23,22 @@ Werkzeuge, mit denen sich die offenen Register weiter eingrenzen lassen.
 | **Bus** | Modbus RTU, Slave 1, 9600 Baud, 8N1 |
 
 > **Dieses Gerät spricht eine eigene Registerbelegung.** Keine der
-> veröffentlichten Karten passt — auch nicht mit Versatz. Was hier steht, gilt
-> gemessen für diese Baureihe, diesen Firmwarestand und diesen Anschluss.
->
-> Ob die Belegung an einem anderen Modell oder einem anderen Firmwarestand
-> gleich aussieht, ist **offen**. Die Registerkarte nennt zu jedem Punkt den
-> Beleg, aus dem sie stammt — wer nachbaut, kann damit gegenprüfen statt zu
-> vertrauen. Ein Adress-Scan ist dafür der erste Schritt und schreibt nichts.
+> veröffentlichten Karten passt — auch nicht mit Versatz. Ob die Belegung an
+> einem anderen Modell oder Firmwarestand gleich aussieht, ist **offen**. Die
+> Registerkarte nennt zu jedem Punkt den Beleg — wer nachbaut, kann damit
+> gegenprüfen statt zu vertrauen. Der erste Schritt ist ein Adress-Scan; er
+> schreibt nichts.
 
 ## Was du bekommst
 
-**Auslesen** — 34 antwortende Datenpunkte: Vorlauf, Rücklauf, Warmwasser, Raum,
+**Auslesen** — 38 antwortende Datenpunkte: Vorlauf, Rücklauf, Warmwasser, Raum,
 Außentemperatur, Sauggas, Hoch- und Niederdruck, Scheinleistung, Betriebsmodus.
 Die Außentemperatur ist ein Gerätefühler im besonnten Gehäuse und liegt im
 Stillstand bis 13 K zu hoch — für abgeleitete Rechnungen gehört ein
 unabhängiger Sensor daneben.
 
 **Stellen** — Betriebsmodus (aus / kühlen / heizen / auto), Flüstermodus,
-Warmwasser-Freigabe, Warmwasser- und Heizkreis-Solltemperatur. Als
+Warmwasser-Freigabe, Warmwasser- und Heizkreis-Solltemperatur. Dazu eine
 Climate-Entität in der Firmware, direkt für einen Energiemanager verdrahtbar.
 
 **Berechnet** — Verdampfungs- und Kondensationstemperatur aus der
@@ -54,13 +56,12 @@ Mitternacht dort korrekt als neuer Zyklus gilt.
 Antwort, verpasste Zyklen, plus eine Schutzschaltung gegen zu lange
 Abfragelücken. Zusammengefasst zu einem Urteil: `gut` / `auffällig` / `gestört`.
 
-**Diagnose** — zehn Melder in der Firmware, nicht als Template in Home
-Assistant: Frostgefahr, Stillstand, Taktung, Druck (`ok` / `zu hoch` / `zu
-niedrig`), Kältekreis, Wärmeübergang, Busgesundheit, Verschleiß, Spreizung und
-der Messfehler-Verdacht „Temperaturen identisch". Dazu ein Sammel-Textsensor,
-der alles Anstehende in einer Zeile zeigt. Jeder Melder hat zwei Schwellen, damit
-er am Grenzwert nicht flattert; die Kreis-Melder zusätzlich fünf Minuten
-Anlaufkarenz.
+**Diagnose** — zehn Melder: Frostgefahr, Stillstand, Taktung, Druck (`ok` /
+`zu hoch` / `zu niedrig`), Kältekreis, Wärmeübergang, Busgesundheit,
+Verschleiß, Spreizung und der Messfehler-Verdacht „Temperaturen identisch".
+Dazu ein Sammel-Textsensor, der alles Anstehende in einer Zeile zeigt. Jeder
+Melder hat zwei Schwellen, damit er am Grenzwert nicht flattert; die
+Kreis-Melder zusätzlich fünf Minuten Anlaufkarenz.
 
 **Verschleiß und Effizienz** — Spreizung im Tagesmittel unter Last,
 Laufzeitanteil, Starts je Betriebsstunde, und ein `Effizienzhinweis` in
@@ -68,12 +69,12 @@ Klartext: Umwälzpumpe drosseln, Volumenstrom prüfen, längere Takte,
 Temperaturhub senken. Qualitativ formuliert, nicht in Prozent — die
 Pumpenkennlinie ist hier nicht bekannt, eine Zahl wäre Scheingenauigkeit. Die
 Schwellen stammen aus der Wärmepumpen-Analyse des HEMS-Projekts, die dort
-entfallen ist. Der Datenblattvergleich (COP gegen Kennlinie) ist **nicht**
-dabei: Er braucht den Volumenstrom, und den gibt dieser Anschluss nicht her.
+entfallen ist.
 
-Der Grund für die Firmware statt HA: Die Bewertung muss auch dastehen, wenn Home
-Assistant neu startet oder jemand die Templates verschiebt. Der ESP hat alle
-Eingangsgrößen ohnehin im Speicher.
+Diagnose und Bewertung laufen **in der Firmware, nicht als Template in Home
+Assistant**: Sie müssen auch dastehen, wenn Home Assistant neu startet oder
+jemand die Templates verschiebt, und der ESP hat alle Eingangsgrößen ohnehin im
+Speicher.
 
 **Kartierungswerkzeuge** — Registerbeobachtung, Referenzzustand-Vergleich und
 zwei Adress-Scanner, um offene Register zu identifizieren, **ohne zu schreiben**.
@@ -86,17 +87,18 @@ Die langsame Einzelabfrage findet dabei Register, die ein gruppenweiser Scan
 in jeder Form, Kreis-2-Pumpe, Mischkreis, Wasserdruck, **Wasserdurchfluss**. Ein
 Heizstab ist an dieser Anlage nicht verbaut.
 
+**Ohne Durchfluss kein COP.** Ohne Volumenstrom gibt es keine thermische
+Leistung — weder einen COP noch einen Datenblattvergleich gegen die Kennlinie.
+Als Ersatz dient der Verbrauch je Kelvin Speicherhub, bei konstantem
+Speichervolumen über die Zeit vergleichbar. Wer den COP will, braucht einen
+eigenen Volumenstromsensor im Heizkreis.
+
 **Der Fehlercode der Anlage steht in keinem Register.** Am 01.08.2026 stand am
 Bedienteil CH03 — Kommunikationsfehler zwischen Bedienteil und Hauptplatine —
 und die Anlage blieb 76 Minuten stehen, während der Modbus lückenlos weiter
-antwortete: kein einziger Punkt ohne Antwort, keine Buslücke über 45 Sekunden.
-Die Diagnosemelder hängen deshalb an der **Wirkung** einer Störung, nicht am
-Code. Das ist kein Notbehelf: So wirken sie gegen jeden Fehler, der die Anlage
-anhält, nicht nur gegen den einen mit dem bekannten Kürzel.
-
-Der fehlende Durchfluss hat eine Folge: **ein COP lässt sich nicht berechnen.**
-Ohne Volumenstrom keine thermische Leistung. Als Ersatz dient der Verbrauch je
-Kelvin Speicherhub — bei konstantem Speichervolumen über die Zeit vergleichbar.
+antwortete. Die Diagnosemelder hängen deshalb an der **Wirkung** einer Störung,
+nicht am Code. So wirken sie gegen jeden Fehler, der die Anlage anhält, nicht
+nur gegen den einen mit dem bekannten Kürzel.
 
 Wer **Heizkreis 2** braucht, kommt an dieser Stelle nicht weiter: Der Weg führt
 über das LG-Gateway PMBUSB00A oder über SG-Ready mit zwei Kontakten.
@@ -112,7 +114,10 @@ Drei Details entscheiden darüber, ob überhaupt ein Byte fließt — fehlender
 dem Bedienteilmenü statt 1. Alle drei stehen mit Begründung in
 [docs/hardware.md](docs/hardware.md). **Vor dem Anschließen lesen.**
 
-## Schnellstart
+## Installation
+
+Voraussetzung ist **ESPHome 2026.9.0 oder neuer**; ältere Versionen lehnen die
+Konfiguration ab (`min_version`).
 
 ```bash
 git clone https://github.com/ComicSans/lg-therma-v-esphome-modbus
@@ -125,7 +130,11 @@ esphome run therma-v.yaml
 Ein voller Abfragezyklus dauert rund 20 Sekunden. Wer weitere Register aufnimmt,
 muss das `update_interval` mit anheben.
 
-## An die eigene Installation anpassen
+`scripts/test.sh` prüft die Konfiguration und kompiliert die Firmware, ohne zu
+flashen; veraltete ESPHome-Optionen und -API gelten dabei als Fehler.
+`TEST_OHNE_COMPILE=1` überspringt das Kompilieren.
+
+### An die eigene Installation anpassen
 
 Zwei Stellen in `therma-v.yaml` sind installationsspezifisch.
 
@@ -140,7 +149,7 @@ weiter.
 Das mitgelieferte Dashboard nutzt `heizungskeller_warmepumpe_modbus_` — wer das
 Gerät anders benannt hat, muss das Präfix durchgängig ersetzen.
 
-## Dashboard
+### Dashboard
 
 [home-assistant/dashboard-waermepumpe.yaml](home-assistant/dashboard-waermepumpe.yaml)
 enthält eine vollständige Lovelace-Ansicht: Betrieb, Kältekreis, Strom,
@@ -168,27 +177,24 @@ Vorlauf-Number.
 
 Für die HEMS-Rolle **Wärmepumpen-Analyse** liefert diese Firmware vier der fünf
 Pflichtwerte: Vorlauf (IR16), Rücklauf (IR15), elektrische Leistung (aus dem
-Shelly, nicht aus IR23 — das ist Scheinleistung) und Außentemperatur. **Der
-Durchfluss fehlt** und ist über diesen Anschluss nicht erreichbar; ohne ihn
-gibt es keine thermische Leistung und damit keinen COP. Wer die Analyse
-vollständig will, braucht einen eigenen Volumenstromsensor im Heizkreis.
+Shelly, nicht aus IR23 — das ist Scheinleistung) und Außentemperatur. Der
+Durchfluss fehlt (siehe [Was nicht geht](#was-nicht-geht)).
 
 > **Was HR24 bedeutet, hängt von der Regelungsart am Bedienteil ab** — Vorlauf,
 > Rücklauf oder Raum, je Betriebsmodus getrennt einstellbar und über Modbus
 > nicht auslesbar. An dieser Anlage: **Vorlauf im Heizen, Rücklauf im Kühlen.**
->
-> Der Wert ist also je nach Modus eine andere Größe. Im Kühlbetrieb bedeuten
-> 21 °C auf HR24 einen Rücklauf-Soll; der Vorlauf läuft dabei bis auf etwa
-> 15 °C herunter. Wer den Sollwert nach Vorlauf-Logik ansetzt, fährt die Anlage
-> deutlich kälter, als die Zahl vermuten lässt. Ein Energiemanager, der HR24
-> stellt, muss die Regelungsart kennen — erfragen kann er sie nicht.
+> Im Kühlbetrieb bedeuten 21 °C auf HR24 also einen Rücklauf-Soll; der Vorlauf
+> läuft dabei bis auf etwa 15 °C herunter. Wer nach Vorlauf-Logik ansetzt, fährt
+> die Anlage deutlich kälter, als die Zahl vermuten lässt.
 >
 > **Im Auto-Modus (HR26 = 3) ist HR24 gar keine Temperatur**, sondern die
 > Verschiebung der Heizkurve: 19 = 0, 20 = +1, 18 = −1, Bereich 16..22. Dafür
 > gibt es die Entität **Heizkurven-Verschiebung** (−3..+3), die außerhalb des
 > Auto-Modus auf unbekannt steht. Die Vorlauf-Number zeigt dort weiter ihre
-> 19 °C — wer sie als Sollwert stellt, verschiebt in Wahrheit die Kurve. Ein
-> Energiemanager, der HR24 schreibt, muss deshalb den Modus mitlesen.
+> 19 °C — wer sie als Sollwert stellt, verschiebt in Wahrheit die Kurve.
+>
+> Ein Energiemanager, der HR24 schreibt, muss deshalb den Modus mitlesen und
+> die Regelungsart kennen — erfragen kann er sie nicht.
 
 ## Vorsicht bei Coil 5
 
@@ -206,11 +212,18 @@ und Referenzzustand-Vergleich da.
 
 ## Dokumentation
 
-- [docs/registerkarte.md](docs/registerkarte.md) — alle 34 Punkte, was belegt ist
+- [docs/registerkarte.md](docs/registerkarte.md) — alle 38 Punkte, was belegt ist
   und woran, was offen bleibt, und die zwei Fallstricke, die echte
   Fehldeutungen erzeugt haben
 - [docs/hardware.md](docs/hardware.md) — Anschluss, DIP-Schalter, Buslast,
   Sackgassen
+
+## Verwandte Projekte
+
+- [**HEMS**](https://github.com/ComicSans/hahems) — PV- und Energiemanager für
+  Home Assistant. Steuert diese Wärmepumpe über Betriebsmodus, Sollwerte,
+  Flüstermodus und Warmwasser-Freigabe; die Rollenzuordnung steht
+  [oben](#als-wärmepumpen-rolle-in-hems).
 
 ## Mitmachen
 
@@ -220,29 +233,21 @@ Frage ist, ob die hier gefundene Registerbelegung an Modell, an Firmware oder
 an beidem hängt.
 
 Was eine Meldung brauchbar macht: Modellnummer der Hydro Unit, Firmwarestand
-vom Bedienteil, eine Liste der antwortenden Register, und zu jedem
+vom Bedienteil, die Ausgabe des Buttons **Breiter Registerscan**, und zu jedem
 gedeuteten Register der Beleg — ein abgelesener Wert am Bedienteil zur selben
 Minute, oder eine Flanke, die mit einem beobachtbaren Ereignis zusammenfällt.
 Eine Zuordnung ohne Beleg ist eine Vermutung, und davon gibt es im Netz
 bereits genug.
-
-Die Scan-Knöpfe (**Randbereiche prüfen**, **Breiter Registerscan**) sind seit
-der Umstellung auf ESPHome 2026.9 entfernt: Sie hingen an
-`ModbusCommandItem`, das ESPHome 2027.3 streicht. Wer sie für ein anderes
-Gerät braucht, findet sie in der Git-Historie (Stand vor der Umstellung,
-kompiliert nur mit ESPHome vor 2026.9).
 
 ## Haftungsausschluss
 
 Die Nutzung dieses Projekts erfolgt **auf eigene Gefahr**. Ich übernehme
 keinerlei Haftung für Schäden an der Wärmepumpe, an der Heizungsanlage, am
 Gebäude oder sonstige Folgen, die aus Nachbau, Konfiguration oder Betrieb
-entstehen — soweit das gesetzlich zulässig ist. Die Registerkarte ist an einem
-einzelnen Gerät gemessen und kann für andere Modelle oder Firmwarestände
-falsch sein. Schreibzugriffe auf die Anlage können ihr Verhalten ändern; ein
-Eingriff in die Anlage kann Garantie- oder Gewährleistungsansprüche gegenüber
-LG oder dem Installateur gefährden. Arbeiten an der Elektrik gehören in die
-Hände einer Fachkraft.
+entstehen — soweit das gesetzlich zulässig ist. Schreibzugriffe können das
+Verhalten der Anlage ändern, und ein Eingriff kann Garantie- oder
+Gewährleistungsansprüche gegenüber LG oder dem Installateur gefährden. Arbeiten
+an der Elektrik gehören in die Hände einer Fachkraft.
 
 *English:* Use at your own risk. To the extent permitted by law, I accept no
 liability for any damage or consequences resulting from the use of this
@@ -250,5 +255,4 @@ project.
 
 ## Lizenz
 
-[MIT](LICENSE). Der Haftungsausschluss oben ergänzt die Lizenz, er ersetzt sie
-nicht.
+[MIT](LICENSE). Der Haftungsausschluss ergänzt die Lizenz, er ersetzt sie nicht.
