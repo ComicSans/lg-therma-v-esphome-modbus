@@ -43,10 +43,9 @@ Alles andere liefert Exception 2 (illegal data address):
 > ausgewiesen hat. Jede Zahl in dieser Tabelle ist die Zahl der *gefundenen*
 > Punkte, nicht die der vorhandenen.
 >
-> Wer nachbaut, sollte deshalb Register einzeln abfragen. Der Button
-> **„Breiter Registerscan"**, der das tat, ist seit der Umstellung auf ESPHome
-> 2026.9 entfernt (er hing an `ModbusCommandItem`, das ESPHome 2027.3
-> streicht); er steht noch in der Git-Historie.
+> Wer nachbaut, sollte deshalb den Button **„Breiter Registerscan"** laufen
+> lassen: er prüft von der eingestellten Startadresse aus 64 Adressen in allen
+> vier Registertypen einzeln.
 
 Die offizielle Karte passt auch hier nur teilweise: Coil 0 (Ein/Aus), Holding 0
 (Betriebsmodus) und Holding 9 (Energiezustand/SG-Ready) sind auf diesem Gerät
