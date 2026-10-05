@@ -31,7 +31,7 @@ Alles andere liefert Exception 2 (illegal data address):
 | Coil (FC 1) | 2, 3, **4**, 5, 6, **29, 30** | 7 |
 
 > **Bei den Coils hat der Tiefenscan mehr übersehen als gefunden** — und der
-> Grund ist derselbe Blockmechanismus wie bei `force_new_range`, nur in der
+> Grund ist derselbe Blockmechanismus wie bei `force_new_range` (heute `reuse_previous_range: false`), nur in der
 > Suchrichtung. Der Scan fragte in Vierergruppen ab; enthält eine Gruppe ein
 > nicht existierendes Register, lehnt das Gerät die **ganze Gruppe** mit
 > Exception 2 ab, und die vorhandenen Nachbarn verschwinden mit. Einzelabfragen
@@ -43,9 +43,10 @@ Alles andere liefert Exception 2 (illegal data address):
 > ausgewiesen hat. Jede Zahl in dieser Tabelle ist die Zahl der *gefundenen*
 > Punkte, nicht die der vorhandenen.
 >
-> Wer nachbaut, sollte deshalb den Button **„Breiter Registerscan"** laufen
-> lassen: er prüft von der eingestellten Startadresse aus 64 Adressen in allen
-> vier Registertypen einzeln.
+> Wer nachbaut, sollte deshalb Register einzeln abfragen. Der Button
+> **„Breiter Registerscan"**, der das tat, ist seit der Umstellung auf ESPHome
+> 2026.9 entfernt (er hing an `ModbusCommandItem`, das ESPHome 2027.3
+> streicht); er steht noch in der Git-Historie.
 
 Die offizielle Karte passt auch hier nur teilweise: Coil 0 (Ein/Aus), Holding 0
 (Betriebsmodus) und Holding 9 (Energiezustand/SG-Ready) sind auf diesem Gerät
@@ -717,7 +718,8 @@ Tages:
 Die Sprünge liegen exakt auf den Generationsgrenzen, nicht auf
 Betriebszuständen. Genau in einer der verfälschten Generationen entstand die
 Fehlzuordnung „IR11 = Heißgastemperatur" durch einen Ablesevergleich am
-Bedienteil. **Deshalb steht `force_new_range: true` an jedem Register** — eine
+Bedienteil. **Deshalb steht `force_new_range: true` an jedem Register** (seit ESPHome
+2026.9 als `reuse_previous_range: false`) — eine
 Einzelanfrage je Punkt kostet Buslast, aber sie kann nicht mehr verrutschen.
 
 ### 2. Eine Zeitreihe über mehrere Firmware-Generationen ist kein Datensatz

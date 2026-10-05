@@ -58,9 +58,9 @@ Richtungsumschaltung. Fehlt die Zeile, bleibt er im Empfangsmodus.
 Das Bedienteil zeigt unter Umständen 33 (hex 21) als Zentraladresse. An diesem
 Anschluss funktioniert **nur 1**.
 
-### 3. `force_new_range: true` an jedem Register
+### 3. `reuse_previous_range: false` an jedem Register
 
-Sonst verschiebt die Blockbildung Werte zwischen Nachbarregistern — der Grund
+Bis ESPHome 2026.8 hieß die Option `force_new_range: true`. Sonst verschiebt die Blockbildung Werte zwischen Nachbarregistern — der Grund
 für eine handfeste Fehldeutung, dokumentiert in
 [registerkarte.md](registerkarte.md).
 
@@ -109,5 +109,5 @@ Die Alternative ohne Protokollarbeit ist **SG-Ready über zwei Kontakte**.
 
 Das Bedienteil zeigt dieselben **Rohwerte** wie der Modbus. „Kältemittel 12000"
 am Display ist wörtlich der Rohwert aus IR13. Damit lässt sich durch bloßes
-Ablesen zuordnen — vorausgesetzt, `force_new_range` ist gesetzt, sonst ordnet
+Ablesen zuordnen — vorausgesetzt, `reuse_previous_range: false` ist gesetzt, sonst ordnet
 man verschobene Werte zu.
