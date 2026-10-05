@@ -184,9 +184,9 @@ Energiemanager für Home Assistant:
 | Warmwasser | Sollwert-Number | Warmwasser-Solltemperatur (HR29) |
 
 Die Modus-Optionen des Selects müssen in HEMS **exakt** so eingetragen werden,
-wie sie hier heißen — Groß- und Kleinschreibung zählt. Alternativ lässt sich die
-Climate-Entität dieser Firmware als Steuer-Entität nutzen; dann entfällt die
-Vorlauf-Number.
+wie sie hier heißen — Groß- und Kleinschreibung zählt. Die Climate-Entität
+taugt **nicht** als Steuer-Entität: Sie zeigt den Modus der Anlage und stellt
+den Sollwert, schaltet aber nur aus, nie ein.
 
 Für die HEMS-Rolle **Wärmepumpen-Analyse** liefert diese Firmware vier der fünf
 Pflichtwerte: Vorlauf (IR16), Rücklauf (IR15), elektrische Leistung (aus dem

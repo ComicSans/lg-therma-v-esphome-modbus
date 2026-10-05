@@ -19,6 +19,12 @@ esphome:
   includes:
     - include/einzelleser.h
   friendly_name: "LG Therma V Heatpump"
+  # Die Heizkurven-Verschiebung startet als Template-Number auf min_value (-3);
+  # bis HR24 im Auto-Modus gelesen ist, gilt sie als unbekannt.
+  on_boot:
+    priority: -100
+    then:
+      - lambda: id(kurve_shift).publish_state(NAN);
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -1158,8 +1164,7 @@ binary_sensor:
       if ((millis() - id(aktueller_takt_start)) < 300000UL) return false;
       // Ueberwacht den Wasser-Plattenwaermetauscher: Kondensator im Heizen,
       // Verdampfer im Kuehlen.
-      bool kuehlen = (id(hr26_modus).state == 1.0f);
-      float a = kuehlen ? id(annaeherung_verd).state : id(annaeherung_kond).state;
+      float a = id(kuehlrichtung) ? id(annaeherung_verd).state : id(annaeherung_kond).state;
       if (std::isnan(a)) return false;
       if (id(uebergang_warnung).state) return a > 7.0f;
       return a > 9.0f;
@@ -1337,7 +1342,16 @@ number:
     max_value: 65
     step: 0.5
     lambda: "return x * 0.1;"
-    write_lambda: "return x * 10;"
+    # Im Auto-Modus ist HR24 eine Kurvenverschiebung; dann schreibt nur die
+    # Heizkurven-Verschiebung. Ohne bekannten Modus wird nicht geschrieben.
+    write_lambda: |-
+      int m = id(modus_wirksam);
+      if (!id(kurve_schreibt) && (m < 0 || m == 3)) {
+        ESP_LOGW("hk1", "HR24 nicht geschrieben: Betriebsmodus %d (Auto oder unbekannt)", m);
+        item->publish_state(item->state);
+        return {};
+      }
+      return x * 10;
 
   # Heizkurven-Verschiebung: HR24 im Auto-Modus (HR26 = 3), 16..22 = -3..+3.
   # Herkunft: vom Betreiber berichtet, Gegenprobe offen (registerkarte.md).
@@ -1352,7 +1366,7 @@ number:
     icon: "mdi:chart-bell-curve-cumulative"
     set_action:
       - lambda: |-
-          int m = (int) lroundf(id(hr26_modus).state);
+          int m = id(modus_wirksam);
           if (m != 3) {
             // Alten Zustand zurueckschicken, sonst sieht die Ablehnung wie eine
             // Annahme aus.
@@ -1365,7 +1379,9 @@ number:
           if (stufe > 3.0f) stufe = 3.0f;
           auto c = id(hk1_soll).make_call();
           c.set_value(19.0f + stufe);
+          id(kurve_schreibt) = true;
           c.perform();
+          id(kurve_schreibt) = false;
           // Sofort anzeigen; das 10-s-Intervall bestaetigt oder korrigiert.
           id(kurve_shift).publish_state(stufe);
           ESP_LOGI("kurve", "Verschiebung %+d -> HR24 %.0f", (int) stufe, 19.0f + stufe);
@@ -1461,6 +1477,12 @@ select:
     address: 26
     value_type: U_WORD
     reuse_previous_range: false
+    # Geschriebenen Modus merken: HR26 wird erst im naechsten Zyklus
+    # nachgelesen, bis dahin gilt dieser Wert (modus_wirksam).
+    write_lambda: |-
+      id(modus_geschrieben) = (int) value;
+      id(modus_schreibzeit) = millis() | 1;
+      return value;
     optionsmap:
       "Aus / nur Warmwasser": 0
       "Kühlen": 1
@@ -1741,19 +1763,69 @@ climate:
       - logger.log:
           level: DEBUG
           format: "Sollwert erreicht, Betriebsmodus bleibt stehen"
+    # Nur Moduswechsel von aussen (HA) zaehlen. Start, Wiederherstellung aus
+    # dem Flash und die Spiegelung der Anlage schreiben nie: vor dem ersten
+    # gueltigen HR26 (climate_bereit) und waehrend der Spiegelung
+    # (climate_spiegelt) wird nur der Stand gemerkt.
     on_state:
       - lambda: |-
-          static climate::ClimateMode letzter = climate::CLIMATE_MODE_HEAT;
+          static climate::ClimateMode letzter = climate::CLIMATE_MODE_OFF;
           climate::ClimateMode m = id(wp_climate).mode;
+          if (id(climate_spiegelt) || !id(climate_bereit)) { letzter = m; return; }
           if (m == letzter) return;
           letzter = m;
-          if (m == climate::CLIMATE_MODE_OFF && id(hr26_modus).state != 0) {
-            // HR26 = 0 ueber das Auswahlfeld (Funktion 06).
-            id(betriebsmodus_select).make_call().set_option("Aus / nur Warmwasser").perform();
-            ESP_LOGI("climate", "Betriebsmodus -> Aus");
+          int modus = id(modus_wirksam);
+          if (m == climate::CLIMATE_MODE_OFF) {
+            if (modus > 0) {
+              // HR26 = 0 ueber das Auswahlfeld (Funktion 06).
+              id(betriebsmodus_select).make_call().set_option("Aus / nur Warmwasser").perform();
+              ESP_LOGI("climate", "Betriebsmodus -> Aus");
+            }
+          } else {
+            ESP_LOGW("climate", "Einschalten nur ueber das Auswahlfeld; Anzeige folgt wieder der Anlage");
           }
+          // Die Spiegelung stellt den Anlagenmodus wieder her, sobald HR26
+          // nachgelesen ist.
+          id(climate_modus_gesehen) = -1;
 
 globals:
+  # --- Schreibpfad. Alle fluechtig: nach einem Neustart gilt erst wieder,
+  #     was von der Anlage gelesen ist.
+  - id: climate_bereit
+    type: bool
+    restore_value: false
+    initial_value: "false"
+  - id: climate_spiegelt
+    type: bool
+    restore_value: false
+    initial_value: "false"
+  - id: climate_modus_gesehen
+    type: int
+    restore_value: false
+    initial_value: "-1"
+  - id: kurve_schreibt
+    type: bool
+    restore_value: false
+    initial_value: "false"
+  - id: modus_geschrieben
+    type: int
+    restore_value: false
+    initial_value: "-1"
+  - id: modus_schreibzeit
+    type: uint32_t
+    restore_value: false
+    initial_value: "0"
+  # Betriebsmodus fuer Entscheidungen: 40 s nach einem Schreiben der
+  # geschriebene, sonst HR26; -1 = unbekannt. Gesetzt im 1-s-Intervall.
+  - id: modus_wirksam
+    type: int
+    restore_value: false
+    initial_value: "-1"
+  # Richtung des Kaeltekreises aus der Spreizung (30-s-Intervall).
+  - id: kuehlrichtung
+    type: bool
+    restore_value: false
+    initial_value: "false"
   - id: scan_namen
     type: std::vector<std::string>
     restore_value: false
@@ -1980,9 +2052,16 @@ interval:
           // Unabhaengiger Sensor, Rueckfall IR12.
           float aussen = id(aussentemp_ref).state;
           if (std::isnan(aussen)) aussen = id(aussentemp).state;
-          // Im Kuehlen (HR26 = 1) tauschen Kondensator und Verdampfer die Seiten.
-          // Unbekannter Modus: Heizen.
-          bool kuehlen = (id(hr26_modus).state == 1.0f);
+          // Im Kuehlen tauschen Kondensator und Verdampfer die Seiten. Die
+          // Richtung kommt aus der Spreizung, nicht aus HR26: auch im Auto-Modus
+          // (HR26 = 3) wird gekuehlt, und eine Warmwasserladung heizt auch bei
+          // HR26 = 1. Ohne klare Spreizung entscheidet HR26.
+          bool kuehlen;
+          if (!std::isnan(vor) && !std::isnan(ruck) && fabsf(vor - ruck) > 0.5f)
+            kuehlen = vor < ruck;
+          else
+            kuehlen = (id(hr26_modus).state == 1.0f);
+          id(kuehlrichtung) = kuehlen;
           float medium_kond = kuehlen ? aussen : vor;   // warme Seite
           float medium_verd = kuehlen ? vor : aussen;   // kalte Seite
           id(annaeherung_kond).publish_state(
@@ -2346,19 +2425,38 @@ interval:
                 id(breit_zeiger), (int) id(breit_treffer).size()));
           }
 
-  # Sollwert und Betriebsart zwischen Climate-Entitaet und Anlage
-  # abgleichen. Die Anlage hat Vorrang; nur Aenderungen von der Climate-Seite
-  # gehen nach HR24, ein Merker verhindert Ping-Pong. Im Auto-Modus ruht die
-  # Sync, nachgefuehrt wird dann die Heizkurven-Verschiebung.
+  # Wirksamer Betriebsmodus fuer alle Schreibentscheidungen. HR26 wird nur
+  # alle 30 s gelesen; nach einem eigenen Schreiben (Auswahlfeld, HEMS ueber
+  # HA) gilt 40 s lang der geschriebene Wert. Danach zaehlt wieder HR26 —
+  # auch wenn die Anlage das Schreiben nicht uebernommen hat.
+  - interval: 1s
+    then:
+      - lambda: |-
+          bool frisch = id(modus_schreibzeit) != 0 &&
+                        (millis() - id(modus_schreibzeit)) < 40000UL;
+          float hr26 = id(hr26_modus).state;
+          int m = -1;
+          if (frisch && id(modus_geschrieben) >= 0) m = id(modus_geschrieben);
+          else if (!std::isnan(hr26) && hr26 >= -0.5f && hr26 <= 3.5f) m = (int) lroundf(hr26);
+          id(modus_wirksam) = m;
+
+  # Sollwert und Betriebsart zwischen Climate-Entitaet und Anlage abgleichen.
+  # Die Anlage hat Vorrang: Im ersten gueltigen Takt und bei jedem
+  # Moduswechsel folgt die Climate-Entitaet HR24, ohne zu schreiben. Nur eine
+  # Aenderung des Sollwerts von der Climate-Seite bei unveraendertem Modus
+  # Kuehlen oder Heizen geht nach HR24. Im Auto-Modus ruht die Sync,
+  # nachgefuehrt wird dann die Heizkurven-Verschiebung.
   - interval: 10s
     then:
       - lambda: |-
           static float hr24_gesehen = NAN;
           static float ziel_gesehen = NAN;
+          static int modus_vorher = -1;
           float hr24 = id(hk1_soll).state;
-          if (std::isnan(hr24)) return;
-
-          int modus = (int) lroundf(id(hr26_modus).state);
+          int modus = id(modus_wirksam);
+          if (std::isnan(hr24) || modus < 0) return;
+          bool frisch = id(modus_schreibzeit) != 0 &&
+                        (millis() - id(modus_schreibzeit)) < 40000UL;
           // Kuehlen: oberer Sollpunkt, sonst unterer.
           bool kuehlbetrieb = (modus == 1);
           // Auto: HR24 ist Kurvenverschiebung, Climate folgt und schreibt nicht.
@@ -2384,16 +2482,17 @@ interval:
 
           float ziel = kuehlbetrieb ? id(wp_climate).target_temperature_high
                                     : id(wp_climate).target_temperature_low;
-
-          bool anlage_hat_geaendert = !std::isnan(hr24_gesehen) &&
-                                      fabsf(hr24 - hr24_gesehen) > 0.05f;
-          bool nutzer_hat_geaendert = !std::isnan(ziel_gesehen) &&
+          // Der Wechsel zwischen oberem und unterem Sollpunkt beim Moduswechsel
+          // ist keine Nutzeraenderung: neu basieren statt schreiben.
+          bool neu_basieren = !id(climate_bereit) || modus != modus_vorher;
+          bool anlage_hat_geaendert = neu_basieren ||
+              (!std::isnan(hr24_gesehen) && fabsf(hr24 - hr24_gesehen) > 0.05f);
+          bool nutzer_hat_geaendert = !neu_basieren && !std::isnan(ziel_gesehen) &&
                                       fabsf(ziel - ziel_gesehen) > 0.05f;
 
           if (automatik) {
             // Auto: beide Richtungen ruhen (19 °C waere kein Sollwert, 55 °C keine
-            // Stufe). Die Merker laufen mit, sonst gilt der Sprung beim Moduswechsel
-            // spaeter als Nutzeraenderung.
+            // Stufe). Die Merker laufen mit.
           } else if (anlage_hat_geaendert) {
             // Immer beide Punkte mit 2 K Abstand setzen: ESPHome prueft low < high
             // nur, wenn beide im selben Aufruf kommen.
@@ -2409,19 +2508,26 @@ interval:
             ESP_LOGI("climate", "Sollwert folgt der Anlage: %.1f (%s)", hr24,
                      kuehlbetrieb ? "kuehlen" : "heizen");
           } else if (nutzer_hat_geaendert && fabsf(ziel - hr24) > 0.05f) {
-            auto c = id(hk1_soll).make_call();
-            c.set_value(ziel);
-            c.perform();
-            ESP_LOGI("climate", "Sollwert an die Anlage: %.1f", ziel);
+            // Nur in Kuehlen/Heizen und nicht direkt nach einem Moduswechsel:
+            // im Modus Aus ist die Bedeutung von HR24 nicht belegt.
+            if ((modus == 1 || modus == 2) && !frisch) {
+              auto c = id(hk1_soll).make_call();
+              c.set_value(ziel);
+              c.perform();
+              ESP_LOGI("climate", "Sollwert an die Anlage: %.1f", ziel);
+            } else {
+              ESP_LOGW("climate", "Sollwert %.1f nicht geschrieben (Modus %d)", ziel, modus);
+            }
           }
           hr24_gesehen = id(hk1_soll).state;
           ziel_gesehen = kuehlbetrieb ? id(wp_climate).target_temperature_high
                                       : id(wp_climate).target_temperature_low;
+          modus_vorher = modus;
 
-          // Betriebsmodus der Anlage in die Climate-Entitaet spiegeln.
-          static int modus_gesehen = -1;
-          if (modus != modus_gesehen && modus >= 0 && modus <= 3) {
-            modus_gesehen = modus;
+          // Betriebsmodus der Anlage in die Climate-Entitaet spiegeln. Nicht
+          // waehrend ein eigenes Schreiben noch nicht nachgelesen ist.
+          if (!frisch && modus != id(climate_modus_gesehen)) {
+            id(climate_modus_gesehen) = modus;
             auto call = id(wp_climate).make_call();
             switch (modus) {
               case 0: call.set_mode(climate::CLIMATE_MODE_OFF); break;
@@ -2430,9 +2536,12 @@ interval:
               // 3 = Auto = HEAT_COOL.
               default: call.set_mode(climate::CLIMATE_MODE_HEAT_COOL); break;
             }
+            id(climate_spiegelt) = true;
             call.perform();
+            id(climate_spiegelt) = false;
             ESP_LOGI("climate", "Betriebsmodus von der Anlage uebernommen: %d", modus);
           }
+          id(climate_bereit) = true;
 
   # Schnelles Abfragen waehrend der Beobachtung, Abschaltung nach 30 min.
   - interval: 10s
@@ -2642,8 +2751,7 @@ interval:
             dazu(str_sprintf("Kältekreis — Überhitzung %.1f K", std::isnan(u) ? 0.0f : u));
           }
           if (id(uebergang_warnung).state) {
-            bool kuehlen = (id(hr26_modus).state == 1.0f);
-            float a = kuehlen ? id(annaeherung_verd).state : id(annaeherung_kond).state;
+            float a = id(kuehlrichtung) ? id(annaeherung_verd).state : id(annaeherung_kond).state;
             dazu(str_sprintf("Wärmeübergang — Annäherung %.1f K", std::isnan(a) ? 0.0f : a));
           }
           if (id(taktung_warnung).state) {
