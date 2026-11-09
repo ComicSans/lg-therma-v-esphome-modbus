@@ -16,7 +16,7 @@
 #   (.story/issues/i-<id>.json, ID aus dem dedupeKey, kollisionsfrei mit lokalen
 #   ISS-Nummern), Commit- oder PR-Kommentar, Draft-Release „waechter-entwurf“.
 #   Wächter-Issues tragen „Wächter:“ im Titel und sind ungeprüfte Befunde, keine
-#   Arbeitsanweisungen. Inline-Kommentare im PR schreibt Claude direkt (ohne Scan).
+#   Arbeitsanweisungen.
 # - "@claude …" in Issue- oder PR-Kommentaren (nur Besitzer und Mitwirkende) startet
 #   den Tag-Modus mit dem Auftrag aus dem Kommentar.
 name: Repo-Wächter
@@ -49,7 +49,6 @@ jobs:
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     permissions:
       contents: read
-      pull-requests: write   # Inline-Kommentare im PR
     outputs:
       ergebnis: ${{ steps.ergebnis.outputs.da }}
     env:
@@ -102,16 +101,16 @@ jobs:
           echo "von=$von" >> "$GITHUB_OUTPUT"
           echo "bis=$bis" >> "$GITHUB_OUTPUT"
 
-      - uses: anthropics/claude-code-action@61a9c274fa7110a66dfafc1bbbced03833eb25fe # v1
+      # Basis-Action: läuft bei jedem Ereignis (die volle Action kennt push nicht) und
+      # bekommt kein GitHub-Token; Kommentare veröffentlicht der Job ablage.
+      - uses: anthropics/claude-code-action/base-action@61a9c274fa7110a66dfafc1bbbced03833eb25fe # v1
         if: env.HAT_KEY == 'true'
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          github_token: ${{ github.token }}
-          display_report: "true"
           # Keine Shell: lesen nur im Arbeitsverzeichnis, schreiben nur unter waechter-out/.
           claude_args: >-
             --max-turns 40 --setting-sources user --strict-mcp-config
-            --allowedTools "Read(./**),Glob,Grep,Write(./waechter-out/**),Edit(./waechter-out/**),mcp__github_inline_comment__create_inline_comment"
+            --allowedTools "Read(./**),Glob,Grep,Write(./waechter-out/**),Edit(./waechter-out/**)"
             --disallowedTools "Bash,WebFetch,WebSearch"
           prompt: |
             Du bist der Repo-Wächter für ${{ github.repository }}. Antworte auf Deutsch.
@@ -125,8 +124,6 @@ jobs:
 
             1. Review: Korrektheit, Sicherheit, fehlende Tests, Lesbarkeit. Commits mit Präfix
                "story:" und reine SwiftLint-Baseline-Anpassungen überspringen.
-               Bei pull_request: konkrete Befunde zusätzlich als Inline-Kommentar mit Zeilenbezug
-               (mcp__github_inline_comment__create_inline_comment).
             2. Zusammenfassung nach waechter-out/kommentar.md (Markdown, knapp, Befunde mit
                Datei:Zeile; ohne Befund ein Satz „Keine Befunde.“).
             3. Nur bei push oder workflow_dispatch: Jeder Befund, der lokal behoben werden muss
@@ -363,6 +360,7 @@ jobs:
           set -euo pipefail
           AUS="$RUNNER_TEMP/waechter-out"
           [ -s "$AUS/kommentar.md" ] || { echo "Kein Kommentar."; exit 0; }
+          cat "$AUS/kommentar.md" >> "$GITHUB_STEP_SUMMARY"
           if [ "$EREIGNIS" = pull_request ]; then
             gh pr comment "$PR" --repo "$REPO" --body-file "$AUS/kommentar.md"
           else
