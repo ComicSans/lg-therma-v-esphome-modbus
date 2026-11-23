@@ -1,0 +1,13 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-11-23",
+  "description": "GitHub #16 (glockman, LG-Techniker-Aussage): IR18 ist die Inverter Discharge Temperature. Discharge Superheat = IR18 − Kondensationstemperatur; Hinweise für über- und unterfüllten Kältekreis.\n\nKonflikt: bei uns liegt IR18 bisher 10–16 K über der Kondensationstemperatur, bei ihm unter 8 K. Deshalb Schwellen je Gerät.\n\nArchitekt: ESPHome-number-Entitäten (restore_value) für die Grenzen von Discharge und Suction Superheat, Vorgaben aus lokalen HA-Daten; Dashboard-Anzeige liest dieselben Werte. Condenser-Approach-Warnung nur, wenn auch der Discharge Superheat auffällig ist. Hinweise nur im stabilen Betrieb (5 min nach Start, nicht beim Abtauen), formuliert als \"check refrigerant charge\".\n\nPrüfung: Verteilung des Discharge Superheat im Betrieb aus der HA-Historie bestimmen.\n\nAbnahme: scripts/test.sh grün; Umbenennung samt Migration; Schwellen in HA einstellbar ohne Neukompilieren; bei unseren Daten kein Dauerhinweis; Antwort im Issue #16.",
+  "displayId": "T-008",
+  "id": "T-008",
+  "order": 30,
+  "phase": "v2026-12",
+  "status": "open",
+  "title": "#16: IR18 als Inverter Discharge Temperature, Discharge Superheat mit einstellbaren Schwellen",
+  "type": "feature"
+}

@@ -1,0 +1,13 @@
+{
+  "blockedBy": [],
+  "completedDate": null,
+  "createdDate": "2026-11-23",
+  "description": "GitHub #17 (glockman): COP und Heizleistung ohne Durchflussmessung. Tobias: als HA-Template liefern, der Nutzer setzt den (geschätzten) Durchfluss selbst.\n\nPM: Firmware bleibt bei Messwerten (\"No flow rate, no COP\" gilt weiter), das Template ist eine klar gekennzeichnete Schätzung. Architekt: Paket unter home-assistant/ mit input_number \"Estimated Flow Rate\" (L/min), Heizleistung = Durchfluss × Spreizung × 69,8 W/(L/min·K), COP = Heizleistung / elektrische Leistung, nur bei laufendem Kompressor. Entity-IDs als Variablen oben im Template. glockmans Carnot-Modell als zweites, auskommentiertes Template zum Abgleich.\n\nDoku: gilt nur bei Pumpe mit festem Durchfluss, nicht bei Regelung auf feste Spreizung.\n\nAbnahme: Template in HA geladen und gegen lokale Werte plausibel; README-Abschnitt; Antwort im Issue #17.",
+  "displayId": "T-010",
+  "id": "T-010",
+  "order": 50,
+  "phase": "v2026-12",
+  "status": "open",
+  "title": "#17: COP-Template für Home Assistant mit vom Nutzer gesetztem Durchfluss",
+  "type": "feature"
+}

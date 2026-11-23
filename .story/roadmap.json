@@ -7,6 +7,13 @@
       "id": "p0",
       "label": "PHASE 0",
       "name": "Setup"
+    },
+    {
+      "description": "Community-Befunde von glockman (#12, #13, #14, #16, #17) einarbeiten: Abtau-Signal, Kompressorstarts über IR20, Discharge Superheat mit einstellbaren Schwellen und ein COP-Template für Home Assistant, lokal gegen HA-Daten geprüft.",
+      "id": "v2026-12",
+      "label": "PHASE 2",
+      "name": "Version 2026.12",
+      "summary": "GitHub-Issues #12–#17: Abtauen, Starts, Discharge Superheat, COP-Template"
     }
   ],
   "title": "lg-therma-v-esphome-modbus"
