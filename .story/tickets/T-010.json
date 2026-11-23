@@ -7,7 +7,7 @@
   "id": "T-010",
   "order": 50,
   "phase": "v2026-12",
-  "status": "open",
+  "status": "inprogress",
   "title": "#17: COP-Template für Home Assistant mit vom Nutzer gesetztem Durchfluss",
   "type": "feature"
 }
