@@ -53,7 +53,7 @@ threshold aborted a healthy run after 112 of 256 requests.
 | IR15 | Water return | ×0.1 | flow > return in heating, the reverse in cooling |
 | IR16 | Water flow | ×0.1 | ditto |
 | IR17 | Suction gas temperature | ×0.1 | superheat against IR22: 5–8 K at standstill, 1.2 K median with the compressor running (533 values, 30.07.–02.08.). The instantaneous value swings from −6.7 to +8.8 K; only the moving median is usable |
-| IR18 | **Compressor shell, high-pressure side** | ×0.1, effectively 1 K | [see below](#ir18-compressor-shell) |
+| IR18 | **Inverter discharge temperature** | ×0.1, effectively 1 K | [see below](#ir18-inverter-discharge-temperature) |
 | IR20 | **Compressor speed** (unit open, Hz likely) | — | [see below](#ir20-speed) |
 | IR21 | High pressure (gauge) | ×0.01 bar | during hot water, the saturation temperature matches the flow to < 1.5 K, seven points monotonic; shifted about 1 K in one direction, [see below](#ir21-condensing-temperature-and-flow) |
 | IR22 | Low pressure | ×0.01 bar | ≈ IR21 at standstill (pressure equalization), far below it during operation |
@@ -171,7 +171,7 @@ IR19 mirrors IR11: 85.8 % exactly equal, 95 % within 0.5 K in a ±35 s window.
 The deviation is one sampling step (in cooling, IR11 changes by 0.5 K per poll
 cycle).
 
-### IR18: compressor shell
+### IR18: inverter discharge temperature
 
 Over 2294 minutes of compressor operation:
 
@@ -196,8 +196,35 @@ r(IR18, evaporating temperature) = −0.122
   hot-water charge it falls 20–40 K.
 
 While running, IR18 stays a constant 10–16 K above the condensing temperature;
-at standstill it retains the heat: the shell of the high-pressure side. Despite
-`multiply: 0.1`, only whole kelvin. Range 33–78 °C.
+at standstill it retains the heat. Despite `multiply: 0.1`, only whole kelvin.
+Range 33–78 °C. It was first read as the shell of the high-pressure side.
+
+**Name from LG
+([#16](https://github.com/ComicSans/lg-therma-v-esphome-modbus/issues/16)).**
+On another unit an LG technician called this value "Inverter Discharge
+Temperature". The entity was renamed accordingly. IR18 minus the condensing
+temperature is the **discharge superheat**. On that unit the controller keeps
+it around 5 K: the expansion valve closes below 5 K and opens above it.
+
+Here (13.–23.11.2026, steady heating: running 10 min, 15 min after defrost,
+30 s samples) the discharge superheat is clearly higher:
+
+| | Samples | p5 | Median | p95 |
+|---|---|---|---|---|
+| Discharge superheat, heating | 19 178 | 7.7 K | 10.5 K | 15.5 K |
+| Discharge superheat, hot water | 1 143 | 9.6 K | 11.7 K | 17.5 K |
+| Suction superheat, all | 20 321 | 0.5 K | 1.4 K | 6.4 K |
+
+The reporter's refrigerant-charge rules (undercharge: suction above 5 K and
+discharge above 10 K; overcharge: suction below 1.5 K and discharge below 5 K)
+would have flagged "undercharge" in 15.6 % of the samples here, 19 times for
+20 minutes or more. The firmware therefore takes the limits as number entities
+(Undercharge/Overcharge Limit …), with defaults from this unit: undercharge
+above 8 K suction and 15 K discharge, overcharge below 1 K suction and 7 K
+discharge. With those and the 20-minute hold, this unit had no hint in the 10
+days. Different models and refrigerants run at different discharge superheat;
+to set your own limits, take the 5th and 95th percentile of both values over a
+few days of steady heating and keep a margin.
 
 ### IR20: speed
 

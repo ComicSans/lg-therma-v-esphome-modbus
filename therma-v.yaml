@@ -258,9 +258,11 @@ sensor:
   # --- Temperatures ---
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # IR18. High-pressure side shell (r = +0.959 to high pressure, +0.689 to
-    # active power). Whole kelvin only. Name kept for historical reasons.
-    name: "Compressor Shell Temperature"
+    # IR18. Compressor discharge temperature: an LG technician calls this value
+    # "Inverter Discharge Temperature" (#16); it fits r = +0.959 to high
+    # pressure, +0.689 to active power. Whole kelvin only.
+    name: "Inverter Discharge Temperature"
+    id: discharge_temp
     address: 18
     register_type: read
     value_type: S_WORD
@@ -498,6 +500,29 @@ sensor:
       - median:
           window_size: 7
           send_every: 1
+
+  - platform: template
+    # IR18 minus condensing temperature, only while running (#16). Here in
+    # steady heating (13.-23.11.2026): p5 7.7 K, median 10.5 K, p95 15.5 K.
+    # Another unit (#16) runs around 5 K, so limits are set per unit below.
+    # Same median filter as the suction superheat, which it is compared with.
+    name: "Discharge Superheat"
+    id: discharge_superheat
+    unit_of_measurement: "K"
+    state_class: measurement
+    accuracy_decimals: 1
+    entity_category: diagnostic
+    icon: "mdi:thermometer-chevron-up"
+    update_interval: never
+    filters:
+      - median:
+          window_size: 7
+          send_every: 1
+      # The median skips NaN while older values remain in its window; without
+      # this the value would linger for 3 min after a stop.
+      - lambda: |-
+          float hd = id(ir21_high_pressure).state, nd = id(ir22_low_pressure).state;
+          return (!std::isnan(hd) && !std::isnan(nd) && (hd - nd) > 2.0f) ? x : NAN;
 
   - platform: template
     name: "Temperature Lift"
@@ -1194,6 +1219,51 @@ binary_sensor:
       return (u < -0.5f || u > 12.0f);
 
   - platform: template
+    # Refrigerant charge hints (#16). Heating only, compressor running at least
+    # 10 min, last defrost at least 15 min ago, condition held for 20 min.
+    # Limits: number entities "Undercharge/Overcharge Limit ...". A hint, not a
+    # diagnosis: it says "check the charge", nothing more.
+    name: "Refrigerant Undercharge Hint"
+    id: undercharge_hint
+    device_class: problem
+    entity_category: diagnostic
+    icon: "mdi:gauge-empty"
+    lambda: |-
+      static uint32_t since = 0;
+      if (!id(charge_check_ok)) { since = 0; return false; }
+      float u = id(superheat).state, d = id(discharge_superheat).state;
+      if (std::isnan(u) || std::isnan(d)) { since = 0; return false; }
+      // 0.5 K hysteresis once on.
+      float h = id(undercharge_hint).state ? 0.5f : 0.0f;
+      if (!(u > id(uc_suction).state - h && d > id(uc_discharge).state - h)) {
+        since = 0;
+        return false;
+      }
+      uint32_t now = millis();
+      if (since == 0) since = now > 0 ? now : 1;
+      return (now - since) >= 1200000UL;
+
+  - platform: template
+    name: "Refrigerant Overcharge Hint"
+    id: overcharge_hint
+    device_class: problem
+    entity_category: diagnostic
+    icon: "mdi:gauge-full"
+    lambda: |-
+      static uint32_t since = 0;
+      if (!id(charge_check_ok)) { since = 0; return false; }
+      float u = id(superheat).state, d = id(discharge_superheat).state;
+      if (std::isnan(u) || std::isnan(d)) { since = 0; return false; }
+      float h = id(overcharge_hint).state ? 0.5f : 0.0f;
+      if (!(u < id(oc_suction).state + h && d < id(oc_discharge).state + h)) {
+        since = 0;
+        return false;
+      }
+      uint32_t now = millis();
+      if (since == 0) since = now > 0 ? now : 1;
+      return (now - since) >= 1200000UL;
+
+  - platform: template
     # Gap between condensing temperature and flow; typically 2..5 K. More means
     # fouling or air in the plate heat exchanger. on = problem.
     name: "Heat Transfer Status"
@@ -1202,16 +1272,27 @@ binary_sensor:
     entity_category: diagnostic
     icon: "mdi:heat-wave"
     lambda: |-
-      if (!id(compressor_running).state) return false;
+      // On only after 20 min above 9 K without interruption (#15): an
+      // expansion valve that hunts drives the approach up for up to 20 min
+      // and settles by itself; fouling or air stays. Every path that returns
+      // false resets the timer.
+      static uint32_t above_since = 0;
+      uint32_t now = millis();
+      if (!id(compressor_running).state) { above_since = 0; return false; }
       // Start-up grace period as for the refrigerant circuit.
-      if (id(cycle_start_ms) == 0) return false;
-      if ((millis() - id(cycle_start_ms)) < 300000UL) return false;
+      if (id(cycle_start_ms) == 0 || (now - id(cycle_start_ms)) < 300000UL) {
+        above_since = 0;
+        return false;
+      }
       // Monitors the water plate heat exchanger: condenser when heating,
       // evaporator when cooling.
       float a = id(cooling_direction) ? id(approach_evap).state : id(approach_cond).state;
-      if (std::isnan(a)) return false;
-      if (id(transfer_alarm).state) return a > 7.0f;
-      return a > 9.0f;
+      if (std::isnan(a)) { above_since = 0; return false; }
+      bool on = id(transfer_alarm).state;
+      if (on ? (a <= 7.0f) : (a <= 9.0f)) { above_since = 0; return false; }
+      if (on) return true;
+      if (above_since == 0) above_since = now > 0 ? now : 1;
+      return (now - above_since) >= 1200000UL;
 
   - platform: template
     # Bus silent for too long. Threshold: max_gap. Aborts running tools
@@ -1467,6 +1548,66 @@ number:
     min_value: 0
     max_value: 100
     step: 0.1
+    mode: box
+    entity_category: config
+    icon: "mdi:tune"
+
+  # Refrigerant charge hints (#16): limits per unit, set in Home Assistant.
+  # Defaults from this unit (R290), 0 hints in 10 days of heating. The
+  # reporter's unit in #16 uses 5 K / 10 K (undercharge) and 1.5 K / 5 K
+  # (overcharge); see register-map.md for how to find your own values.
+  - platform: template
+    name: "Undercharge Limit Suction Superheat"
+    id: uc_suction
+    optimistic: true
+    restore_value: true
+    initial_value: 8.0
+    min_value: 0
+    max_value: 30
+    step: 0.5
+    unit_of_measurement: "K"
+    mode: box
+    entity_category: config
+    icon: "mdi:tune"
+
+  - platform: template
+    name: "Undercharge Limit Discharge Superheat"
+    id: uc_discharge
+    optimistic: true
+    restore_value: true
+    initial_value: 15.0
+    min_value: 0
+    max_value: 40
+    step: 0.5
+    unit_of_measurement: "K"
+    mode: box
+    entity_category: config
+    icon: "mdi:tune"
+
+  - platform: template
+    name: "Overcharge Limit Suction Superheat"
+    id: oc_suction
+    optimistic: true
+    restore_value: true
+    initial_value: 1.0
+    min_value: -5
+    max_value: 30
+    step: 0.5
+    unit_of_measurement: "K"
+    mode: box
+    entity_category: config
+    icon: "mdi:tune"
+
+  - platform: template
+    name: "Overcharge Limit Discharge Superheat"
+    id: oc_discharge
+    optimistic: true
+    restore_value: true
+    initial_value: 7.0
+    min_value: 0
+    max_value: 40
+    step: 0.5
+    unit_of_measurement: "K"
     mode: box
     entity_category: config
     icon: "mdi:tune"
@@ -1962,6 +2103,16 @@ globals:
     type: bool
     restore_value: false
     initial_value: "false"
+  # Last time DI06 was seen on (0 = not since boot), and the steady-state
+  # gate for the refrigerant charge hints. Both set in the 1 s interval.
+  - id: defrost_seen_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: "0"
+  - id: charge_check_ok
+    type: bool
+    restore_value: false
+    initial_value: "false"
   # Cycle with unknown start (reboot or midnight): does not count as the
   # shortest. Separate from cycle_start_ms, which the start-up grace
   # period depends on.
@@ -2182,6 +2333,10 @@ interval:
           bool pressure_ok = !std::isnan(hd) && !std::isnan(nd);
           bool running_now = pressure_ok && (hd - nd) > 2.0f;
 
+          float td = id(discharge_temp).state;
+          id(discharge_superheat).publish_state(
+              (!running_now || std::isnan(td) || std::isnan(t_kond)) ? NAN : (td - t_kond));
+
           // Carnot COP as upper bound. The lift guard (3 K) protects the division.
           if (running_now && !std::isnan(t_kond) && !std::isnan(t_verd) &&
               (t_kond - t_verd) > 3.0f) {
@@ -2319,7 +2474,15 @@ interval:
               ESP_LOGI("stats", "Defrost #%d today", id(defrosts_today));
             }
             defrost_last = d ? 1 : 0;
+            if (d) id(defrost_seen_ms) = jetzt > 0 ? jetzt : 1;
           }
+          // Steady space heating for the charge hints: running for 10 min,
+          // last defrost 15 min ago, neither cooling nor hot water (the limits
+          // come from space heating; hot water runs 1..2 K higher).
+          id(charge_check_ok) = is_running && !id(cooling_direction) &&
+              !(id(di09_hot_water).has_state() && id(di09_hot_water).state) &&
+              id(cycle_start_ms) != 0 && (jetzt - id(cycle_start_ms)) >= 600000UL &&
+              (id(defrost_seen_ms) == 0 || (jetzt - id(defrost_seen_ms)) >= 900000UL);
 
           // --- Compressor: starts, cycles, runtime ---
           if (is_running && !id(compressor_on)) {
@@ -2969,6 +3132,12 @@ interval:
           if (id(transfer_alarm).state) {
             float a = id(cooling_direction) ? id(approach_evap).state : id(approach_cond).state;
             add(str_sprintf("heat transfer — approach %.1f K", std::isnan(a) ? 0.0f : a));
+          }
+          if (id(undercharge_hint).state || id(overcharge_hint).state) {
+            float u = id(superheat).state, ds = id(discharge_superheat).state;
+            add(str_sprintf("check refrigerant charge (%s?) — superheat %.1f K suction, %.1f K discharge",
+                             id(undercharge_hint).state ? "under" : "over",
+                             std::isnan(u) ? 0.0f : u, std::isnan(ds) ? 0.0f : ds));
           }
           if (id(cycling_alarm).state) {
             float ml = id(mean_cycle_runtime).state;

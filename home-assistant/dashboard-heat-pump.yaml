@@ -448,11 +448,22 @@ sections:
 
       *The raw value is gauge pressure in hundredths of a bar; for the saturation temperature, 1 bar is added and the propane vapor pressure curve is interpolated between table points every 5 K. From 45 °C up, the table points were up to 0.17 bar too high; they were corrected against CoolProp on 2026-08-16, which amounted to 0.2 to 0.4 K. About 0.6 K of the gap remains: during a hot water charge the calculated condensing temperature still lies below the flow temperature, which is physically impossible. That is on the order of the tolerance of the flow sensor and pressure transducer.*
   - type: tile
-    entity: sensor.heizungskeller_warmepumpe_modbus_compressor_shell_temperature
-    name: Compressor Shell (IR18)
+    entity: sensor.heizungskeller_warmepumpe_modbus_inverter_discharge_temperature
+    name: Discharge Temperature (IR18)
     icon: mdi:thermometer-high
     features:
     - type: trend-graph
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_discharge_superheat
+    name: Discharge Superheat
+    features:
+    - type: trend-graph
+  - type: tile
+    entity: binary_sensor.heizungskeller_warmepumpe_modbus_refrigerant_undercharge_hint
+    name: Undercharge Hint
+  - type: tile
+    entity: binary_sensor.heizungskeller_warmepumpe_modbus_refrigerant_overcharge_hint
+    name: Overcharge Hint
   - type: tile
     entity: sensor.heizungskeller_warmepumpe_modbus_compressor_speed
     name: Compressor Speed (IR20)
@@ -647,8 +658,8 @@ sections:
     entities:
     - entity: sensor.heizungskeller_warmepumpe_modbus_compressor_speed
       name: Compressor Speed (IR20)
-    - entity: sensor.heizungskeller_warmepumpe_modbus_compressor_shell_temperature
-      name: Compressor Shell (IR18)
+    - entity: sensor.heizungskeller_warmepumpe_modbus_inverter_discharge_temperature
+      name: Discharge Temperature (IR18)
     - entity: sensor.heizungskeller_warmepumpe_modbus_outdoor_heat_exchanger
       name: Outdoor Heat Exchanger (IR11)
     - entity: sensor.heizungskeller_warmepumpe_modbus_outdoor_heat_exchanger_mirror_register

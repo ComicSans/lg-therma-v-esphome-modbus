@@ -19,7 +19,7 @@ inline bool is_register(const char *name) {
       "Low Pressure",
       "Suction Gas Temperature",
       "Unit Apparent Power",
-      "Compressor Shell Temperature",
+      "Inverter Discharge Temperature",
       "Outdoor Heat Exchanger",
       "Outdoor Heat Exchanger (Mirror Register)",
       "IR14 Water Temperature Unassigned",

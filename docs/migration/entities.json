@@ -797,6 +797,14 @@
    "new_name": "Backup Heater Request",
    "old_object_id": "co30_unassigned",
    "new_object_id": "backup_heater_request"
+  },
+  {
+   "release": "v2026.12",
+   "domain": "sensor",
+   "old_name": "Compressor Shell Temperature",
+   "new_name": "Inverter Discharge Temperature",
+   "old_object_id": "compressor_shell_temperature",
+   "new_object_id": "inverter_discharge_temperature"
   }
  ]
 }

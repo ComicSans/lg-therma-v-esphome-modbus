@@ -44,7 +44,7 @@ climate entity in the firmware, ready to wire directly to an energy manager.
 
 **Calculated** — evaporating and condensing temperature from the
 propane vapour pressure curve, suction superheat, temperature lift,
-compression ratio, Carnot limit, heat transfer at both
+compression ratio, discharge superheat, Carnot limit, heat transfer at both
 heat exchangers, flow/return delta.
 
 **Statistics** — compressor starts per day, mean and shortest cycle length,
