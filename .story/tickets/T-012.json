@@ -1,0 +1,18 @@
+{
+  "blockedBy": [],
+  "completedDate": "2026-11-23",
+  "createdDate": "2026-11-23",
+  "description": "Befunde aus der Prüfung der v2026.12-Commits (Tobias 23.11.: „Ja, beheben“).\n1. Compressor Running hält einen eigenen static defrost_seen_ms neben dem Global id(defrost_seen_ms): auf den Global zusammenlegen.\n2. cop-estimate.yaml setzt die Wärme beim Abtauen auf 0, tatsächlich ist sie negativ: Heat Energy und Tages-COP leicht zu hoch. Im Kommentar und README nennen.\n3. Live-HA nutzt UI-Helfer; das Paket legt input_number mit derselben ID an: Installationshinweis ergänzen.\nPM: gehört ins Produkt (Korrektheit, Doku). Abnahme: test.sh grün, ein Zeitgeber, Hinweise in Paket und README.\nArchitekt: kleinste Form, kein Verhaltenswechsel außer Zusammenlegung.",
+  "displayId": "T-012",
+  "id": "T-012",
+  "office": {
+    "agent": "Hella",
+    "role": "hauptsitzung",
+    "say": "Review-Nachträge v2026.12: Abtau-Zeitgeber, COP-Paket-Hinweise"
+  },
+  "order": 70,
+  "phase": "v2026-12",
+  "status": "complete",
+  "title": "Review-Nachträge v2026.12: Abtau-Zeitgeber, COP-Paket-Hinweise",
+  "type": "chore"
+}
