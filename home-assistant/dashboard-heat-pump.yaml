@@ -1,8 +1,9 @@
 # Lovelace view for the heat pump (template)
 #
-# Exported from the running view (storage dashboard, path "heat-pump") on
-# 2026-10-05, after the flash of the English firmware (v2026.11) and the entity
-# migration (docs/migration/). This template is ALWAYS generated from the
+# Matches the running view (storage dashboard, path "heat-pump") as of
+# 2026-11-23, after the v2026.12 entity renames (docs/migration/) and the
+# estimated-COP section (home-assistant/cop-estimate.yaml); checked equal to
+# the live view after writing it back. This template is ALWAYS generated from the
 # running dashboard and never maintained by hand: a template that drifts and is
 # written back loses the difference.
 #
@@ -563,6 +564,31 @@ sections:
       {% if l == 'on' and sl >= 0 %}**Phase imbalance {{ sl|round(1) }} %.** {% if sl < 15 %}🟢 Balanced — this is how an inverter draws across three phases. {% else %}🟡 Imbalanced. This system has **no backup heater**; a strong imbalance would mean a measurement problem or another load on the supply line.{% endif %}{% endif %}
 
       *Modbus reports **apparent power** (VA), the meter **active power** (W). Confirmed over 27 data points: the ratio to apparent power is constant (~0.95). The Therma V's internal energy metering is known to be inaccurate — the external meter is authoritative.*
+- type: grid
+  cards:
+  - type: heading
+    heading: Estimated COP
+    icon: mdi:calculator-variant
+    heading_style: title
+  - type: tile
+    entity: input_number.heat_pump_estimated_flow_rate
+    name: Flow Rate (set by hand)
+  - type: tile
+    entity: sensor.heat_pump_estimated_heat_output
+    name: Estimated Heat Output
+    features:
+    - type: trend-graph
+  - type: tile
+    entity: sensor.heat_pump_estimated_cop
+    name: Estimated COP
+    features:
+    - type: trend-graph
+  - type: tile
+    entity: sensor.heat_pump_estimated_heat_energy
+    name: Estimated Heat Energy
+  - type: markdown
+    content: |-
+      *Estimate from home-assistant/cop-estimate.yaml: flow rate × delta T × 69.5 W per (L/min·K), divided by the measured active power. Enter the flow shown on the control panel in steady operation. Valid only with a fixed pump speed, not when the pump keeps a fixed delta T. 0 at standstill, during defrost and when cooling.*
 - type: grid
   column_span: 2
   cards:
