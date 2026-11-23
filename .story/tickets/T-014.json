@@ -1,0 +1,13 @@
+{
+  "blockedBy": [],
+  "completedDate": "2026-11-23",
+  "createdDate": "2026-11-23",
+  "description": "glockman (23.11.): Je nach ODU-Firmware wird der Discharge Superheat unterschiedlich geregelt, neuere Stände halten die Heißgastemperatur aggressiver hoch; seine Anlage läuft mit der ODU-Firmware vom 09.11.2026. Abnahme: Hinweis in docs/register-map.md beim Abschnitt Discharge Superheat bzw. bei den Grenzwerten zur Füllmenge.",
+  "displayId": "T-014",
+  "id": "T-014",
+  "order": 90,
+  "phase": "v2026-12",
+  "status": "complete",
+  "title": "#16: Firmwareabhängigkeit des Discharge Superheat dokumentieren",
+  "type": "task"
+}

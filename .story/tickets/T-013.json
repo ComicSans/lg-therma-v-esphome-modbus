@@ -1,0 +1,13 @@
+{
+  "blockedBy": [],
+  "completedDate": "2026-11-23",
+  "createdDate": "2026-11-23",
+  "description": "glockman (Kommentar an #12, 23.11.): Bei aktivem DI08 sinkt die Heißgastemperatur schneller, also ist DI08 die Dampfeinspritzung. Auf unserer Anlage tritt sie nur bei IR20 = 60 auf. Tobias 23.11.: umbenennen. PM: gehört ins Produkt, die Abnahme ist der neue Name in Firmware, register_list.h, entities.json, Migrations-README, register-map.md und Dashboard; esphome config und compile laufen grün. Architektur: reine Umbenennung, die Entity-ID ändert sich und kommt in die Migration.",
+  "displayId": "T-013",
+  "id": "T-013",
+  "order": 80,
+  "phase": "v2026-12",
+  "status": "complete",
+  "title": "#14: DI08 in „Vapor Injection“ umbenennen",
+  "type": "task"
+}
