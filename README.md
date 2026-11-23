@@ -43,7 +43,7 @@ hot water enable, hot water and heating circuit setpoints. Plus a
 climate entity in the firmware, ready to wire directly to an energy manager.
 
 **Calculated** — evaporating and condensing temperature from the
-propane vapour pressure curve, suction superheat, temperature lift,
+propane vapor pressure curve, suction superheat, temperature lift,
 compression ratio, discharge superheat, Carnot limit, heat transfer at both
 heat exchangers, flow/return delta.
 

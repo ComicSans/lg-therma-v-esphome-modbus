@@ -71,7 +71,7 @@ threshold aborted a healthy run after 112 of 256 requests.
 | CO30 | Backup heater request | — | [see below](#di06-and-co30-defrost-and-backup-heater) |
 | DI06 | Defrost cycle | — | [see below](#di06-and-co30-defrost-and-backup-heater) |
 | DI07 | Three-minute restart lock | — | [see below](#di07-restart-lock) |
-| DI08 | Top compressor stage, ≡ IR20 = 60 | — | [see below](#di08-top-stage) |
+| DI08 | Vapor injection active; here ≡ IR20 = 60 | — | [see below](#di08-vapor-injection) |
 | DI09 | Hot-water production | — | covers two hot-water charges; stayed off during the cooling cycles of 31.07., even though the tank temperature fluctuated strongly |
 | DI31 | Heating circuit 1, inverted to CO4 | — | on when HC1 is off |
 
@@ -222,9 +222,12 @@ would have flagged "undercharge" in 15.6 % of the samples here, 19 times for
 (Undercharge/Overcharge Limit …), with defaults from this unit: undercharge
 above 8 K suction and 15 K discharge, overcharge below 1 K suction and 7 K
 discharge. With those and the 20-minute hold, this unit had no hint in the 10
-days. Different models and refrigerants run at different discharge superheat;
-to set your own limits, take the 5th and 95th percentile of both values over a
-few days of steady heating and keep a margin.
+days. Different models and refrigerants run at different discharge superheat,
+and so do outdoor unit firmware versions: according to the reporter, newer
+versions hold the discharge temperature up more aggressively (his unit runs the
+outdoor unit firmware of 09.11.2026). After a firmware update, check the limits
+again. To set your own limits, take the 5th and 95th percentile of both values
+over a few days of steady heating and keep a margin.
 
 ### IR20: speed
 
@@ -247,9 +250,9 @@ superheat drifted from 0.6 to 6.3 K.
 
 The entity is now named "Compressor Speed".
 
-### DI08: top stage
+### DI08: vapor injection
 
-DI08 is IR20 = 60. Over 56 cycles (07.–16.08.2026):
+On this unit DI08 is IR20 = 60. Over 56 cycles (07.–16.08.2026):
 
 | | Cycles | IR20max min | IR20max max |
 |---|---|---|---|
@@ -262,24 +265,30 @@ exclusively −14 s or +16 s: both registers are read 14 s apart within the same
 30 s poll cycle. This gave rise to the earlier interpretations "start-up" and
 "threshold ≥ 42".
 
-DI08 carries nothing that is not already in IR20. It stays included as
-independent confirmation, under its old name "Compressor Top Stage".
+On this unit DI08 therefore carries nothing that is not already in IR20.
 
-**Open interpretation: vapour injection**
+**Meaning: vapor injection**
 ([#14](https://github.com/ComicSans/lg-therma-v-esphome-modbus/issues/14)).
 On another unit, DI08 switched on often in silent mode once the compressor
 reached its apparent limit "at 44 Hz". During those phases the compressor shell
 temperature (IR18) and the evaporating temperature dropped noticeably while
 active power stayed almost flat. The reporter suggests DI08 signals active
-vapour injection, which LG uses to hold heating output at low outdoor
+vapor injection, which LG uses to hold heating output at low outdoor
 temperatures. Outside silent mode the speed exceeded that limit and DI08 stayed
 off.
 
-This does not contradict the finding above, but it does not confirm it either:
-here DI08 appears only at IR20 = 60, there apparently at a lower value. Either
-IR20 is a stage rather than a frequency, or its scaling differs between models.
-Raw data with IR20 next to DI08 from that unit would settle it. Until then the
-entity keeps its name.
+Later (23.11.2026) the reporter added that on his unit, which still holds too
+much refrigerant and struggles to keep its discharge temperature up, the
+discharge temperature falls faster as soon as DI08 switches on. Injecting vapor
+into the compressor cools the discharge gas, so this fits vapor injection and
+not a speed stage. In his view this becomes a spiral in silent mode: injection
+cools the discharge, the controller raises the pressures to hold it, and injects
+more. He expects a unit with a correct charge to need the boost mainly in hard
+frost.
+
+That fits the finding above: here injection only switches on at the top speed
+(IR20 = 60), on his unit at a lower one in silent mode. Since v2026.12.1 the
+entity is named "Vapor Injection" (formerly "Compressor Top Stage").
 
 ### DI06 and CO30: defrost and backup heater
 

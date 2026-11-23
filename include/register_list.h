@@ -35,7 +35,7 @@ inline bool is_register(const char *name) {
       // binary_sensor
       "Defrost Active",
       "Compressor Ready",
-      "Compressor Top Stage",
+      "Vapor Injection",
       "DI09 Hot Water Mode",
       "CO5 Unassigned (Read Only)",
       "Heating Circuit 1 Inverted",

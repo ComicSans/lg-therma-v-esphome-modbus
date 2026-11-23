@@ -76,3 +76,4 @@ entity ID in the registry before the flash (step 6), update references (step
 | v2026.12 | `binary_sensor…_di06_unassigned` | `binary_sensor…_defrost_active` | DI06 marks the defrost cycle ([#12](https://github.com/ComicSans/lg-therma-v-esphome-modbus/issues/12)) |
 | v2026.12 | `binary_sensor…_co30_unassigned` | `binary_sensor…_backup_heater_request` | CO30 is the backup heater request ([#12](https://github.com/ComicSans/lg-therma-v-esphome-modbus/issues/12)) |
 | v2026.12 | `sensor…_compressor_shell_temperature` | `sensor…_inverter_discharge_temperature` | IR18 is the inverter discharge temperature ([#16](https://github.com/ComicSans/lg-therma-v-esphome-modbus/issues/16)) |
+| v2026.12.1 | `binary_sensor…_compressor_top_stage` | `binary_sensor…_vapor_injection` | DI08 is active vapor injection ([#14](https://github.com/ComicSans/lg-therma-v-esphome-modbus/issues/14)) |

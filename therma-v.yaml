@@ -1040,10 +1040,10 @@ binary_sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    # DI08 = IR20 at 60, i.e. the top stage (see register-map.md).
-    # Redundant with IR20, kept as independent confirmation. Name kept for
-    # the history.
-    name: "Compressor Top Stage"
+    # DI08 = active vapor injection (#14, see register-map.md). On this unit
+    # it switches on only at IR20 = 60; on other units at lower speed
+    # (silent mode).
+    name: "Vapor Injection"
     address: 8
     register_type: discrete_input
     reuse_previous_range: false

@@ -805,6 +805,14 @@
    "new_name": "Inverter Discharge Temperature",
    "old_object_id": "compressor_shell_temperature",
    "new_object_id": "inverter_discharge_temperature"
+  },
+  {
+   "release": "v2026.12.1",
+   "domain": "binary_sensor",
+   "old_name": "Compressor Top Stage",
+   "new_name": "Vapor Injection",
+   "old_object_id": "compressor_top_stage",
+   "new_object_id": "vapor_injection"
   }
  ]
 }
