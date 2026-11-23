@@ -1,0 +1,13 @@
+{
+  "blockedBy": [],
+  "completedDate": "2026-11-23",
+  "createdDate": "2026-11-23",
+  "description": "Tobias 23.11.: Release v2026.12.1 erstellen (T-013 DI08 „Vapor Injection“, T-014 Hinweis zur ODU-Firmware). Abnahme: Tag v2026.12.1 auf main, GitHub-Release mit Notes im Format von v2026.12, Migrationshinweis zur geänderten Entity-ID.",
+  "displayId": "T-015",
+  "id": "T-015",
+  "order": 100,
+  "phase": "v2026-12",
+  "status": "complete",
+  "title": "Release v2026.12.1 erstellen",
+  "type": "chore"
+}
