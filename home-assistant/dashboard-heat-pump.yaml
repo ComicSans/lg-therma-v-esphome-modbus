@@ -293,6 +293,12 @@ sections:
     entity: sensor.heizungskeller_warmepumpe_modbus_compressor_starts_yesterday
     name: Starts Yesterday
   - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_defrosts_today
+    name: Defrosts Today
+  - type: tile
+    entity: sensor.heizungskeller_warmepumpe_modbus_defrosts_yesterday
+    name: Defrosts Yesterday
+  - type: tile
     entity: sensor.heizungskeller_warmepumpe_modbus_shortest_cycle_today
     name: Shortest Cycle
   - type: tile

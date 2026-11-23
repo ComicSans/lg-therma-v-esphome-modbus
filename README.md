@@ -162,9 +162,11 @@ Assistant (`sensor.l1_power`, `sensor.l1_voltage`, `sensor.l1_current`, likewise
 for L2 and L3), in W, V and A. Enter your own entity IDs there. Without a
 three-phase meter, **leave the entries in place** — if you remove them, the
 firmware no longer builds. They then stay without a value: active power, power factor
-and phase imbalance are missing, and the compressor and statistics logic fall back to the
-apparent power from IR23. A meter in kW instead of W skews the
-compressor detection (thresholds 350/500 W). The same applies to the independent
+and phase imbalance are missing. Compressor detection and the statistics do
+not depend on the meter: they follow the compressor speed (IR20) and bridge
+defrost cycles (DI06). Only if IR20 has no value do they fall back to the meter
+(thresholds 350/500 W, so a meter in kW instead of W skews them) and then to the
+apparent power from IR23. The same applies to the independent
 outdoor temperature (`sensor.aussentemperatur`); without it the firmware uses
 the unit's own sensor.
 

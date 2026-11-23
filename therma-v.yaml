@@ -363,6 +363,7 @@ sensor:
     name: "Compressor Speed"
     # Kept for history (entity ID); the dashboard shows
     # "Compressor Speed (IR20)".
+    id: compressor_speed
     state_class: measurement
     address: 20
     register_type: read
@@ -719,6 +720,26 @@ sensor:
     update_interval: never
 
   - platform: template
+    name: "Defrosts Today"
+    # Rising edges of DI06. Defrost restarts do not count as compressor
+    # starts (see "Compressor Running"), so wear shows here.
+    state_class: total_increasing
+    id: defrosts_today_sensor
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    icon: "mdi:snowflake-melt"
+    update_interval: never
+
+  - platform: template
+    name: "Defrosts Yesterday"
+    state_class: measurement
+    id: defrosts_yesterday_sensor
+    accuracy_decimals: 0
+    entity_category: diagnostic
+    icon: "mdi:snowflake-melt"
+    update_interval: never
+
+  - platform: template
     name: "Mean Cycle Runtime"
     id: mean_cycle_runtime
     unit_of_measurement: "min"
@@ -976,6 +997,7 @@ binary_sensor:
     # defrost signature: IR20 drops to 0, the outdoor heat exchanger jumps from
     # about -5 to +30 °C, flow temperature falls by about 13 K; 5..6.5 min each.
     name: "Defrost Active"
+    id: defrost_active
     address: 6
     register_type: discrete_input
     reuse_previous_range: false
@@ -1094,14 +1116,35 @@ binary_sensor:
   # Indicators. Each with two thresholds (hysteresis) against flapping.
   # =============================================================
   - platform: template
-    # Source is the measured active power, not IR23. Observed levels:
-    # electronics ~4 W, circulation pump 90..181 W, compressor from 877 W. The
-    # 350/500 W thresholds sit in the gap.
+    # Source is IR20 (compressor speed demand, #13): no power thresholds, no
+    # meter needed, and a shared meter with backup heater or pump does not
+    # matter. 146 of 146 IR20 starts matched the power-based indicator
+    # (13.-23.11.2026); IR20 follows about 20 s later (poll cycle).
+    # Defrost (DI06) is bridged: the compressor stops once for 30..60 s at the
+    # end of every defrost (pause ends up to 45 s after DI06 drops). Without
+    # the bridge, 64 of 146 starts were defrost restarts, which halved the
+    # mean runtime and fed the short-cycling alarm. Defrosts are counted
+    # separately ("Defrosts Today").
+    # Fallback without IR20: measured active power, then IR23. Observed
+    # levels: electronics ~4 W, circulation pump 90..181 W, compressor from
+    # 877 W. The 350/500 W thresholds sit in the gap.
     name: "Compressor Running"
     id: compressor_running
     device_class: running
     icon: "mdi:engine"
     lambda: |-
+      // Defrost bridge: hold the state during defrost and 120 s after it
+      // (pause end up to 45 s plus one IR20 poll cycle of up to 30 s).
+      static uint32_t defrost_seen_ms = 0;
+      uint32_t now = millis();
+      // has_state(): after a bus outage the point is invalidated, a stale
+      // "on" must not hold the indicator.
+      if (id(defrost_active).has_state() && id(defrost_active).state)
+        defrost_seen_ms = now > 0 ? now : 1;
+      if (defrost_seen_ms != 0 && (now - defrost_seen_ms) < 120000UL)
+        return id(compressor_on);
+      float spd = id(compressor_speed).state;
+      if (!std::isnan(spd)) return spd > 0.0f;
       // Directly from the three phases, not from "Active Power Measured" (only
       // computed every 30 s): otherwise start and stop are off by up to 30 s.
       float w = id(l1_active).state + id(l2_active).state + id(l3_active).state;
@@ -1881,6 +1924,14 @@ globals:
     type: int
     restore_value: true
     initial_value: "0"
+  - id: defrosts_today
+    type: int
+    restore_value: true
+    initial_value: "0"
+  - id: defrosts_yesterday
+    type: int
+    restore_value: true
+    initial_value: "0"
   - id: charges_today
     type: int
     restore_value: true
@@ -2063,6 +2114,8 @@ interval:
           bool one_day = (stamp == g.year * 10000 + g.month * 100 + g.day_of_month);
           id(starts_yesterday) = one_day ? id(starts_today) : 0;
           id(starts_today) = 0;
+          id(defrosts_yesterday) = one_day ? id(defrosts_today) : 0;
+          id(defrosts_today) = 0;
           id(charges_yesterday) = one_day ? id(charges_today) : 0;
           id(charges_today) = 0;
           id(shortest_cycle_min) = 0;
@@ -2210,12 +2263,14 @@ interval:
           // From the power readings, not from the indicator (it has not caught up
           // on the first tick). Waits for a source, at most 60 s.
           if (id(start_sync)) {
+            float s0 = id(compressor_speed).state;
             float w0 = id(l1_active).state + id(l2_active).state + id(l3_active).state;
             float va0 = id(ir23_apparent_power).state;
-            bool source_ok = !std::isnan(w0) || !std::isnan(va0);
+            bool source_ok = !std::isnan(s0) || !std::isnan(w0) || !std::isnan(va0);
             if (source_ok || jetzt > 60000UL) {
               id(start_sync) = false;
-              bool running_actual = !std::isnan(w0) ? (w0 > 500.0f)
+              bool running_actual = !std::isnan(s0) ? (s0 > 0.0f)
+                              : !std::isnan(w0) ? (w0 > 500.0f)
                               : (!std::isnan(va0) ? (va0 > 700.0f) : false);
               id(compressor_on) = running_actual;
               // Sync locally, otherwise an edge against the old indicator value.
@@ -2250,6 +2305,20 @@ interval:
               ESP_LOGI("stats", "State taken over: compressor %s",
                        running_actual ? "running" : "stopped");
             }
+          }
+
+          // --- Defrosts: rising edges of DI06 ---
+          // Initialised from the first valid state, so a reboot during a
+          // defrost does not count it twice.
+          static int8_t defrost_last = -1;
+          if (id(defrost_active).has_state()) {
+            bool d = id(defrost_active).state;
+            if (defrost_last == 0 && d) {
+              id(defrosts_today)++;
+              id(stats_dirty) = true;
+              ESP_LOGI("stats", "Defrost #%d today", id(defrosts_today));
+            }
+            defrost_last = d ? 1 : 0;
           }
 
           // --- Compressor: starts, cycles, runtime ---
@@ -2502,6 +2571,8 @@ interval:
             id(stats_dirty) = false;
             id(starts_today_sensor).publish_state((float) id(starts_today));
             id(starts_yesterday_sensor).publish_state((float) id(starts_yesterday));
+            id(defrosts_today_sensor).publish_state((float) id(defrosts_today));
+            id(defrosts_yesterday_sensor).publish_state((float) id(defrosts_yesterday));
             id(charges_today_sensor).publish_state((float) id(charges_today));
             id(operating_hours).publish_state(id(run_seconds_total) / 3600.0f);
             id(shortest_cycle_sensor).publish_state(
