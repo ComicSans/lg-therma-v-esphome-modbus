@@ -1,0 +1,13 @@
+{
+  "blockedBy": [],
+  "completedDate": "2026-11-23",
+  "createdDate": "2026-11-23",
+  "description": "Tobias 23.11.: In seinem HA von Wasser- auf Kältemittelbasis (Kondensation/Verdampfung) umstellen, weil diese Werte besser sind. Kalibrierpunkt: Durchfluss laut Fernbedienung 17,9 L/min. Abnahme: Eintrag mit Kältemittelbasis neu angelegt (Entity-IDs gleich), Gütegrad aus dem Messpunkt berechnet und eingetragen, geschätzter Durchfluss trifft im Messpunkt ~17,9 L/min.",
+  "displayId": "T-020",
+  "id": "T-020",
+  "order": 150,
+  "phase": "v2026-12",
+  "status": "complete",
+  "title": "therma-v-carnot lokal auf Kältemittelbasis umstellen und kalibrieren",
+  "type": "chore"
+}
