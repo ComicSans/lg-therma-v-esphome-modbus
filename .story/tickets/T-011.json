@@ -1,0 +1,18 @@
+{
+  "blockedBy": [
+    "T-006",
+    "T-007",
+    "T-008",
+    "T-010"
+  ],
+  "completedDate": null,
+  "createdDate": "2026-11-23",
+  "description": "Tobias 23.11.: Antworten auf die Issues nicht einzeln, sondern gesammelt am Ende der Phase. Je Issue eine Antwort mit dem umgesetzten Stand (Commit/Release), bei #14 die Bitte um Rohdaten (IR20 neben DI08), bei #17 der Hinweis, dass das Carnot-Modell nicht übernommen wird und warum (das Template nutzt einen vom Nutzer gesetzten Durchfluss).\n\nPosten ist öffentlich: Texte vorher Tobias zeigen, erst nach seinem Ja posten.\n\nAbnahme: alle fünf Antworten gepostet; Issues schließen nur, wenn Tobias zustimmt.",
+  "displayId": "T-011",
+  "id": "T-011",
+  "order": 60,
+  "phase": "v2026-12",
+  "status": "open",
+  "title": "Antworten auf GitHub-Issues #12, #13, #14, #16, #17 gesammelt posten",
+  "type": "chore"
+}

@@ -1,13 +1,13 @@
 {
   "blockedBy": [],
-  "completedDate": null,
+  "completedDate": "2026-11-23",
   "createdDate": "2026-11-23",
   "description": "GitHub #14 (glockman): DI08 \"Top Stage\" könnte die Dampfeinspritzung anzeigen (aktiv im Silent-Modus bei 44 Hz). Laut Tobias nicht umbenennen.\n\nUmfang: Anmerkung in docs/register-map.md als offene Deutung, mit dem Widerspruch zu unserem Befund DI08 ≡ IR20 = 60 (IR20 ist wohl eine Stufe oder je nach Modell anders skaliert). Antwort im Issue mit der Bitte um Rohdaten (IR20 neben DI08).\n\nAbnahme: Anmerkung in der Doku, Entity-Name unverändert, Antwort im Issue #14.",
   "displayId": "T-009",
   "id": "T-009",
   "order": 40,
   "phase": "v2026-12",
-  "status": "inprogress",
+  "status": "complete",
   "title": "#14: DI08-Deutung als Dampfeinspritzung in register-map.md vermerken",
   "type": "chore"
 }
