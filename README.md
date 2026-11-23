@@ -32,7 +32,8 @@ without it (see [As the heat pump role in HEMS](#as-the-heat-pump-role-in-hems))
 ## What you get
 
 **Reading** — 38 responding data points: flow, return, hot water, room,
-outdoor temperature, suction gas, high and low pressure, apparent power, operating mode.
+outdoor temperature, suction gas, high and low pressure, apparent power, operating mode,
+defrost cycle and backup heater request.
 The outdoor temperature comes from the unit's own sensor in the sunlit housing and reads
 up to 13 K too high at standstill — derived calculations need an
 independent sensor alongside it.

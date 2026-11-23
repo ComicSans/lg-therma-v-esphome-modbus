@@ -780,5 +780,23 @@
    "old": "ota_passwort",
    "new": "ota_password"
   }
+ ],
+ "later_renames": [
+  {
+   "release": "v2026.12",
+   "domain": "binary_sensor",
+   "old_name": "DI06 Unassigned",
+   "new_name": "Defrost Active",
+   "old_object_id": "di06_unassigned",
+   "new_object_id": "defrost_active"
+  },
+  {
+   "release": "v2026.12",
+   "domain": "binary_sensor",
+   "old_name": "CO30 Unassigned",
+   "new_name": "Backup Heater Request",
+   "old_object_id": "co30_unassigned",
+   "new_object_id": "backup_heater_request"
+  }
  ]
 }

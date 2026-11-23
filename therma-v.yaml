@@ -972,11 +972,14 @@ text_sensor:
 binary_sensor:
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    name: "DI06 Unassigned"
+    # DI06. Defrost cycle (#12). 64 of 64 phases (13.–23.11.2026) show the
+    # defrost signature: IR20 drops to 0, the outdoor heat exchanger jumps from
+    # about -5 to +30 °C, flow temperature falls by about 13 K; 5..6.5 min each.
+    name: "Defrost Active"
     address: 6
     register_type: discrete_input
     reuse_previous_range: false
-    entity_category: diagnostic
+    icon: "mdi:snowflake-melt"
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
@@ -1076,7 +1079,12 @@ binary_sensor:
 
   - platform: modbus_controller
     modbus_controller_id: therma_v
-    name: "CO30 Unassigned"
+    # CO30. Backup heater request (#12). On a unit with a backup heater it
+    # matches the heater running during defrost, and stays off once the
+    # heater is disabled for defrost. Here (no backup heater installed) it
+    # mirrors DI06 on all 64 defrosts, so it is the controller's request,
+    # not proof that a heater runs.
+    name: "Backup Heater Request"
     address: 30
     register_type: coil
     reuse_previous_range: false

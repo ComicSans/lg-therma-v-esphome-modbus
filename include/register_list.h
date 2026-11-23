@@ -33,7 +33,7 @@ inline bool is_register(const char *name) {
       "HR27 Unassigned",
       "HR28 Unassigned",
       // binary_sensor
-      "DI06 Unassigned",
+      "Defrost Active",
       "Compressor Ready",
       "Compressor Top Stage",
       "DI09 Hot Water Mode",
@@ -43,7 +43,7 @@ inline bool is_register(const char *name) {
       "Heating Circuit 1",
       "Outdoor Unit Running",
       "CO29 Unassigned",
-      "CO30 Unassigned",
+      "Backup Heater Request",
       // number, select, switch
       "Heating Circuit 1 Setpoint",
       "Hot Water Setpoint",

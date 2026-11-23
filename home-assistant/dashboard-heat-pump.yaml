@@ -663,8 +663,8 @@ sections:
       name: Heating Circuit 1 (CO4)
     - entity: binary_sensor.heizungskeller_warmepumpe_modbus_heating_circuit_1_inverted
       name: Heating Circuit 1 Inverted (DI31)
-    - entity: binary_sensor.heizungskeller_warmepumpe_modbus_di06_unassigned
-      name: DI06 — open, only during space heating
+    - entity: binary_sensor.heizungskeller_warmepumpe_modbus_defrost_active
+      name: Defrost Active (DI06)
     - entity: binary_sensor.heizungskeller_warmepumpe_modbus_di09_hot_water_mode
       name: Hot Water Production (DI09)
     - entity: binary_sensor.heizungskeller_warmepumpe_modbus_di32_unassigned
@@ -673,6 +673,6 @@ sections:
       name: CO5 — open (display only)
     - entity: binary_sensor.heizungskeller_warmepumpe_modbus_co29_unassigned
       name: CO29 — single-scan finding
-    - entity: binary_sensor.heizungskeller_warmepumpe_modbus_co30_unassigned
-      name: CO30 — single-scan finding
+    - entity: binary_sensor.heizungskeller_warmepumpe_modbus_backup_heater_request
+      name: Backup Heater Request (CO30)
 cards: []

@@ -63,3 +63,15 @@ new IDs.
     step 4, resume the controllers, and check that no unavailable entities of
     this device remain, the operating mode can be set, and history is
     continuous for a few sampled entities.
+
+## Renames after v2026.11
+
+Later releases rename single entities once their meaning is settled. They are
+listed under `later_renames` in [`entities.json`](entities.json). Rename the
+entity ID in the registry before the flash (step 6), update references (step
+7), then flash.
+
+| Release | Old entity ID suffix | New entity ID suffix | Why |
+|---|---|---|---|
+| v2026.12 | `binary_sensor…_di06_unassigned` | `binary_sensor…_defrost_active` | DI06 marks the defrost cycle ([#12](https://github.com/ComicSans/lg-therma-v-esphome-modbus/issues/12)) |
+| v2026.12 | `binary_sensor…_co30_unassigned` | `binary_sensor…_backup_heater_request` | CO30 is the backup heater request ([#12](https://github.com/ComicSans/lg-therma-v-esphome-modbus/issues/12)) |

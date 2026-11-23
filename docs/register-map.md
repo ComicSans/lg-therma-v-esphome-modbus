@@ -68,6 +68,8 @@ threshold aborted a healthy run after 112 of 256 requests.
 | CO3 | Outdoor unit running | — | around 20 edges match the compressor-running signal (Shelly active power, not circular) |
 | CO4 | Heating circuit 1 active | — | two changes simultaneous with HC1. **Read only**: in the official LG map this address is emergency stop/emergency operation |
 | CO6 | Hot water enable, **switchable** | — | switches hot-water production |
+| CO30 | Backup heater request | — | [see below](#di06-and-co30-defrost-and-backup-heater) |
+| DI06 | Defrost cycle | — | [see below](#di06-and-co30-defrost-and-backup-heater) |
 | DI07 | Three-minute restart lock | — | [see below](#di07-restart-lock) |
 | DI08 | Top compressor stage, ≡ IR20 = 60 | — | [see below](#di08-top-stage) |
 | DI09 | Hot-water production | — | covers two hot-water charges; stayed off during the cooling cycles of 31.07., even though the tank temperature fluctuated strongly |
@@ -252,6 +254,30 @@ IR20 is a stage rather than a frequency, or its scaling differs between models.
 Raw data with IR20 next to DI08 from that unit would settle it. Until then the
 entity keeps its name.
 
+### DI06 and CO30: defrost and backup heater
+
+Reported on another unit with a 9 kW backup heater
+([#12](https://github.com/ComicSans/lg-therma-v-esphome-modbus/issues/12)):
+CO30 matched the backup heater running during defrost, DI06 followed CO30
+about one second later. With the backup heater disabled for defrost, CO30
+stayed off and DI06 still marked every defrost.
+
+Checked here over 10 days (13.–23.11.2026, no backup heater installed):
+
+| | DI06 phases | Duration | IR20 | Outdoor heat exchanger | Flow temperature |
+|---|---|---|---|---|---|
+| all | 64 | 5.0–6.5 min, median 5.0 | 0 in every phase | about −5 → +30 °C | drops by about 13 K |
+
+CO30 has the same 64 phases, start and end 0.6–0.7 s before DI06 (read order
+within the poll cycle). The two points mean different things: DI06 is the
+defrost cycle itself, CO30 is the controller asking for the backup heater,
+whether or not one is installed and enabled. Names: "Defrost Active" and
+"Backup Heater Request". Whether CO30 also rises outside defrost (e.g. heating
+backup at very low outdoor temperatures) is open.
+
+In summer DI06 had no edge in cooling, during hot water or in August, which
+fits: the unit only defrosts in heating operation.
+
 ### DI07: restart lock
 
 Rests at `on` and drops after every end of operation. 133 drop phases in two
@@ -261,7 +287,8 @@ poll cycle of sampling), once 360 s.
 ## Unassigned, but narrowed down
 
 Over 9.34 days (07.–16.08.2026) without any change: IR09, IR10, IR13, IR27,
-HR25, HR27, HR28, DI06, DI32, CO5, CO29, CO30.
+HR25, HR27, HR28, DI06, DI32, CO5, CO29, CO30. DI06 and CO30 were assigned in
+November, [see above](#di06-and-co30-defrost-and-backup-heater).
 
 | Point | Status |
 |---|---|
@@ -270,9 +297,8 @@ HR25, HR27, HR28, DI06, DI32, CO5, CO29, CO30.
 | IR14 | water temperature between flow and return, [see below](#ir14) |
 | IR10 = DI32 | the same state, [see below](#ir10--di32) |
 | IR27, HR25, HR27, HR28 | constant 0, even under full load (3013 W) and over 19 hot-water charges |
-| DI06 | no edge in cooling (3268 min), during hot water (682 min) or in August. Room-heating operation remains |
 | CO5 | meaning open, [warning](#warning-about-coil-5) |
-| CO29, CO30 | constantly `off` across all measurement series. Read only, like CO5 |
+| CO29 | constantly `off` across all measurement series. Read only, like CO5 |
 
 ### IR14
 
