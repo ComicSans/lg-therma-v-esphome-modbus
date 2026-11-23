@@ -98,7 +98,11 @@ Assistant package
 heat output and COP from a flow rate you enter yourself (read it on the
 control panel). It is an estimate, not a measurement, and it is wrong when the
 pump regulates to a fixed delta T. Defrost counts as 0 instead of negative, so
-the heat energy comes out slightly too high.
+the heat energy comes out slightly too high. With a variable pump speed, the
+Home Assistant integration
+[Therma V Carnot](https://github.com/ComicSans/therma-v-carnot) estimates heat
+output, COP and flow rate from the Carnot limit instead (model from
+[#17](https://github.com/ComicSans/lg-therma-v-esphome-modbus/issues/17)).
 
 **The system's error code is not in any register.** On 01.08.2026 the
 control panel showed CH03 — communication error between control panel and main board —
@@ -267,6 +271,9 @@ and reference-state comparison are for.
   Home Assistant. Controls this heat pump via operating mode, setpoints,
   silent mode and hot water enable; the role mapping is
   [above](#as-the-heat-pump-role-in-hems).
+- [**Therma V Carnot**](https://github.com/ComicSans/therma-v-carnot) — Home
+  Assistant integration (HACS) that estimates heat output, COP and flow rate
+  from the Carnot limit, using the entities of this firmware.
 
 ## Contributing
 
