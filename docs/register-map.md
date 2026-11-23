@@ -236,6 +236,22 @@ exclusively −14 s or +16 s: both registers are read 14 s apart within the same
 DI08 carries nothing that is not already in IR20. It stays included as
 independent confirmation, under its old name "Compressor Top Stage".
 
+**Open interpretation: vapour injection**
+([#14](https://github.com/ComicSans/lg-therma-v-esphome-modbus/issues/14)).
+On another unit, DI08 switched on often in silent mode once the compressor
+reached its apparent limit "at 44 Hz". During those phases the compressor shell
+temperature (IR18) and the evaporating temperature dropped noticeably while
+active power stayed almost flat. The reporter suggests DI08 signals active
+vapour injection, which LG uses to hold heating output at low outdoor
+temperatures. Outside silent mode the speed exceeded that limit and DI08 stayed
+off.
+
+This does not contradict the finding above, but it does not confirm it either:
+here DI08 appears only at IR20 = 60, there apparently at a lower value. Either
+IR20 is a stage rather than a frequency, or its scaling differs between models.
+Raw data with IR20 next to DI08 from that unit would settle it. Until then the
+entity keeps its name.
+
 ### DI07: restart lock
 
 Rests at `on` and drops after every end of operation. 133 drop phases in two
