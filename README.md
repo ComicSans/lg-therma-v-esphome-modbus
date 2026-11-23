@@ -97,7 +97,8 @@ Assistant package
 [home-assistant/cop-estimate.yaml](home-assistant/cop-estimate.yaml) estimates
 heat output and COP from a flow rate you enter yourself (read it on the
 control panel). It is an estimate, not a measurement, and it is wrong when the
-pump regulates to a fixed delta T.
+pump regulates to a fixed delta T. Defrost counts as 0 instead of negative, so
+the heat energy comes out slightly too high.
 
 **The system's error code is not in any register.** On 01.08.2026 the
 control panel showed CH03 — communication error between control panel and main board —

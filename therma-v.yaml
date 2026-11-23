@@ -1160,13 +1160,14 @@ binary_sensor:
     lambda: |-
       // Defrost bridge: hold the state during defrost and 120 s after it
       // (pause end up to 45 s plus one IR20 poll cycle of up to 30 s).
-      static uint32_t defrost_seen_ms = 0;
+      // Shares defrost_seen_ms with the charge-hint gate; set here as well so
+      // the bridge does not wait for the next 1 s interval tick.
       uint32_t now = millis();
       // has_state(): after a bus outage the point is invalidated, a stale
       // "on" must not hold the indicator.
       if (id(defrost_active).has_state() && id(defrost_active).state)
-        defrost_seen_ms = now > 0 ? now : 1;
-      if (defrost_seen_ms != 0 && (now - defrost_seen_ms) < 120000UL)
+        id(defrost_seen_ms) = now > 0 ? now : 1;
+      if (id(defrost_seen_ms) != 0 && (now - id(defrost_seen_ms)) < 120000UL)
         return id(compressor_on);
       float spd = id(compressor_speed).state;
       if (!std::isnan(spd)) return spd > 0.0f;
@@ -2104,7 +2105,8 @@ globals:
     restore_value: false
     initial_value: "false"
   # Last time DI06 was seen on (0 = not since boot), and the steady-state
-  # gate for the refrigerant charge hints. Both set in the 1 s interval.
+  # gate for the refrigerant charge hints. Both set in the 1 s interval;
+  # defrost_seen_ms also in "Compressor Running" (defrost bridge).
   - id: defrost_seen_ms
     type: uint32_t
     restore_value: false

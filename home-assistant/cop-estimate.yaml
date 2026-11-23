@@ -15,6 +15,10 @@
 # wrong. Read the flow on the unit's control panel (or the pump display) in
 # steady operation and enter it in "Heat Pump Estimated Flow Rate".
 #
+# During defrost the unit takes heat back from the water; the estimate shows
+# 0 instead of that negative output. Heat energy and a daily COP built from it
+# therefore come out slightly too high.
+#
 # Installation:
 #   1. configuration.yaml:  homeassistant:
 #                             packages: !include_dir_named packages
@@ -23,6 +27,10 @@
 #      own (a fresh install uses lg_therma_v_heatpump_). It appears once per
 #      template, in the line "{% set p = ... %}".
 #   4. Restart Home Assistant, then set the flow rate.
+#
+# Alternatively create the same helpers in the UI (number helper, template
+# sensors, integral sensor) with the same names. Use one way, not both: a UI
+# helper and this package with the same entity ID collide.
 
 input_number:
   heat_pump_estimated_flow_rate:
