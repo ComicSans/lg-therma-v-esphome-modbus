@@ -1,0 +1,13 @@
+{
+  "blockedBy": [],
+  "completedDate": "2026-11-23",
+  "createdDate": "2026-11-23",
+  "description": "Tobias 23.11.: Das Carnot-Modell aus #17 wird wie hahems als Add-on zur Firmware bereitgestellt (HACS-Custom-Integration), im neuen öffentlichen Repo ComicSans/therma-v-carnot (~/GitHub/therma-v-carnot). Wählbar: Wasser- oder Kältemitteltemperaturen. glockman wird nicht namentlich genannt, nur Link auf #17.\n\nPM: Das gehört ins Produkt, als Zusatz und nicht in der Firmware (die bleibt bei reinen Messwerten). Abnahme:\n- Config Flow mit Auswahl der Quell-Entitäten (Vorschläge über die Firmware-Suffixe) und der Temperaturbasis.\n- Options Flow für η_min/η_max/ΔT_min/ΔT_max/P_aux.\n- Sensoren: Carnot COP, Carnot Efficiency, Estimated COP, Estimated Heat Output, Estimated Flow Rate, Estimated Heat Energy.\n- Bei Abtauen oder stehendem Verdichter ist die Leistung 0.\n- Reine Modell-Logik HA-frei mit pytest getestet; hassfest und HACS-Validierung in GitHub Actions.\n- README auf Englisch mit Grenzen und Kalibrierung, LICENSE.\n- Ausnahme REMOTE in local-ci/ausnahmen.tsv.\n\nArchitektur: Vorbild hems (model.py rein, HA-Schicht dünn, Tests ohne HA). Die η-Vorgaben aus #17 sind ungeklärt (welche Temperaturen glockman nutzt); für die Kältemittelbasis braucht es eine eigene Kalibrierung, das steht in der Doku. Release erst nach Tobias' Ja.\n\nModell: Hauptsitzung Opus, kein Subagent für den Bau; Review schwer (neues Projekt über 300 Zeilen).",
+  "displayId": "T-016",
+  "id": "T-016",
+  "order": 110,
+  "phase": "v2026-12",
+  "status": "complete",
+  "title": "#17: therma-v-carnot als HACS-Integration (neues öffentliches Repo)",
+  "type": "feature"
+}
