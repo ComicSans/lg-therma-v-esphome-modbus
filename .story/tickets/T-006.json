@@ -1,13 +1,13 @@
 {
   "blockedBy": [],
-  "completedDate": null,
+  "completedDate": "2026-11-23",
   "createdDate": "2026-11-23",
   "description": "GitHub #12 (glockman): DI06 zeigt das Abtauen, CO30 die laufende Zusatzheizung (nachgewiesen, indem er die Zusatzheizung fürs Abtauen ausgeschaltet hat).\n\nPM: gehört ins Produkt, weil ein Abtau-Signal die Grundlage für #13 ist (Abtau-Neustarts aus der Taktung herausnehmen). Architekt: nur umbenennen und dokumentieren, keine neue Logik.\n\nUmfang:\n- DI06 → \"Defrost Active\", lokal prüfen: DI06-Flanken gegen IR11-Sprung, IR20 → 0 und Vorlaufabfall in der HA-Historie.\n- CO30 → \"Backup Heater Running\", als nicht lokal prüfbar gekennzeichnet (Tobias hat keinen Heizstab), Quelle Nutzerbericht #12.\n- register_list.h, docs/migration/entities.json, register-map.md und Dashboard nachziehen.\n\nAbnahme: scripts/test.sh grün; Migration der Entity-IDs dokumentiert; DI06-Deutung mit mindestens drei lokalen Abtau-Ereignissen belegt; Antwort im Issue #12.",
   "displayId": "T-006",
   "id": "T-006",
   "order": 10,
   "phase": "v2026-12",
-  "status": "open",
+  "status": "complete",
   "title": "#12: DI06 als Defrost Active, CO30 als Backup Heater Running",
   "type": "feature"
 }
