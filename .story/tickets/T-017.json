@@ -1,0 +1,13 @@
+{
+  "blockedBy": [],
+  "completedDate": "2026-11-23",
+  "createdDate": "2026-11-23",
+  "description": "Tobias 23.11.: Release v0.1.0 von ComicSans/therma-v-carnot erstellen. Abnahme: Tag v0.1.0 entspricht der manifest.json-Version 0.1.0, GitHub-Release mit kurzen Notes, Workflow „Release“ (Versionsprüfung) grün.",
+  "displayId": "T-017",
+  "id": "T-017",
+  "order": 120,
+  "phase": "v2026-12",
+  "status": "complete",
+  "title": "therma-v-carnot: Release v0.1.0",
+  "type": "chore"
+}
