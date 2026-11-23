@@ -285,8 +285,8 @@ sections:
     entity: binary_sensor.heizungskeller_warmepumpe_modbus_compressor_ready
     name: Ready to Start
   - type: tile
-    entity: binary_sensor.heizungskeller_warmepumpe_modbus_compressor_top_stage
-    name: Top Stage (DI08 = IR20 60)
+    entity: binary_sensor.heizungskeller_warmepumpe_modbus_vapor_injection
+    name: Vapor Injection (DI08)
   - type: tile
     entity: sensor.heizungskeller_warmepumpe_modbus_compressor_starts_today
     name: Starts Today
