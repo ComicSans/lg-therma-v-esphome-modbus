@@ -92,7 +92,12 @@ backup heater is installed in this system.
 output — neither a COP nor a datasheet comparison against the performance curve.
 As a substitute, energy per kelvin of tank lift serves; with a constant
 tank volume it is comparable over time. Anyone who wants the COP needs their
-own flow sensor in the heating circuit.
+own flow sensor in the heating circuit. With a fixed pump speed, the Home
+Assistant package
+[home-assistant/cop-estimate.yaml](home-assistant/cop-estimate.yaml) estimates
+heat output and COP from a flow rate you enter yourself (read it on the
+control panel). It is an estimate, not a measurement, and it is wrong when the
+pump regulates to a fixed delta T.
 
 **The system's error code is not in any register.** On 01.08.2026 the
 control panel showed CH03 — communication error between control panel and main board —

@@ -1,0 +1,89 @@
+# Estimated heat output and COP for the LG Therma V (#17).
+#
+# The firmware measures no water flow, so it reports no heat output and no
+# COP. This Home Assistant package estimates both from a flow rate you set
+# yourself:
+#
+#   heat output [W] = flow [L/min] x (flow - return) [K] x 69.5
+#   COP             = heat output / measured active power
+#
+# 69.5 W per (L/min x K) = 4186 J/(kg K) x 0.996 kg/L / 60 s, water at about
+# 30 °C.
+#
+# Valid only with a fixed pump speed (constant flow). If the pump is set to
+# keep a fixed delta T, the flow changes all the time and the estimate is
+# wrong. Read the flow on the unit's control panel (or the pump display) in
+# steady operation and enter it in "Heat Pump Estimated Flow Rate".
+#
+# Installation:
+#   1. configuration.yaml:  homeassistant:
+#                             packages: !include_dir_named packages
+#   2. Copy this file to <config>/packages/therma_v_cop.yaml.
+#   3. Replace the device prefix heizungskeller_warmepumpe_modbus_ with your
+#      own (a fresh install uses lg_therma_v_heatpump_). It appears once per
+#      template, in the line "{% set p = ... %}".
+#   4. Restart Home Assistant, then set the flow rate.
+
+input_number:
+  heat_pump_estimated_flow_rate:
+    name: Heat Pump Estimated Flow Rate
+    unit_of_measurement: "L/min"
+    min: 0
+    max: 60
+    step: 0.1
+    mode: box
+    icon: mdi:water-pump
+
+template:
+  - sensor:
+      - name: Heat Pump Estimated Heat Output
+        unique_id: therma_v_estimated_heat_output
+        unit_of_measurement: "W"
+        device_class: power
+        state_class: measurement
+        # 0 at standstill, during defrost and when cooling: the estimate
+        # covers space heating and hot water only.
+        state: >
+          {% set p = 'heizungskeller_warmepumpe_modbus_' %}
+          {% set flow = states('input_number.heat_pump_estimated_flow_rate') | float(0) %}
+          {% set vl = states('sensor.' ~ p ~ 'water_flow_temperature') | float(none) %}
+          {% set rl = states('sensor.' ~ p ~ 'water_return_temperature') | float(none) %}
+          {% set run = is_state('binary_sensor.' ~ p ~ 'compressor_running', 'on') %}
+          {% set defrost = is_state('binary_sensor.' ~ p ~ 'defrost_active', 'on') %}
+          {% if vl is none or rl is none %}
+            {{ none }}
+          {% elif not run or defrost or flow <= 0 or vl <= rl %}
+            0
+          {% else %}
+            {{ (flow * (vl - rl) * 69.5) | round(0) }}
+          {% endif %}
+        availability: >
+          {% set p = 'heizungskeller_warmepumpe_modbus_' %}
+          {{ has_value('sensor.' ~ p ~ 'water_flow_temperature')
+             and has_value('sensor.' ~ p ~ 'water_return_temperature') }}
+
+      - name: Heat Pump Estimated COP
+        unique_id: therma_v_estimated_cop
+        state_class: measurement
+        # Only while the compressor runs and draws more than 300 W; below
+        # that the ratio is dominated by pump and electronics.
+        state: >
+          {% set p = 'heizungskeller_warmepumpe_modbus_' %}
+          {% set heat = states('sensor.heat_pump_estimated_heat_output') | float(0) %}
+          {% set el = states('sensor.' ~ p ~ 'active_power_measured') | float(0) %}
+          {% if heat > 0 and el > 300 %}
+            {{ (heat / el) | round(2) }}
+          {% else %}
+            {{ none }}
+          {% endif %}
+
+sensor:
+  # Heat energy for the energy dashboard or a daily COP via utility_meter.
+  - platform: integration
+    name: Heat Pump Estimated Heat Energy
+    unique_id: therma_v_estimated_heat_energy
+    source: sensor.heat_pump_estimated_heat_output
+    unit_prefix: k
+    unit_time: h
+    method: left
+    round: 3
