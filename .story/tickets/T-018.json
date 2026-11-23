@@ -1,0 +1,13 @@
+{
+  "blockedBy": [],
+  "completedDate": "2026-11-23",
+  "createdDate": "2026-11-23",
+  "description": "Tobias 23.11.: Integration in seinem Home Assistant installieren. Abnahme: über HACS als Custom Repository installiert (v0.1.0), HA neu gestartet, Eintrag per Config Flow mit den Firmware-Entitäten angelegt, alle sechs Sensoren liefern plausible Werte.",
+  "displayId": "T-018",
+  "id": "T-018",
+  "order": 130,
+  "phase": "v2026-12",
+  "status": "complete",
+  "title": "therma-v-carnot in Tobias' Home Assistant installieren",
+  "type": "chore"
+}
