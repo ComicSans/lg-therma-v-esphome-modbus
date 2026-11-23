@@ -1,13 +1,13 @@
 {
   "blockedBy": [],
-  "completedDate": null,
+  "completedDate": "2026-11-23",
   "createdDate": "2026-11-23",
   "description": "GitHub #13 (glockman): Starts beim Abtauen gehen verloren, wenn die gemessene Leistung nicht unter die 350/500-W-Schwelle fällt; Heizstab und Pumpe liegen auf demselben Zähler.\n\nPM: robuster und ohne gerätespezifische Schwellen, also klar fürs Produkt. Architekt: compressor_running auf IR20 > 0 umstellen, die Leistungsschwelle bleibt Rückfall, wenn IR20 NaN ist. Starts direkt nach einem Abtauen (DI06 aus T-#12) zählen mit, werden aber aus Taktungsalarm und mittlerer Laufzeit herausgenommen.\n\nPrüfung: Flanken von IR20 > 0 gegen Shelly-Flanken und CO3 über mehrere Wochen HA-Historie abgleichen, Abweichungen erklären.\n\nAbnahme: scripts/test.sh grün; Abgleich mit Zahlen im Ticket; im Winter kein Taktungsalarm allein durch Abtauen; Antwort im Issue #13. Flashen nur auf Tobias' Anweisung.",
   "displayId": "T-007",
   "id": "T-007",
   "order": 20,
   "phase": "v2026-12",
-  "status": "open",
+  "status": "complete",
   "title": "#13: Kompressorstarts über IR20 statt Leistungsschwelle",
   "type": "feature"
 }
