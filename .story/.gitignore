@@ -5,3 +5,6 @@ federation-cache.json
 channel-inbox/
 servers/
 /telemetry/
+bus/
+bus-migration/
+/.bus-evidence.json*

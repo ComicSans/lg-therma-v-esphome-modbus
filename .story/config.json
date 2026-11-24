@@ -1,5 +1,6 @@
 {
   "features": {
+    "bus": true,
     "handovers": true,
     "issues": true,
     "reviews": true,
@@ -8,29 +9,29 @@
   },
   "language": "yaml",
   "project": "lg-therma-v-esphome-modbus",
-  "schemaVersion": 2,
-  "type": "esphome",
-  "version": 2,
   "recipeOverrides": {
-    "compactThreshold": "medium",
     "codexReviewBackends": [
       "lenses"
     ],
-    "maxTicketsPerSession": 0,
+    "compactThreshold": "medium",
     "handoverInterval": 3,
+    "lensConfig": {
+      "lenses": "auto"
+    },
+    "maxTicketsPerSession": 0,
     "reviewBackends": [
       "lenses",
       "agent"
     ],
+    "reviewEffort": "size-mapped",
     "stages": {
       "CODE_REVIEW": {}
-    },
-    "reviewEffort": "size-mapped",
-    "lensConfig": {
-      "lenses": "auto"
     }
   },
+  "schemaVersion": 2,
   "sessionIntel": {
     "recommendedWindowMax": 300000
-  }
+  },
+  "type": "esphome",
+  "version": 2
 }
